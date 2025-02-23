@@ -3,6 +3,8 @@
 namespace Shelfwood\LMStudio\Support;
 
 use Closure;
+use Shelfwood\LMStudio\Exceptions\ToolException;
+use Shelfwood\LMStudio\Exceptions\ValidationException;
 use Shelfwood\LMStudio\LMStudio;
 
 class ChatBuilder
@@ -31,9 +33,15 @@ class ChatBuilder
 
     /**
      * Set the model to use
+     *
+     * @throws ValidationException
      */
     public function withModel(string $model): self
     {
+        if (empty($model)) {
+            throw ValidationException::invalidModel('Model identifier cannot be empty');
+        }
+
         $this->model = $model;
 
         return $this;
@@ -43,9 +51,24 @@ class ChatBuilder
      * Set the messages for the chat
      *
      * @param  array<array{role: string, content: string}>  $messages
+     *
+     * @throws ValidationException
      */
     public function withMessages(array $messages): self
     {
+        foreach ($messages as $message) {
+            if (! isset($message['role'], $message['content'])) {
+                throw ValidationException::invalidMessage('Each message must have a role and content');
+            }
+
+            if (! in_array($message['role'], ['system', 'user', 'assistant', 'tool'])) {
+                throw ValidationException::invalidMessage(
+                    'Invalid message role: '.$message['role'],
+                    ['role' => $message['role']]
+                );
+            }
+        }
+
         $this->messages = $messages;
 
         return $this;
@@ -53,9 +76,26 @@ class ChatBuilder
 
     /**
      * Add a single message to the chat
+     *
+     * @throws ValidationException
      */
     public function addMessage(string $role, string $content): self
     {
+        if (! isset($role, $role)) {
+            throw ValidationException::invalidMessage('Each message must have a role and content');
+        }
+
+        if (! in_array($role, ['system', 'user', 'assistant', 'tool'])) {
+            throw ValidationException::invalidMessage(
+                'Invalid message role: '.$role,
+                ['role' => $role]
+            );
+        }
+
+        if (empty(trim($content))) {
+            throw ValidationException::invalidMessage('Message content cannot be empty');
+        }
+
         $this->messages[] = [
             'role' => $role,
             'content' => $content,
@@ -66,9 +106,28 @@ class ChatBuilder
 
     /**
      * Set the tools available for the chat
+     *
+     * @throws ValidationException
      */
     public function withTools(array $tools): self
     {
+        foreach ($tools as $tool) {
+            if (! isset($tool['type'], $tool['function'])) {
+                throw ValidationException::invalidTool('Each tool must have a type and function definition');
+            }
+
+            if ($tool['type'] !== 'function') {
+                throw ValidationException::invalidTool(
+                    'Only function type tools are supported',
+                    ['type' => $tool['type']]
+                );
+            }
+
+            if (! isset($tool['function']['name'], $tool['function']['parameters'])) {
+                throw ValidationException::invalidTool('Tool function must have a name and parameters');
+            }
+        }
+
         $this->tools = $tools;
 
         return $this;
@@ -76,32 +135,47 @@ class ChatBuilder
 
     /**
      * Register a tool handler
+     *
+     * @throws ValidationException
      */
     public function withToolHandler(string $name, callable $handler): self
     {
+        if (empty(trim($name))) {
+            throw ValidationException::invalidTool('Tool handler name cannot be empty');
+        }
+
         $this->toolHandlers[$name] = $handler;
 
         return $this;
     }
 
     /**
-     * Enable streaming with an optional handler
+     * Enable streaming
      */
-    public function stream(?callable $handler = null): mixed
+    public function stream(): self
     {
         $this->stream = true;
-        $this->streamHandler = $handler ? Closure::fromCallable($handler) : null;
 
-        return $this->send();
+        return $this;
     }
 
     /**
      * Send the chat request
+     *
+     * @throws ValidationException
      */
     public function send(): mixed
     {
+        if ($this->model === null) {
+            throw ValidationException::invalidModel('Model must be specified');
+        }
+
+        if (empty($this->messages)) {
+            throw ValidationException::invalidMessage('At least one message is required');
+        }
+
         $parameters = [
-            'model' => $this->model ?? $this->client->getConfig()['default_model'],
+            'model' => $this->model,
             'messages' => $this->messages,
             'temperature' => $this->temperature,
             'max_tokens' => $this->maxTokens,
@@ -114,7 +188,7 @@ class ChatBuilder
 
         $response = $this->client->createChatCompletion($parameters);
 
-        if ($this->stream && $this->streamHandler) {
+        if ($this->stream) {
             return $this->handleStream($response);
         }
 
@@ -124,176 +198,74 @@ class ChatBuilder
     /**
      * Handle streaming response
      */
-    protected function handleStream($response): string
+    protected function handleStream($response): \Generator
     {
-        $fullContent = '';
         $currentToolCall = null;
 
-        foreach ($response as $line) {
-            // Skip empty lines
-            if (empty(trim($line))) {
-                continue;
-            }
+        foreach ($response as $data) {
+            if (isset($data->choices[0]->delta->tool_calls)) {
+                $toolCallDelta = $data->choices[0]->delta->tool_calls[0];
 
-            // Remove "data: " prefix if present
-            $line = preg_replace('/^data: /', '', trim($line));
-
-            // Skip [DONE] message
-            if ($line === '[DONE]') {
-                continue;
-            }
-
-            try {
-                $chunk = json_decode($line, true);
-                if (! $chunk || ! isset($chunk['choices'][0]['delta'])) {
-                    continue;
+                if (! isset($currentToolCall)) {
+                    $currentToolCall = [
+                        'id' => $toolCallDelta->id ?? null,
+                        'type' => $toolCallDelta->type ?? 'function',
+                        'function' => [
+                            'name' => $toolCallDelta->function->name ?? '',
+                            'arguments' => '',
+                        ],
+                    ];
                 }
 
-                $delta = $chunk['choices'][0]['delta'];
+                if (isset($toolCallDelta->function->name)) {
+                    $currentToolCall['function']['name'] = $toolCallDelta->function->name;
+                }
 
-                // Handle regular content
-                if (isset($delta['content']) && $delta['content'] !== null) {
-                    $content = $delta['content'];
-                    $fullContent .= $content;
+                if (isset($toolCallDelta->function->arguments)) {
+                    $currentToolCall['function']['arguments'] .= $toolCallDelta->function->arguments;
+                }
 
-                    if ($this->streamHandler) {
-                        ($this->streamHandler)((object) [
-                            'content' => $content,
-                            'isToolCall' => false,
-                        ]);
+                if ($currentToolCall['function']['name'] && $currentToolCall['function']['arguments']) {
+                    try {
+                        $result = $this->processCompletedToolCall($currentToolCall);
+                        yield $result;
+                        $currentToolCall = null;
+                    } catch (\JsonException $e) {
+                        // Continue accumulating arguments if JSON is incomplete
                     }
                 }
-
-                // Handle tool calls
-                if (isset($delta['tool_calls'])) {
-                    foreach ($delta['tool_calls'] as $toolCallDelta) {
-                        // Initialize new tool call if needed
-                        if (isset($toolCallDelta['id']) && (! $currentToolCall || $toolCallDelta['id'] !== $currentToolCall['id'])) {
-                            $currentToolCall = [
-                                'id' => $toolCallDelta['id'],
-                                'type' => 'function',
-                                'function' => [
-                                    'name' => '',
-                                    'arguments' => '',
-                                ],
-                            ];
-                        }
-
-                        // Update function name if present
-                        if (isset($toolCallDelta['function']['name'])) {
-                            $currentToolCall['function']['name'] = $toolCallDelta['function']['name'];
-                        }
-
-                        // Append arguments if present
-                        if (isset($toolCallDelta['function']['arguments'])) {
-                            $currentToolCall['function']['arguments'] .= $toolCallDelta['function']['arguments'];
-                        }
-
-                        // Check if we have a complete tool call
-                        if ($currentToolCall &&
-                            $currentToolCall['function']['name'] &&
-                            $currentToolCall['function']['arguments']) {
-                            // Try to validate if we have complete JSON in arguments
-                            try {
-                                $args = json_decode($currentToolCall['function']['arguments'], true);
-                                if (json_last_error() === JSON_ERROR_NONE) {
-                                    // We have a complete tool call
-                                    if ($this->streamHandler) {
-                                        ($this->streamHandler)((object) [
-                                            'content' => '',
-                                            'isToolCall' => true,
-                                            'toolCall' => $currentToolCall,
-                                        ]);
-                                    }
-
-                                    // Process the tool call
-                                    $this->processCompletedToolCall($currentToolCall);
-                                    $currentToolCall = null;
-                                }
-                            } catch (\JsonException $e) {
-                                // Not complete JSON yet, continue accumulating
-                                continue;
-                            }
-                        }
-                    }
-                }
-            } catch (\JsonException $e) {
-                continue;
+            } elseif (isset($data->choices[0]->delta->content)) {
+                yield $data->choices[0]->delta->content;
             }
         }
-
-        return $fullContent;
     }
 
     /**
-     * Process a completed tool call and continue the conversation
+     * Process a completed tool call
+     *
+     * @throws ToolException
      */
-    protected function processCompletedToolCall(array $toolCall): void
+    protected function processCompletedToolCall(array $toolCall): string
     {
-        if (! isset($this->toolHandlers[$toolCall['function']['name']])) {
-            return;
+        $name = $toolCall['function']['name'];
+
+        if (! isset($this->toolHandlers[$name])) {
+            throw ToolException::handlerNotFound($name);
         }
 
         try {
             $arguments = json_decode($toolCall['function']['arguments'], true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new \JsonException('Invalid tool call arguments');
+            if (! is_array($arguments)) {
+                throw ToolException::invalidToolCall('Tool call arguments must be a valid JSON object');
             }
 
-            // Execute the tool handler
-            $result = ($this->toolHandlers[$toolCall['function']['name']])($arguments);
+            $result = ($this->toolHandlers[$name])($arguments);
 
-            // Add the tool call to messages
-            $this->messages[] = [
-                'role' => 'assistant',
-                'content' => null,
-                'tool_calls' => [$toolCall],
-            ];
-
-            // Add the tool response to messages
-            $this->messages[] = [
-                'role' => 'tool',
-                'content' => json_encode($result),
-                'tool_call_id' => $toolCall['id'],
-            ];
-
-            // Send a follow-up request without tools to get the final response
-            $response = $this->client->createChatCompletion([
-                'model' => $this->model,
-                'messages' => $this->messages,
-                'temperature' => $this->temperature,
-                'max_tokens' => $this->maxTokens,
-                'stream' => true,
-            ]);
-
-            // Process the follow-up response
-            foreach ($response as $line) {
-                if (empty(trim($line))) {
-                    continue;
-                }
-
-                $line = preg_replace('/^data: /', '', trim($line));
-                if ($line === '[DONE]') {
-                    continue;
-                }
-
-                try {
-                    $chunk = json_decode($line, true);
-                    if ($chunk && isset($chunk['choices'][0]['delta']['content'])) {
-                        $content = $chunk['choices'][0]['delta']['content'];
-                        if ($this->streamHandler) {
-                            ($this->streamHandler)((object) [
-                                'content' => $content,
-                                'isToolCall' => false,
-                            ]);
-                        }
-                    }
-                } catch (\JsonException $e) {
-                    continue;
-                }
-            }
-        } catch (\Exception $e) {
-            error_log('Error processing tool call: '.$e->getMessage());
+            return is_string($result) ? $result : json_encode($result);
+        } catch (\JsonException $e) {
+            throw ToolException::invalidToolCall('Invalid JSON in tool call arguments: '.$e->getMessage());
+        } catch (\Throwable $e) {
+            throw ToolException::toolExecutionFailed($name, $e->getMessage());
         }
     }
 }

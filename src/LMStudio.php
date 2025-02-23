@@ -4,24 +4,45 @@ namespace Shelfwood\LMStudio;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Shelfwood\LMStudio\Exceptions\ConnectionException;
+use Shelfwood\LMStudio\Exceptions\ValidationException;
 use Shelfwood\LMStudio\Support\ChatBuilder;
 
 class LMStudio
 {
-    protected Client $client;
+    private Client $client;
 
-    protected array $config;
-
-    public function __construct(array $config)
-    {
-        $this->config = $config;
+    public function __construct(
+        private readonly string $host = 'localhost',
+        private readonly int $port = 1234,
+        private readonly int $timeout = 30
+    ) {
+        $this->validateConfig();
         $this->client = new Client([
-            'base_uri' => sprintf('http://%s:%s/',
-                $config['host'] ?? 'localhost',
-                $config['port'] ?? 1234
-            ),
-            'timeout' => $config['timeout'] ?? 60,
+            'base_uri' => "http://{$this->host}:{$this->port}",
+            'timeout' => $this->timeout,
         ]);
+    }
+
+    private function validateConfig(): void
+    {
+        if (empty($this->host)) {
+            throw ValidationException::invalidConfig('Host cannot be empty');
+        }
+
+        if ($this->port < 1 || $this->port > 65535) {
+            throw ValidationException::invalidConfig(
+                'Port must be between 1 and 65535',
+                ['port' => $this->port]
+            );
+        }
+
+        if ($this->timeout < 1) {
+            throw ValidationException::invalidConfig(
+                'Timeout must be greater than 0',
+                ['timeout' => $this->timeout]
+            );
+        }
     }
 
     /**
@@ -35,133 +56,175 @@ class LMStudio
     /**
      * List all available models
      *
-     * @throws GuzzleException
+     * @throws ConnectionException
      */
     public function listModels(): array
     {
-        $response = $this->client->get('v1/models');
+        try {
+            $response = $this->client->get('/v1/models');
+            $data = json_decode($response->getBody()->getContents(), true);
 
-        return json_decode($response->getBody()->getContents(), true);
+            if (! is_array($data)) {
+                throw ConnectionException::invalidResponse('Response is not a valid JSON array');
+            }
+
+            return $data;
+        } catch (GuzzleException $e) {
+            throw ConnectionException::connectionFailed($e->getMessage());
+        }
     }
 
     /**
      * Get model information
      *
-     * @throws GuzzleException
+     * @throws ConnectionException
      */
     public function getModel(string $model): array
     {
-        $response = $this->client->get("api/v0/models/{$model}");
+        if (empty($model)) {
+            throw ValidationException::invalidModel('Model identifier cannot be empty');
+        }
 
-        return json_decode($response->getBody()->getContents(), true);
+        try {
+            $response = $this->client->get("/v1/models/{$model}");
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            if (! is_array($data)) {
+                throw ConnectionException::invalidResponse('Response is not a valid JSON array');
+            }
+
+            return $data;
+        } catch (GuzzleException $e) {
+            throw ConnectionException::connectionFailed($e->getMessage());
+        }
     }
 
     /**
      * Send a chat completion request
      *
-     * @throws GuzzleException
+     * @throws ConnectionException
      */
     public function createChatCompletion(array $parameters): mixed
     {
-        $options = [
-            'json' => array_merge([
-                'temperature' => $this->config['temperature'] ?? 0.7,
-                'max_tokens' => $this->config['max_tokens'] ?? -1,
-            ], $parameters),
-            'headers' => [
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ],
-            'http_errors' => false, // Don't throw exceptions on 4xx/5xx
-            'connect_timeout' => 5,
-            'timeout' => 0, // No timeout for streaming responses
-        ];
+        if (empty($parameters['model'])) {
+            throw ValidationException::invalidModel('Model must be specified');
+        }
 
-        if ($parameters['stream'] ?? false) {
-            $options['stream'] = true;
-            $options['headers']['Accept'] = 'text/event-stream';
-            $options['headers']['Cache-Control'] = 'no-cache';
-            $options['decode_content'] = true;
+        if (empty($parameters['messages'])) {
+            throw ValidationException::invalidMessage('At least one message is required');
+        }
 
-            $response = $this->client->post('v1/chat/completions', $options);
+        try {
+            $response = $this->client->post('/v1/chat/completions', [
+                'json' => $parameters,
+                'stream' => $parameters['stream'] ?? false,
+            ]);
 
-            if ($response->getStatusCode() !== 200) {
-                throw new \RuntimeException('Error from LMStudio API: '.$response->getBody()->getContents());
+            if ($parameters['stream'] ?? false) {
+                return $this->handleStreamingResponse($response);
             }
 
-            return $this->streamResponse($response);
+            $data = json_decode($response->getBody()->getContents());
+
+            if ($data === null) {
+                throw ConnectionException::invalidResponse('Response is not a valid JSON');
+            }
+
+            return $data;
+        } catch (GuzzleException $e) {
+            throw ConnectionException::connectionFailed($e->getMessage());
         }
-
-        $response = $this->client->post('v1/chat/completions', $options);
-
-        if ($response->getStatusCode() !== 200) {
-            throw new \RuntimeException('Error from LMStudio API: '.$response->getBody()->getContents());
-        }
-
-        return json_decode($response->getBody()->getContents(), true);
     }
 
     /**
-     * Stream the response body
+     * Handle streaming response from the API
      */
-    protected function streamResponse($response): \Generator
+    protected function handleStreamingResponse($response): \Generator
     {
         $buffer = '';
         $stream = $response->getBody();
-        $incomplete = false;
 
         while (! $stream->eof()) {
-            // Read data in chunks
-            $chunk = $stream->read(4096);
+            $chunk = $stream->read(1024);
             if ($chunk === '') {
                 break;
             }
-            $buffer .= $chunk;
 
-            // Process complete lines
+            $buffer .= $chunk;
             while (($newlinePos = strpos($buffer, "\n")) !== false) {
                 $line = substr($buffer, 0, $newlinePos);
                 $buffer = substr($buffer, $newlinePos + 1);
 
-                if (trim($line) === '') {
+                if (empty(trim($line))) {
                     continue;
                 }
 
-                // Check if we're in the middle of a tool call
-                if (strpos($line, '"tool_calls"') !== false) {
-                    $incomplete = true;
+                if (str_starts_with($line, 'data: ')) {
+                    $line = substr($line, 6);
                 }
 
-                // If we have a complete tool call, mark it as complete
-                if ($incomplete && strpos($line, '</tool_call>') !== false) {
-                    $incomplete = false;
+                if ($line === '[DONE]') {
+                    continue;
                 }
 
-                yield $line;
+                try {
+                    $data = json_decode($line);
+                    if (! is_object($data)) {
+                        continue;
+                    }
+
+                    yield $data;
+                } catch (\JsonException $e) {
+                    continue;
+                }
             }
         }
 
-        // Yield any remaining data in the buffer
-        if (trim($buffer) !== '') {
-            yield $buffer;
+        if (! empty(trim($buffer))) {
+            try {
+                $data = json_decode($buffer);
+                if (is_object($data)) {
+                    yield $data;
+                }
+            } catch (\JsonException $e) {
+                // Ignore invalid JSON at the end of the stream
+            }
         }
     }
 
     /**
      * Create embeddings for given text
      *
-     * @throws GuzzleException
+     * @throws ConnectionException
      */
     public function createEmbeddings(string $model, string|array $input): array
     {
-        $response = $this->client->post('v1/embeddings', [
-            'json' => [
-                'model' => $model,
-                'input' => $input,
-            ],
-        ]);
+        if (empty($model)) {
+            throw ValidationException::invalidModel('Model identifier cannot be empty');
+        }
 
-        return json_decode($response->getBody()->getContents(), true);
+        if (empty($input)) {
+            throw ValidationException::invalidMessage('Input cannot be empty');
+        }
+
+        try {
+            $response = $this->client->post('/v1/embeddings', [
+                'json' => [
+                    'model' => $model,
+                    'input' => $input,
+                ],
+            ]);
+
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            if (! is_array($data)) {
+                throw ConnectionException::invalidResponse('Response is not a valid JSON array');
+            }
+
+            return $data;
+        } catch (GuzzleException $e) {
+            throw ConnectionException::connectionFailed($e->getMessage());
+        }
     }
 
     /**
@@ -177,6 +240,10 @@ class LMStudio
      */
     public function getConfig(): array
     {
-        return $this->config;
+        return [
+            'host' => $this->host,
+            'port' => $this->port,
+            'timeout' => $this->timeout,
+        ];
     }
 }
