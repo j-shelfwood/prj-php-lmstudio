@@ -2,17 +2,24 @@
 
 namespace Shelfwood\LMStudio\Commands;
 
+use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
-use Shelfwood\LMStudio\Facades\LMStudio;
 
 class Chat extends Command
 {
     protected static $defaultName = 'chat';
+
     protected static $defaultDescription = 'Start an interactive chat session with LMStudio';
+
+    public function __construct(private LMStudio $lmstudio)
+    {
+        parent::__construct();
+    }
 
     protected function configure(): void
     {
@@ -22,7 +29,7 @@ class Chat extends Command
                 'm',
                 InputOption::VALUE_OPTIONAL,
                 'The model to use for chat',
-                config('lmstudio.default_model')
+                $this->lmstudio->getConfig()['default_model'] ?? null
             )
             ->addOption(
                 'system',
@@ -38,12 +45,19 @@ class Chat extends Command
         $model = $input->getOption('model');
         $systemMessage = $input->getOption('system');
 
+        if (! $model) {
+            $output->writeln('<error>No model specified. Please provide a model with --model option.</error>');
+
+            return Command::FAILURE;
+        }
+
         $output->writeln("<info>Starting chat with model: {$model}</info>");
         $output->writeln("<info>Type 'exit' to end the conversation</info>\n");
 
+        /** @var QuestionHelper $helper */
         $helper = $this->getHelper('question');
         $messages = [
-            ['role' => 'system', 'content' => $systemMessage]
+            ['role' => 'system', 'content' => $systemMessage],
         ];
 
         while (true) {
@@ -57,10 +71,12 @@ class Chat extends Command
             $messages[] = ['role' => 'user', 'content' => $userInput];
 
             try {
-                $response = LMStudio::chat()
+                $output->write('<info>Assistant:</info> ');
+
+                $response = $this->lmstudio->chat()
                     ->withModel($model)
                     ->withMessages($messages)
-                    ->stream(function($chunk) use ($output) {
+                    ->stream(function ($chunk) use ($output) {
                         $output->write($chunk->content);
                     });
 
@@ -68,6 +84,7 @@ class Chat extends Command
                 $output->writeln("\n");
             } catch (\Exception $e) {
                 $output->writeln("<error>Error: {$e->getMessage()}</error>");
+
                 return Command::FAILURE;
             }
         }

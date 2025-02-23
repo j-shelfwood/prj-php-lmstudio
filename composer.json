@@ -1,28 +1,59 @@
 {
-    "name": "shelfwood/lmstudio-php",
-    "description": "A PHP package for integrating with LMStudio's local API",
-    "type": "library",
-    "require": {
-        "php": "^8.2",
-        "guzzlehttp/guzzle": "^7.0"
-    },
-    "require-dev": {
-        "pestphp/pest": "^2.0",
-        "pestphp/pest-plugin-laravel": "^2.0",
-        "orchestra/testbench": "^8.0",
-        "mockery/mockery": "^1.6",
-        "laravel-zero/framework": "^10.0"
-    },
-    "license": "MIT",
-    "authors": [
-        {
-            "name": "Your Name",
-            "email": "your.email@example.com"
-        }
-    ],
-    "config": {
-        "allow-plugins": {
-            "pestphp/pest-plugin": true
-        }
+  "name": "shelfwood/lmstudio-php",
+  "description": "A PHP package for integrating with LMStudio's local API",
+  "type": "library",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Shelfwood\\LMStudio\\": "src/"
     }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Shelfwood\\LMStudio\\Tests\\": "tests/"
+    }
+  },
+  "authors": [
+    {
+      "name": "Your Name",
+      "email": "your.email@example.com"
+    }
+  ],
+  "minimum-stability": "stable",
+  "require": {
+    "php": "^8.2",
+    "guzzlehttp/guzzle": "^7.0",
+    "illuminate/support": "^10.0",
+    "symfony/console": "^6.4"
+  },
+  "require-dev": {
+    "pestphp/pest": "^2.0",
+    "pestphp/pest-plugin-laravel": "^2.0",
+    "orchestra/testbench": "^8.0",
+    "laravel/pint": "^1.0"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Shelfwood\\LMStudio\\Providers\\LMStudioServiceProvider"
+      ],
+      "aliases": {
+        "LMStudio": "Shelfwood\\LMStudio\\Facades\\LMStudio"
+      }
+    }
+  },
+  "bin": [
+    "bin/lmstudio"
+  ],
+  "scripts": {
+    "test": "vendor/bin/pest",
+    "test-coverage": "vendor/bin/pest --coverage",
+    "format": "vendor/bin/pint"
+  }
 }
