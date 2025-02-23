@@ -13,6 +13,7 @@ use Shelfwood\LMStudio\DTOs\Chat\Role;
 use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
+use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\LMStudio;
 use Tests\TestCase;
 
@@ -38,9 +39,9 @@ class WeatherToolTest extends TestCase
 
         // Replace the client with our mocked version
         $reflection = new \ReflectionClass($this->lmstudio);
-        $property = $reflection->getProperty('client');
+        $property = $reflection->getProperty('apiClient');
         $property->setAccessible(true);
-        $property->setValue($this->lmstudio, $client);
+        $property->setValue($this->lmstudio, new ApiClient(['handler' => $handlerStack]));
     }
 
     public function test_it_can_get_weather_for_a_location(): void

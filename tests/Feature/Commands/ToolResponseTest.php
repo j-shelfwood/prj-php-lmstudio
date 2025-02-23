@@ -10,6 +10,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use Shelfwood\LMStudio\Commands\ToolResponse;
 use Shelfwood\LMStudio\DTOs\Common\Config;
+use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -35,11 +36,11 @@ class ToolResponseTest extends TestCase
             timeout: 30
         ));
 
-        // Replace the client with our mocked version
+        // Replace the apiClient with our mocked version
         $reflection = new \ReflectionClass($lmstudio);
-        $property = $reflection->getProperty('client');
+        $property = $reflection->getProperty('apiClient');
         $property->setAccessible(true);
-        $property->setValue($lmstudio, $client);
+        $property->setValue($lmstudio, new ApiClient(['handler' => $handlerStack]));
 
         // Create application and register command
         $application = new Application;

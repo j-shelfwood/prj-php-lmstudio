@@ -15,6 +15,7 @@ use Shelfwood\LMStudio\DTOs\Model\ModelInfo;
 use Shelfwood\LMStudio\DTOs\Model\ModelList;
 use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
+use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\LMStudio;
 use Tests\TestCase;
 
@@ -38,11 +39,12 @@ class LMStudioTest extends TestCase
             timeout: 30
         ));
 
-        // Replace the client with our mocked version
+        // Replace the apiClient with our mocked version
         $reflection = new \ReflectionClass($this->lmstudio);
-        $property = $reflection->getProperty('client');
-        $property->setAccessible(true);
-        $property->setValue($this->lmstudio, $client);
+
+        $apiClientProperty = $reflection->getProperty('apiClient');
+        $apiClientProperty->setAccessible(true);
+        $apiClientProperty->setValue($this->lmstudio, new ApiClient(['handler' => $handlerStack]));
     }
 
     public function test_it_can_be_instantiated_with_default_config(): void
@@ -126,9 +128,9 @@ class LMStudioTest extends TestCase
     public function test_it_can_stream_chat_completion(): void
     {
         $events = [
-            json_encode(['choices' => [['delta' => ['content' => 'Hello']]]]).\PHP_EOL,
-            json_encode(['choices' => [['delta' => ['content' => ' world!']]]]).\PHP_EOL,
-            '[DONE]'.\PHP_EOL,
+            'data: '.json_encode(['choices' => [['delta' => ['content' => 'Hello']]]]).\PHP_EOL,
+            'data: '.json_encode(['choices' => [['delta' => ['content' => ' world!']]]]).\PHP_EOL,
+            'data: [DONE]'.\PHP_EOL,
         ];
 
         $this->mockHandler->append(new Response(200, [], implode('', $events)));
@@ -164,7 +166,7 @@ class LMStudioTest extends TestCase
         );
 
         $events = [
-            json_encode([
+            'data: '.json_encode([
                 'choices' => [[
                     'delta' => [
                         'tool_calls' => [[
@@ -175,7 +177,7 @@ class LMStudioTest extends TestCase
                     ],
                 ]],
             ]).\PHP_EOL,
-            json_encode([
+            'data: '.json_encode([
                 'choices' => [[
                     'delta' => [
                         'tool_calls' => [[
@@ -184,7 +186,7 @@ class LMStudioTest extends TestCase
                     ],
                 ]],
             ]).\PHP_EOL,
-            '[DONE]'.\PHP_EOL,
+            'data: [DONE]'.\PHP_EOL,
         ];
 
         $this->mockHandler->append(new Response(200, [], implode('', $events)));

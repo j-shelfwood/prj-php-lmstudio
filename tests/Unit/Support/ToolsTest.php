@@ -10,6 +10,7 @@ use GuzzleHttp\HandlerStack;
 use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
+use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\LMStudio;
 use Shelfwood\LMStudio\Support\ChatBuilder;
 use Tests\TestCase;
@@ -34,9 +35,9 @@ class ToolsTest extends TestCase
 
         // Replace the client with our mocked version
         $reflection = new \ReflectionClass($lmstudio);
-        $property = $reflection->getProperty('client');
+        $property = $reflection->getProperty('apiClient');
         $property->setAccessible(true);
-        $property->setValue($lmstudio, $client);
+        $property->setValue($lmstudio, new ApiClient(['handler' => $handlerStack]));
 
         $this->chatBuilder = $lmstudio->chat();
     }

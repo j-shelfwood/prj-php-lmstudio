@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
+namespace Tests\Feature\Commands;
+
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
+use ReflectionClass;
 use Shelfwood\LMStudio\Commands\Tools;
 use Shelfwood\LMStudio\DTOs\Common\Config;
+use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -25,9 +29,9 @@ beforeEach(function (): void {
 
     // Replace the client with our mocked version
     $reflection = new ReflectionClass($this->lmstudio);
-    $property = $reflection->getProperty('client');
+    $property = $reflection->getProperty('apiClient');
     $property->setAccessible(true);
-    $property->setValue($this->lmstudio, $client);
+    $property->setValue($this->lmstudio, new ApiClient(['handler' => $handlerStack]));
 
     // Create application and register command
     $application = new Application;
