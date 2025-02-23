@@ -1,0 +1,28 @@
+{
+    "name": "shelfwood/lmstudio-php",
+    "description": "A PHP package for integrating with LMStudio's local API",
+    "type": "library",
+    "require": {
+        "php": "^8.2",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "pestphp/pest": "^2.0",
+        "pestphp/pest-plugin-laravel": "^2.0",
+        "orchestra/testbench": "^8.0",
+        "mockery/mockery": "^1.6",
+        "laravel-zero/framework": "^10.0"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Your Name",
+            "email": "your.email@example.com"
+        }
+    ],
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}
