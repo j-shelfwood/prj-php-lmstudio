@@ -69,6 +69,9 @@ class Tools extends Command
 
         /** @var QuestionHelper $helper */
         $helper = $this->getHelper('question');
+        $messages = [
+            ['role' => 'system', 'content' => 'You are a helpful weather assistant. Use the get_current_weather function to check weather conditions and provide helpful responses.'],
+        ];
 
         while (true) {
             $question = new Question('<question>Ask about the weather:</question> ');
@@ -79,29 +82,39 @@ class Tools extends Command
             }
 
             try {
+                $messages[] = ['role' => 'user', 'content' => $userInput];
                 $output->write('<info>Assistant:</info> ');
 
                 $response = $this->lmstudio->chat()
                     ->withModel($model)
-                    ->withMessages([
-                        ['role' => 'user', 'content' => $userInput],
-                    ])
+                    ->withMessages($messages)
                     ->withTools($tools)
-                    ->withToolHandler('get_current_weather', function ($args) {
+                    ->withToolHandler('get_current_weather', function ($args) use ($output) {
+                        $output->writeln("\n<comment>Fetching weather for: {$args['location']}</comment>");
+
                         // Mock weather response
-                        return [
+                        $weather = [
                             'temperature' => rand(15, 25),
                             'condition' => ['sunny', 'cloudy', 'rainy'][rand(0, 2)],
                             'location' => $args['location'],
                         ];
+
+                        $output->writeln('<comment>Weather data: '.json_encode($weather)."</comment>\n");
+
+                        return $weather;
                     })
                     ->stream(function ($chunk) use ($output) {
                         if ($chunk->isToolCall) {
-                            $output->writeln('<comment>Tool Call:</comment> '.json_encode($chunk->toolCall));
+                            $output->writeln("\n<comment>Making tool call: ".json_encode($chunk->toolCall).'</comment>');
                         } else {
                             $output->write($chunk->content);
                         }
                     });
+
+                // Add the response to messages for context
+                if (! empty($response)) {
+                    $messages[] = ['role' => 'assistant', 'content' => $response];
+                }
 
                 $output->writeln("\n");
             } catch (\Exception $e) {

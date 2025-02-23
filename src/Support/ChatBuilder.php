@@ -127,51 +127,173 @@ class ChatBuilder
     protected function handleStream($response): string
     {
         $fullContent = '';
+        $currentToolCall = null;
 
-        foreach ($response as $chunk) {
-            if (isset($chunk['choices'][0]['delta']['content'])) {
-                $content = $chunk['choices'][0]['delta']['content'];
-                $fullContent .= $content;
-
-                if ($this->streamHandler) {
-                    ($this->streamHandler)((object) [
-                        'content' => $content,
-                        'isToolCall' => false,
-                    ]);
-                }
+        foreach ($response as $line) {
+            // Skip empty lines
+            if (empty(trim($line))) {
+                continue;
             }
 
-            if (isset($chunk['choices'][0]['delta']['tool_calls'])) {
-                $toolCall = $chunk['choices'][0]['delta']['tool_calls'][0];
+            // Remove "data: " prefix if present
+            $line = preg_replace('/^data: /', '', trim($line));
 
-                if ($this->streamHandler) {
-                    ($this->streamHandler)((object) [
-                        'content' => '',
-                        'isToolCall' => true,
-                        'toolCall' => $toolCall,
-                    ]);
+            // Skip [DONE] message
+            if ($line === '[DONE]') {
+                continue;
+            }
+
+            try {
+                $chunk = json_decode($line, true);
+                if (! $chunk || ! isset($chunk['choices'][0]['delta'])) {
+                    continue;
                 }
 
-                if (isset($this->toolHandlers[$toolCall['function']['name']])) {
-                    $result = ($this->toolHandlers[$toolCall['function']['name']])(
-                        json_decode($toolCall['function']['arguments'], true)
-                    );
+                $delta = $chunk['choices'][0]['delta'];
 
-                    $this->messages[] = [
-                        'role' => 'assistant',
-                        'content' => null,
-                        'tool_calls' => [$toolCall],
-                    ];
+                // Handle regular content
+                if (isset($delta['content']) && $delta['content'] !== null) {
+                    $content = $delta['content'];
+                    $fullContent .= $content;
 
-                    $this->messages[] = [
-                        'role' => 'tool',
-                        'content' => json_encode($result),
-                        'tool_call_id' => $toolCall['id'],
-                    ];
+                    if ($this->streamHandler) {
+                        ($this->streamHandler)((object) [
+                            'content' => $content,
+                            'isToolCall' => false,
+                        ]);
+                    }
                 }
+
+                // Handle tool calls
+                if (isset($delta['tool_calls'])) {
+                    foreach ($delta['tool_calls'] as $toolCallDelta) {
+                        // Initialize new tool call if needed
+                        if (isset($toolCallDelta['id']) && (! $currentToolCall || $toolCallDelta['id'] !== $currentToolCall['id'])) {
+                            $currentToolCall = [
+                                'id' => $toolCallDelta['id'],
+                                'type' => 'function',
+                                'function' => [
+                                    'name' => '',
+                                    'arguments' => '',
+                                ],
+                            ];
+                        }
+
+                        // Update function name if present
+                        if (isset($toolCallDelta['function']['name'])) {
+                            $currentToolCall['function']['name'] = $toolCallDelta['function']['name'];
+                        }
+
+                        // Append arguments if present
+                        if (isset($toolCallDelta['function']['arguments'])) {
+                            $currentToolCall['function']['arguments'] .= $toolCallDelta['function']['arguments'];
+                        }
+
+                        // Check if we have a complete tool call
+                        if ($currentToolCall &&
+                            $currentToolCall['function']['name'] &&
+                            $currentToolCall['function']['arguments']) {
+                            // Try to validate if we have complete JSON in arguments
+                            try {
+                                $args = json_decode($currentToolCall['function']['arguments'], true);
+                                if (json_last_error() === JSON_ERROR_NONE) {
+                                    // We have a complete tool call
+                                    if ($this->streamHandler) {
+                                        ($this->streamHandler)((object) [
+                                            'content' => '',
+                                            'isToolCall' => true,
+                                            'toolCall' => $currentToolCall,
+                                        ]);
+                                    }
+
+                                    // Process the tool call
+                                    $this->processCompletedToolCall($currentToolCall);
+                                    $currentToolCall = null;
+                                }
+                            } catch (\JsonException $e) {
+                                // Not complete JSON yet, continue accumulating
+                                continue;
+                            }
+                        }
+                    }
+                }
+            } catch (\JsonException $e) {
+                continue;
             }
         }
 
         return $fullContent;
+    }
+
+    /**
+     * Process a completed tool call and continue the conversation
+     */
+    protected function processCompletedToolCall(array $toolCall): void
+    {
+        if (! isset($this->toolHandlers[$toolCall['function']['name']])) {
+            return;
+        }
+
+        try {
+            $arguments = json_decode($toolCall['function']['arguments'], true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \JsonException('Invalid tool call arguments');
+            }
+
+            // Execute the tool handler
+            $result = ($this->toolHandlers[$toolCall['function']['name']])($arguments);
+
+            // Add the tool call to messages
+            $this->messages[] = [
+                'role' => 'assistant',
+                'content' => null,
+                'tool_calls' => [$toolCall],
+            ];
+
+            // Add the tool response to messages
+            $this->messages[] = [
+                'role' => 'tool',
+                'content' => json_encode($result),
+                'tool_call_id' => $toolCall['id'],
+            ];
+
+            // Send a follow-up request without tools to get the final response
+            $response = $this->client->createChatCompletion([
+                'model' => $this->model,
+                'messages' => $this->messages,
+                'temperature' => $this->temperature,
+                'max_tokens' => $this->maxTokens,
+                'stream' => true,
+            ]);
+
+            // Process the follow-up response
+            foreach ($response as $line) {
+                if (empty(trim($line))) {
+                    continue;
+                }
+
+                $line = preg_replace('/^data: /', '', trim($line));
+                if ($line === '[DONE]') {
+                    continue;
+                }
+
+                try {
+                    $chunk = json_decode($line, true);
+                    if ($chunk && isset($chunk['choices'][0]['delta']['content'])) {
+                        $content = $chunk['choices'][0]['delta']['content'];
+                        if ($this->streamHandler) {
+                            ($this->streamHandler)((object) [
+                                'content' => $content,
+                                'isToolCall' => false,
+                            ]);
+                        }
+                    }
+                } catch (\JsonException $e) {
+                    continue;
+                }
+            }
+        } catch (\Exception $e) {
+            error_log('Error processing tool call: '.$e->getMessage());
+        }
     }
 }

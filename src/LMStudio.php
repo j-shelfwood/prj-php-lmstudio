@@ -61,16 +61,90 @@ class LMStudio
      *
      * @throws GuzzleException
      */
-    public function createChatCompletion(array $parameters): array
+    public function createChatCompletion(array $parameters): mixed
     {
-        $response = $this->client->post('v1/chat/completions', [
+        $options = [
             'json' => array_merge([
                 'temperature' => $this->config['temperature'] ?? 0.7,
                 'max_tokens' => $this->config['max_tokens'] ?? -1,
             ], $parameters),
-        ]);
+            'headers' => [
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ],
+            'http_errors' => false, // Don't throw exceptions on 4xx/5xx
+            'connect_timeout' => 5,
+            'timeout' => 0, // No timeout for streaming responses
+        ];
+
+        if ($parameters['stream'] ?? false) {
+            $options['stream'] = true;
+            $options['headers']['Accept'] = 'text/event-stream';
+            $options['headers']['Cache-Control'] = 'no-cache';
+            $options['decode_content'] = true;
+
+            $response = $this->client->post('v1/chat/completions', $options);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new \RuntimeException('Error from LMStudio API: '.$response->getBody()->getContents());
+            }
+
+            return $this->streamResponse($response);
+        }
+
+        $response = $this->client->post('v1/chat/completions', $options);
+
+        if ($response->getStatusCode() !== 200) {
+            throw new \RuntimeException('Error from LMStudio API: '.$response->getBody()->getContents());
+        }
 
         return json_decode($response->getBody()->getContents(), true);
+    }
+
+    /**
+     * Stream the response body
+     */
+    protected function streamResponse($response): \Generator
+    {
+        $buffer = '';
+        $stream = $response->getBody();
+        $incomplete = false;
+
+        while (! $stream->eof()) {
+            // Read data in chunks
+            $chunk = $stream->read(4096);
+            if ($chunk === '') {
+                break;
+            }
+            $buffer .= $chunk;
+
+            // Process complete lines
+            while (($newlinePos = strpos($buffer, "\n")) !== false) {
+                $line = substr($buffer, 0, $newlinePos);
+                $buffer = substr($buffer, $newlinePos + 1);
+
+                if (trim($line) === '') {
+                    continue;
+                }
+
+                // Check if we're in the middle of a tool call
+                if (strpos($line, '"tool_calls"') !== false) {
+                    $incomplete = true;
+                }
+
+                // If we have a complete tool call, mark it as complete
+                if ($incomplete && strpos($line, '</tool_call>') !== false) {
+                    $incomplete = false;
+                }
+
+                yield $line;
+            }
+        }
+
+        // Yield any remaining data in the buffer
+        if (trim($buffer) !== '') {
+            yield $buffer;
+        }
     }
 
     /**
