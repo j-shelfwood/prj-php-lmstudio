@@ -48,6 +48,11 @@ class ApiClient
             // Use object format only for chat completion endpoints
             $assoc = ! str_contains($uri, '/chat/completions');
 
+            // Always use array format for REST API endpoints
+            if (str_starts_with($uri, '/api/v0')) {
+                $assoc = true;
+            }
+
             return $this->decode(json: $response->getBody()->getContents(), assoc: $assoc);
         } catch (GuzzleException $e) {
             throw ConnectionException::connectionFailed(
