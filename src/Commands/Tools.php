@@ -1,7 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shelfwood\LMStudio\Commands;
 
+use Shelfwood\LMStudio\DTOs\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Chat\Role;
+use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
+use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -30,7 +36,7 @@ class Tools extends Command
                 'm',
                 InputOption::VALUE_OPTIONAL,
                 'The model to use',
-                $this->lmstudio->getConfig()['default_model'] ?? null
+                $this->lmstudio->getConfig()->defaultModel
             );
     }
 
@@ -45,25 +51,19 @@ class Tools extends Command
         }
 
         // Define example tools
-        $tools = [
-            [
-                'type' => 'function',
-                'function' => [
-                    'name' => 'get_current_weather',
-                    'description' => 'Get the current weather in a location',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'location' => [
-                                'type' => 'string',
-                                'description' => 'The location to get weather for',
-                            ],
-                        ],
-                        'required' => ['location'],
-                    ],
+        $weatherTool = new ToolFunction(
+            name: 'get_current_weather',
+            description: 'Get the current weather in a location',
+            parameters: [
+                'location' => [
+                    'type' => 'string',
+                    'description' => 'The location to get weather for',
                 ],
             ],
-        ];
+            required: ['location'],
+        );
+
+        $tools = [new ToolCall(uniqid('call_'), 'function', $weatherTool)];
 
         $output->writeln("<info>Testing tool calls with model: {$model}</info>");
         $output->writeln("<info>Type 'exit' to end the session</info>\n");
@@ -71,7 +71,10 @@ class Tools extends Command
         /** @var QuestionHelper $helper */
         $helper = $this->getHelper('question');
         $messages = [
-            ['role' => 'system', 'content' => 'You are a helpful assistant. Use the get_current_weather function to check weather conditions. Always use valid JSON for tool call arguments.'],
+            new Message(
+                role: Role::SYSTEM,
+                content: 'You are a helpful assistant. Use the get_current_weather function to check weather conditions. Always use valid JSON for tool call arguments.'
+            ),
         ];
 
         while (true) {
@@ -83,14 +86,14 @@ class Tools extends Command
             }
 
             try {
-                $messages[] = ['role' => 'user', 'content' => $userInput];
+                $messages[] = new Message(Role::USER, $userInput);
                 $output->write('<info>Assistant:</info> ');
 
                 $response = $this->lmstudio->chat()
                     ->withModel($model)
                     ->withMessages($messages)
-                    ->withTools($tools)
-                    ->withToolHandler('get_current_weather', function ($args) use ($output, $model) {
+                    ->withTools([$weatherTool])
+                    ->withToolHandler('get_current_weather', function (array $args) use ($output, $model) {
                         if (! isset($args['location'])) {
                             throw new \InvalidArgumentException('Location is required for weather lookup');
                         }
@@ -116,84 +119,25 @@ class Tools extends Command
                     ->stream()
                     ->send();
 
-                $content = '';
-                $toolCallContent = '';
-                $inToolCall = false;
-
                 foreach ($response as $chunk) {
-                    if (is_string($chunk)) {
-                        // Check if this is a tool call start
-                        if (str_contains($chunk, '"tool_calls"')) {
-                            $inToolCall = true;
-                            $toolCallContent = '';
-
-                            continue;
+                    if ($chunk instanceof Message) {
+                        if ($chunk->role === Role::TOOL) {
+                            $output->writeln("\n<comment>Tool response: {$chunk->content}</comment>\n");
+                        } else {
+                            $output->write($chunk->content);
                         }
+                    } elseif ($chunk instanceof ToolCall) {
+                        if ($chunk->function->name !== 'get_current_weather') {
+                            $output->writeln("<error>No handler registered for tool: {$chunk->function->name}</error>");
 
-                        // If we're in a tool call, accumulate the JSON
-                        if ($inToolCall) {
-                            $toolCallContent .= $chunk;
-
-                            try {
-                                if ($json = json_decode($toolCallContent, true, 512, JSON_THROW_ON_ERROR)) {
-                                    $output->writeln("\n<info>Tool Call:</info>");
-                                    $output->writeln("<comment>$toolCallContent</comment>\n");
-                                    $inToolCall = false;
-
-                                    // After successfully decoding the accumulated JSON...
-                                    if ($json = json_decode($toolCallContent, true, 512, JSON_THROW_ON_ERROR)) {
-                                        $output->writeln("\n<info>Tool Call:</info>");
-                                        $output->writeln("<comment>$toolCallContent</comment>\n");
-                                        $inToolCall = false;
-
-                                        // Extract the tool call from the nested structure
-                                        $toolCall = $json['choices'][0]['delta']['tool_calls'][0] ?? null;
-                                        if (! $toolCall || ! isset($toolCall['function']['arguments'])) {
-                                            $output->writeln('<error>Invalid tool call: Missing arguments</error>');
-
-                                            return Command::FAILURE;
-                                        }
-
-                                        $arguments = $toolCall['function']['arguments'];
-
-                                        // Try to decode the arguments and verify that they decode to an associative array
-                                        try {
-                                            $decodedArgs = json_decode($arguments, true, 512, JSON_THROW_ON_ERROR);
-                                            if (! is_array($decodedArgs)) {
-                                                $output->writeln('<error>Invalid tool call: Tool call arguments must be a valid JSON object</error>');
-
-                                                return Command::FAILURE;
-                                            }
-                                        } catch (\JsonException $e) {
-                                            $output->writeln('<error>Invalid tool call: Tool call arguments must be a valid JSON object</error>');
-
-                                            return Command::FAILURE;
-                                        }
-
-                                        continue;
-                                    }
-                                }
-                            } catch (\JsonException $e) {
-                                if (str_contains($toolCallContent, '"arguments"')) {
-                                    $output->writeln('<error>Invalid tool call: Invalid JSON in arguments</error>');
-
-                                    return Command::FAILURE;
-                                }
-
-                                continue;
-                            }
-
-                            continue;
+                            return Command::FAILURE;
                         }
-
-                        // Regular content
-                        $output->write($chunk);
                     }
                 }
 
                 $output->writeln("\n");
             } catch (\Exception $e) {
-                $output->writeln('<error>Error: '.$e->getMessage().'</error>');
+                $output->writeln("<error>Error: {$e->getMessage()}</error>");
 
                 return Command::FAILURE;
             }

@@ -1,0 +1,35 @@
+name: PHP Code Style
+on:
+  pull_request:
+    paths:
+      - "**.php"
+      - "pint.json"
+
+jobs:
+  php-cs-fixer:
+    name: PHP Code Style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer:v2
+          coverage: none
+
+      - name: Install Dependencies
+        run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Check Code Style
+        run: vendor/bin/pint --test
+
+      - name: Auto-fix Code Style
+        if: failure()
+        run: |
+          vendor/bin/pint
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -am "style: fix code style issues"
+          git push

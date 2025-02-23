@@ -1,80 +1,103 @@
 <?php
 
+declare(strict_types=1);
+
+namespace Tests\Feature\Commands;
+
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use Shelfwood\LMStudio\Commands\ToolResponse;
+use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
+use Tests\TestCase;
 
-beforeEach(function () {
-    $this->mockHandler = new MockHandler;
-    $handlerStack = HandlerStack::create($this->mockHandler);
-    $client = new Client(['handler' => $handlerStack]);
+class ToolResponseTest extends TestCase
+{
+    protected MockHandler $mockHandler;
 
-    $this->lmstudio = new LMStudio(
-        host: 'localhost',
-        port: 1234,
-        timeout: 30
-    );
+    protected CommandTester $commandTester;
 
-    // Replace the client with our mocked version
-    $reflection = new ReflectionClass($this->lmstudio);
-    $property = $reflection->getProperty('client');
-    $property->setAccessible(true);
-    $property->setValue($this->lmstudio, $client);
+    protected function setUp(): void
+    {
+        parent::setUp();
 
-    // Create application and register command
-    $application = new Application;
-    $application->add(new ToolResponse($this->lmstudio));
+        $this->mockHandler = new MockHandler;
+        $handlerStack = HandlerStack::create($this->mockHandler);
+        $client = new Client(['handler' => $handlerStack]);
 
-    // Get the command tester
-    $command = $application->find('tool:response');
-    $this->commandTester = new CommandTester($command);
-});
+        $lmstudio = new LMStudio(new Config(
+            host: 'localhost',
+            port: 1234,
+            timeout: 30
+        ));
 
-test('it fails when no model is specified', function () {
-    $this->commandTester->execute([
-        'tool' => 'get_current_weather',
-        'result' => '{"temperature":20,"condition":"sunny","location":"London"}',
-    ]);
+        // Replace the client with our mocked version
+        $reflection = new \ReflectionClass($lmstudio);
+        $property = $reflection->getProperty('client');
+        $property->setAccessible(true);
+        $property->setValue($lmstudio, $client);
 
-    expect($this->commandTester->getStatusCode())->toBe(1)
-        ->and($this->commandTester->getDisplay())->toContain('No model specified');
-});
+        // Create application and register command
+        $application = new Application;
+        $application->add(new ToolResponse($lmstudio));
 
-test('it fails with invalid JSON result', function () {
-    $this->commandTester->execute([
-        '--model' => 'test-model',
-        'tool' => 'get_current_weather',
-        'result' => 'invalid json',
-    ]);
+        // Get the command tester
+        $command = $application->find('tool:response');
+        $this->commandTester = new CommandTester($command);
+    }
 
-    expect($this->commandTester->getStatusCode())->toBe(1)
-        ->and($this->commandTester->getDisplay())->toContain('Invalid JSON result');
-});
+    public function test_it_fails_when_no_model_specified(): void
+    {
+        $this->commandTester->execute([
+            'tool' => 'test',
+            'result' => '{}',
+        ]);
 
-test('it can get response for tool result', function () {
-    // Mock the response
-    $events = [
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['content' => 'The weather in London is sunny']]]])."\n",
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['content' => ' with a temperature of 20°C']]]])."\n",
-        "[DONE]\n",
-    ];
+        expect($this->commandTester->getStatusCode())->toBe(1)
+            ->and($this->commandTester->getDisplay())->toContain('No model specified');
+    }
 
-    $this->mockHandler->append(new Response(200, [], implode('', $events)));
+    public function test_it_fails_with_invalid_json_result(): void
+    {
+        $this->commandTester->execute([
+            '--model' => 'test-model',
+            'tool' => 'test',
+            'result' => 'invalid json',
+        ]);
 
-    $this->commandTester->execute([
-        '--model' => 'test-model',
-        'tool' => 'get_current_weather',
-        'result' => '{"temperature":20,"condition":"sunny","location":"London"}',
-    ]);
+        expect($this->commandTester->getStatusCode())->toBe(1)
+            ->and($this->commandTester->getDisplay())->toContain('Invalid JSON result');
+    }
 
-    $display = $this->commandTester->getDisplay();
+    public function test_it_can_get_response_for_tool_result(): void
+    {
+        $events = [
+            json_encode([
+                'choices' => [[
+                    'delta' => ['content' => 'The weather is '],
+                ]],
+            ]).\PHP_EOL,
+            json_encode([
+                'choices' => [[
+                    'delta' => ['content' => 'sunny!'],
+                ]],
+            ]).\PHP_EOL,
+            '[DONE]'.\PHP_EOL,
+        ];
 
-    expect($this->commandTester->getStatusCode())->toBe(0)
-        ->and($display)->toContain('The weather in London is sunny')
-        ->and($display)->toContain('with a temperature of 20°C');
-});
+        $this->mockHandler->append(new Response(200, [], implode('', $events)));
+
+        $this->commandTester->execute([
+            '--model' => 'test-model',
+            'tool' => 'get_current_weather',
+            'result' => '{"temperature":20,"condition":"sunny"}',
+        ]);
+
+        expect($this->commandTester->getStatusCode())->toBe(0)
+            ->and($this->commandTester->getDisplay())->toContain('The weather is sunny!');
+    }
+}

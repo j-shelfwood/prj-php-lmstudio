@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shelfwood\LMStudio\Providers;
 
 use Illuminate\Support\ServiceProvider;

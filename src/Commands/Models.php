@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shelfwood\LMStudio\Commands;
 
+use Shelfwood\LMStudio\DTOs\Model\ModelInfo;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
@@ -22,18 +25,20 @@ class Models extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         try {
-            $models = $this->lmstudio->listModels();
+            $modelList = $this->lmstudio->listModels();
 
             $table = new Table($output);
-            $table->setHeaders(['ID', 'Type', 'Publisher', 'State', 'Max Context']);
+            $table->setHeaders(['ID', 'Object', 'Created', 'Owner', 'Root', 'Parent']);
 
-            foreach ($models['data'] as $model) {
+            /** @var ModelInfo $model */
+            foreach ($modelList->data as $model) {
                 $table->addRow([
-                    $model['id'],
-                    $model['type'] ?? 'N/A',
-                    $model['publisher'] ?? 'N/A',
-                    $model['state'] ?? 'N/A',
-                    $model['max_context_length'] ?? 'N/A',
+                    $model->id,
+                    $model->object,
+                    date('Y-m-d H:i:s', $model->created),
+                    $model->ownedBy,
+                    $model->root ?? 'N/A',
+                    $model->parent ?? 'N/A',
                 ]);
             }
 

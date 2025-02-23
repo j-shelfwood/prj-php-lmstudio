@@ -1,7 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shelfwood\LMStudio\Commands;
 
+use Shelfwood\LMStudio\DTOs\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Chat\Role;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -29,7 +33,7 @@ class ToolResponse extends Command
                 'm',
                 InputOption::VALUE_OPTIONAL,
                 'The model to use',
-                $this->lmstudio->getConfig()['default_model'] ?? null
+                $this->lmstudio->getConfig()->defaultModel
             )
             ->addArgument(
                 'tool',
@@ -57,6 +61,7 @@ class ToolResponse extends Command
 
         try {
             $decodedResult = json_decode($result, true);
+
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $output->writeln('<error>Invalid JSON result provided.</error>');
 
@@ -66,23 +71,31 @@ class ToolResponse extends Command
             $response = $this->lmstudio->chat()
                 ->withModel($model)
                 ->withMessages([
-                    ['role' => 'system', 'content' => 'You are a helpful assistant. Provide a natural response based on the tool call result.'],
-                    ['role' => 'tool', 'name' => $tool, 'content' => $result],
+                    new Message(
+                        role: Role::SYSTEM,
+                        content: 'You are a helpful assistant. Provide a natural response based on the tool call result.'
+                    ),
+                    new Message(
+                        role: Role::TOOL,
+                        content: $result,
+                        name: $tool
+                    ),
                 ])
                 ->stream()
                 ->send();
 
             $output->write('<info>Assistant:</info> ');
+
             foreach ($response as $chunk) {
-                if (is_string($chunk)) {
-                    $output->write($chunk);
+                if ($chunk instanceof Message) {
+                    $output->write($chunk->content);
                 }
             }
             $output->writeln("\n");
 
             return Command::SUCCESS;
         } catch (\Exception $e) {
-            $output->writeln('<error>Error: '.$e->getMessage().'</error>');
+            $output->writeln("<error>Error: {$e->getMessage()}</error>");
 
             return Command::FAILURE;
         }

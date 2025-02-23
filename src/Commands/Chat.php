@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shelfwood\LMStudio\Commands;
 
 use Shelfwood\LMStudio\LMStudio;
@@ -76,7 +78,7 @@ class Chat extends Command
                 $response = $this->lmstudio->chat()
                     ->withModel($model)
                     ->withMessages($messages)
-                    ->stream(function ($chunk) use ($output) {
+                    ->stream(function ($chunk) use ($output): void {
                         $output->write($chunk->content);
                     });
 

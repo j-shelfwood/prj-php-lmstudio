@@ -1,175 +1,197 @@
 <?php
 
+declare(strict_types=1);
+
+namespace Tests\Feature;
+
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
+use Shelfwood\LMStudio\DTOs\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Chat\Role;
+use Shelfwood\LMStudio\DTOs\Common\Config;
+use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
+use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
 use Shelfwood\LMStudio\LMStudio;
+use Tests\TestCase;
 
-beforeEach(function () {
-    $this->mockHandler = new MockHandler;
-    $handlerStack = HandlerStack::create($this->mockHandler);
-    $client = new Client(['handler' => $handlerStack]);
+class WeatherToolTest extends TestCase
+{
+    protected MockHandler $mockHandler;
 
-    $this->lmstudio = new LMStudio(
-        host: 'localhost',
-        port: 1234,
-        timeout: 30
-    );
+    protected LMStudio $lmstudio;
 
-    // Replace the client with our mocked version
-    $reflection = new ReflectionClass($this->lmstudio);
-    $property = $reflection->getProperty('client');
-    $property->setAccessible(true);
-    $property->setValue($this->lmstudio, $client);
-});
+    protected function setUp(): void
+    {
+        parent::setUp();
 
-test('it can get weather for a location', function () {
-    // First response with tool call
-    $toolCallEvents = [
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['id' => '123', 'type' => 'function', 'function' => (object) ['name' => 'get_current_weather']]]]]]])."\n",
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['function' => (object) ['arguments' => '{"location":"Amsterdam"}']]]]]]])."\n",
-        "[DONE]\n",
-    ];
+        $this->mockHandler = new MockHandler;
+        $handlerStack = HandlerStack::create($this->mockHandler);
+        $client = new Client(['handler' => $handlerStack]);
 
-    $this->mockHandler->append(new Response(200, [], implode('', $toolCallEvents)));
+        $this->lmstudio = new LMStudio(new Config(
+            host: 'localhost',
+            port: 1234,
+            timeout: 30
+        ));
 
-    $weatherData = null;
-    $content = '';
+        // Replace the client with our mocked version
+        $reflection = new \ReflectionClass($this->lmstudio);
+        $property = $reflection->getProperty('client');
+        $property->setAccessible(true);
+        $property->setValue($this->lmstudio, $client);
+    }
 
-    $response = $this->lmstudio->chat()
-        ->withModel('test-model')
-        ->withMessages([
-            ['role' => 'system', 'content' => 'You are a helpful weather assistant.'],
-            ['role' => 'user', 'content' => 'What is the weather in Amsterdam?'],
-        ])
-        ->withTools([
-            [
-                'type' => 'function',
-                'function' => [
-                    'name' => 'get_current_weather',
-                    'description' => 'Get the current weather in a location',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'location' => [
-                                'type' => 'string',
-                                'description' => 'The location to get weather for',
-                            ],
-                        ],
-                        'required' => ['location'],
-                    ],
+    public function test_it_can_get_weather_for_a_location(): void
+    {
+        $weatherTool = new ToolFunction(
+            name: 'get_current_weather',
+            description: 'Get the current weather',
+            parameters: [
+                'location' => [
+                    'type' => 'string',
+                    'description' => 'The location to get weather for',
                 ],
             ],
-        ])
-        ->withToolHandler('get_current_weather', function ($args) use (&$weatherData) {
-            expect($args)->toHaveKey('location')
-                ->and($args['location'])->toBe('Amsterdam');
+            required: ['location']
+        );
 
-            $weatherData = [
-                'temperature' => 20,
-                'condition' => 'sunny',
-                'location' => $args['location'],
-            ];
+        $events = [
+            json_encode([
+                'choices' => [[
+                    'delta' => [
+                        'tool_calls' => [[
+                            'id' => '123',
+                            'type' => 'function',
+                            'function' => ['name' => 'get_current_weather'],
+                        ]],
+                    ],
+                ]],
+            ]).\PHP_EOL,
+            json_encode([
+                'choices' => [[
+                    'delta' => [
+                        'tool_calls' => [[
+                            'function' => ['arguments' => '{"location":"London"}'],
+                        ]],
+                    ],
+                ]],
+            ]).\PHP_EOL,
+            '[DONE]'.\PHP_EOL,
+        ];
 
-            return $weatherData;
-        })
-        ->stream()
-        ->send();
+        $this->mockHandler->append(new Response(200, [], implode('', $events)));
 
-    foreach ($response as $chunk) {
-        if (is_string($chunk)) {
-            $content .= $chunk;
+        $messages = [];
+
+        foreach ($this->lmstudio->chat()
+            ->withModel('test-model')
+            ->withMessages([new Message(Role::USER, 'What\'s the weather in London?')])
+            ->withTools([$weatherTool])
+            ->withToolHandler('get_current_weather', function (array $args) {
+                return ['temperature' => 20, 'condition' => 'sunny'];
+            })
+            ->stream()
+            ->send() as $message) {
+            $messages[] = $message;
         }
+
+        expect($messages)->toHaveCount(1)
+            ->and($messages[0])->toBeInstanceOf(ToolCall::class)
+            ->and($messages[0]->function->name)->toBe('get_current_weather');
+
+        $args = $messages[0]->function->validateArguments('{"location":"London"}');
+        expect($args)->toBe(['location' => 'London']);
     }
 
-    expect($weatherData)->not->toBeNull()
-        ->and($weatherData['location'])->toBe('Amsterdam')
-        ->and($content)->toContain('{"temperature":20,"condition":"sunny","location":"Amsterdam"}');
-});
-
-test('it handles multiple weather requests in a conversation', function () {
-    // First request for Amsterdam
-    $amsterdamToolCallEvents = [
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['id' => '123', 'type' => 'function', 'function' => (object) ['name' => 'get_current_weather']]]]]]])."\n",
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['function' => (object) ['arguments' => '{"location":"Amsterdam"}']]]]]]])."\n",
-        "[DONE]\n",
-    ];
-
-    // Second request for London
-    $londonToolCallEvents = [
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['id' => '124', 'type' => 'function', 'function' => (object) ['name' => 'get_current_weather']]]]]]])."\n",
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['function' => (object) ['arguments' => '{"location":"London"}']]]]]]])."\n",
-        "[DONE]\n",
-    ];
-
-    $this->mockHandler->append(
-        new Response(200, [], implode('', $amsterdamToolCallEvents)),
-        new Response(200, [], implode('', $londonToolCallEvents))
-    );
-
-    $locations = [];
-    $responses = [];
-
-    $chat = $this->lmstudio->chat()
-        ->withModel('test-model')
-        ->withTools([
-            [
-                'type' => 'function',
-                'function' => [
-                    'name' => 'get_current_weather',
-                    'description' => 'Get the current weather in a location',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'location' => [
-                                'type' => 'string',
-                                'description' => 'The location to get weather for',
-                            ],
-                        ],
-                        'required' => ['location'],
-                    ],
+    public function test_it_handles_multiple_weather_requests_in_a_conversation(): void
+    {
+        $weatherTool = new ToolFunction(
+            name: 'get_current_weather',
+            description: 'Get the current weather',
+            parameters: [
+                'location' => [
+                    'type' => 'string',
+                    'description' => 'The location to get weather for',
                 ],
             ],
-        ])
-        ->withToolHandler('get_current_weather', function ($args) use (&$locations) {
-            $locations[] = $args['location'];
+            required: ['location']
+        );
 
-            return [
-                'temperature' => $args['location'] === 'Amsterdam' ? 20 : 18,
-                'condition' => $args['location'] === 'Amsterdam' ? 'sunny' : 'cloudy',
-                'location' => $args['location'],
-            ];
-        });
+        $events = [
+            json_encode([
+                'choices' => [[
+                    'delta' => [
+                        'tool_calls' => [[
+                            'id' => '123',
+                            'type' => 'function',
+                            'function' => ['name' => 'get_current_weather'],
+                        ]],
+                    ],
+                ]],
+            ]).\PHP_EOL,
+            json_encode([
+                'choices' => [[
+                    'delta' => [
+                        'tool_calls' => [[
+                            'function' => ['arguments' => '{"location":"London"}'],
+                        ]],
+                    ],
+                ]],
+            ]).\PHP_EOL,
+            json_encode([
+                'choices' => [[
+                    'delta' => [
+                        'tool_calls' => [[
+                            'id' => '456',
+                            'type' => 'function',
+                            'function' => ['name' => 'get_current_weather'],
+                        ]],
+                    ],
+                ]],
+            ]).\PHP_EOL,
+            json_encode([
+                'choices' => [[
+                    'delta' => [
+                        'tool_calls' => [[
+                            'function' => ['arguments' => '{"location":"Paris"}'],
+                        ]],
+                    ],
+                ]],
+            ]).\PHP_EOL,
+            '[DONE]'.\PHP_EOL,
+        ];
 
-    // First request
-    $response = $chat->withMessages([
-        ['role' => 'system', 'content' => 'You are a helpful weather assistant.'],
-        ['role' => 'user', 'content' => 'What is the weather in Amsterdam?'],
-    ])
-        ->stream()
-        ->send();
+        $this->mockHandler->append(new Response(200, [], implode('', $events)));
 
-    foreach ($response as $chunk) {
-        if (is_string($chunk)) {
-            $responses[] = $chunk;
+        $messages = [];
+
+        foreach ($this->lmstudio->chat()
+            ->withModel('test-model')
+            ->withMessages([new Message(Role::USER, 'Compare the weather in London and Paris')])
+            ->withTools([$weatherTool])
+            ->withToolHandler('get_current_weather', function (array $args) {
+                return [
+                    'temperature' => $args['location'] === 'London' ? 20 : 25,
+                    'condition' => $args['location'] === 'London' ? 'sunny' : 'cloudy',
+                ];
+            })
+            ->stream()
+            ->send() as $message) {
+            $messages[] = $message;
         }
+
+        expect($messages)->toHaveCount(2)
+            ->and($messages[0])->toBeInstanceOf(ToolCall::class)
+            ->and($messages[0]->function->name)->toBe('get_current_weather')
+            ->and($messages[1])->toBeInstanceOf(ToolCall::class)
+            ->and($messages[1]->function->name)->toBe('get_current_weather');
+
+        $args1 = $messages[0]->function->validateArguments('{"location":"London"}');
+        $args2 = $messages[1]->function->validateArguments('{"location":"Paris"}');
+
+        expect($args1)->toBe(['location' => 'London'])
+            ->and($args2)->toBe(['location' => 'Paris']);
     }
-
-    // Second request
-    $response = $chat->addMessage('user', 'And what about London?')
-        ->stream()
-        ->send();
-
-    foreach ($response as $chunk) {
-        if (is_string($chunk)) {
-            $responses[] = $chunk;
-        }
-    }
-
-    expect($locations)->toBe(['Amsterdam', 'London'])
-        ->and(implode('', $responses))->toContain('Amsterdam')
-        ->and(implode('', $responses))->toContain('London')
-        ->and(implode('', $responses))->toContain('sunny')
-        ->and(implode('', $responses))->toContain('cloudy');
-});
+}

@@ -1,9 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shelfwood\LMStudio;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Shelfwood\LMStudio\DTOs\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Common\Config;
+use Shelfwood\LMStudio\DTOs\Model\ModelInfo;
+use Shelfwood\LMStudio\DTOs\Model\ModelList;
+use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\Exceptions\ConnectionException;
 use Shelfwood\LMStudio\Exceptions\ValidationException;
 use Shelfwood\LMStudio\Support\ChatBuilder;
@@ -12,42 +19,23 @@ class LMStudio
 {
     private Client $client;
 
+    private readonly Config $config;
+
     public function __construct(
-        private readonly string $host = 'localhost',
-        private readonly int $port = 1234,
-        private readonly int $timeout = 30
+        string|Config $config = 'localhost',
+        ?int $port = null,
+        ?int $timeout = null
     ) {
-        $this->validateConfig();
+        $this->config = is_string($config)
+            ? new Config($config, $port ?? 1234, $timeout ?? 30)
+            : $config;
+
         $this->client = new Client([
-            'base_uri' => "http://{$this->host}:{$this->port}",
-            'timeout' => $this->timeout,
+            'base_uri' => "http://{$this->config->host}:{$this->config->port}",
+            'timeout' => $this->config->timeout,
         ]);
     }
 
-    private function validateConfig(): void
-    {
-        if (empty($this->host)) {
-            throw ValidationException::invalidConfig('Host cannot be empty');
-        }
-
-        if ($this->port < 1 || $this->port > 65535) {
-            throw ValidationException::invalidConfig(
-                'Port must be between 1 and 65535',
-                ['port' => $this->port]
-            );
-        }
-
-        if ($this->timeout < 1) {
-            throw ValidationException::invalidConfig(
-                'Timeout must be greater than 0',
-                ['timeout' => $this->timeout]
-            );
-        }
-    }
-
-    /**
-     * Start a new chat interaction
-     */
     public function chat(): ChatBuilder
     {
         return new ChatBuilder($this);
@@ -58,7 +46,7 @@ class LMStudio
      *
      * @throws ConnectionException
      */
-    public function listModels(): array
+    public function listModels(): ModelList
     {
         try {
             $response = $this->client->get('/v1/models');
@@ -68,7 +56,7 @@ class LMStudio
                 throw ConnectionException::invalidResponse('Response is not a valid JSON array');
             }
 
-            return $data;
+            return ModelList::fromArray($data);
         } catch (GuzzleException $e) {
             throw ConnectionException::connectionFailed($e->getMessage());
         }
@@ -79,7 +67,7 @@ class LMStudio
      *
      * @throws ConnectionException
      */
-    public function getModel(string $model): array
+    public function getModel(string $model): ModelInfo
     {
         if (empty($model)) {
             throw ValidationException::invalidModel('Model identifier cannot be empty');
@@ -93,7 +81,7 @@ class LMStudio
                 throw ConnectionException::invalidResponse('Response is not a valid JSON array');
             }
 
-            return $data;
+            return ModelInfo::fromArray($data);
         } catch (GuzzleException $e) {
             throw ConnectionException::connectionFailed($e->getMessage());
         }
@@ -102,25 +90,41 @@ class LMStudio
     /**
      * Send a chat completion request
      *
+     * @param  array<Message>  $messages
+     * @param  array<ToolCall>  $tools
+     *
      * @throws ConnectionException
      */
-    public function createChatCompletion(array $parameters): mixed
+    public function createChatCompletion(array $messages, ?string $model = null, array $tools = [], bool $stream = false): mixed
     {
-        if (empty($parameters['model'])) {
+        $model = $model ?? $this->config->defaultModel;
+
+        if (empty($model)) {
             throw ValidationException::invalidModel('Model must be specified');
         }
 
-        if (empty($parameters['messages'])) {
+        if (empty($messages)) {
             throw ValidationException::invalidMessage('At least one message is required');
+        }
+
+        $parameters = [
+            'model' => $model,
+            'messages' => array_map(fn (Message $message) => $message->jsonSerialize(), $messages),
+            'temperature' => $this->config->temperature,
+            'max_tokens' => $this->config->maxTokens,
+            'stream' => $stream,
+        ];
+
+        if (! empty($tools)) {
+            $parameters['tools'] = array_map(fn (ToolCall $tool) => $tool->jsonSerialize(), $tools);
         }
 
         try {
             $response = $this->client->post('/v1/chat/completions', [
                 'json' => $parameters,
-                'stream' => $parameters['stream'] ?? false,
             ]);
 
-            if ($parameters['stream'] ?? false) {
+            if ($stream) {
                 return $this->handleStreamingResponse($response);
             }
 
@@ -143,14 +147,17 @@ class LMStudio
     {
         $buffer = '';
         $stream = $response->getBody();
+        $currentToolCall = null;
 
         while (! $stream->eof()) {
             $chunk = $stream->read(1024);
+
             if ($chunk === '') {
                 break;
             }
 
             $buffer .= $chunk;
+
             while (($newlinePos = strpos($buffer, "\n")) !== false) {
                 $line = substr($buffer, 0, $newlinePos);
                 $buffer = substr($buffer, $newlinePos + 1);
@@ -169,11 +176,43 @@ class LMStudio
 
                 try {
                     $data = json_decode($line);
+
                     if (! is_object($data)) {
                         continue;
                     }
 
-                    yield $data;
+                    if (isset($data->choices[0]->delta->tool_calls)) {
+                        $toolCallDelta = $data->choices[0]->delta->tool_calls[0];
+
+                        if (! isset($currentToolCall)) {
+                            $currentToolCall = [
+                                'id' => $toolCallDelta->id ?? null,
+                                'type' => $toolCallDelta->type ?? 'function',
+                                'function' => [
+                                    'name' => $toolCallDelta->function->name ?? '',
+                                    'arguments' => '',
+                                ],
+                            ];
+                        }
+
+                        if (isset($toolCallDelta->function->name)) {
+                            $currentToolCall['function']['name'] = $toolCallDelta->function->name;
+                        }
+
+                        if (isset($toolCallDelta->function->arguments)) {
+                            $currentToolCall['function']['arguments'] .= $toolCallDelta->function->arguments;
+                        }
+
+                        if ($currentToolCall['function']['name'] && $currentToolCall['function']['arguments']) {
+                            yield ToolCall::fromArray($currentToolCall);
+                            $currentToolCall = null;
+                        }
+                    } elseif (isset($data->choices[0]->delta->content)) {
+                        yield Message::fromArray([
+                            'role' => 'assistant',
+                            'content' => $data->choices[0]->delta->content,
+                        ]);
+                    }
                 } catch (\JsonException $e) {
                     continue;
                 }
@@ -183,6 +222,7 @@ class LMStudio
         if (! empty(trim($buffer))) {
             try {
                 $data = json_decode($buffer);
+
                 if (is_object($data)) {
                     yield $data;
                 }
@@ -235,15 +275,8 @@ class LMStudio
         return $this->client;
     }
 
-    /**
-     * Get the configuration
-     */
-    public function getConfig(): array
+    public function getConfig(): Config
     {
-        return [
-            'host' => $this->host,
-            'port' => $this->port,
-            'timeout' => $this->timeout,
-        ];
+        return $this->config;
     }
 }

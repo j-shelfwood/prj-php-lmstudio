@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shelfwood\LMStudio\Console;
 
 use Shelfwood\LMStudio\Commands\Chat;

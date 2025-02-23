@@ -10,7 +10,7 @@
   },
   "autoload-dev": {
     "psr-4": {
-      "Shelfwood\\LMStudio\\Tests\\": "tests/"
+      "Tests\\": "tests/"
     }
   },
   "authors": [
@@ -54,6 +54,8 @@
   "scripts": {
     "test": "vendor/bin/pest",
     "test-coverage": "vendor/bin/pest --coverage",
-    "format": "vendor/bin/pint"
+    "format": "vendor/bin/pint",
+    "check-style": "vendor/bin/pint --test",
+    "fix-style": "vendor/bin/pint"
   }
 }
