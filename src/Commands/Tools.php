@@ -3,6 +3,7 @@
 namespace Shelfwood\LMStudio\Commands;
 
 use Shelfwood\LMStudio\LMStudio;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputInterface;
@@ -10,12 +11,12 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
 
+#[AsCommand(
+    name: 'tools',
+    description: 'Test tool calls with LMStudio models'
+)]
 class Tools extends Command
 {
-    protected static $defaultName = 'tools';
-
-    protected static $defaultDescription = 'Test tool calls with LMStudio models';
-
     public function __construct(private LMStudio $lmstudio)
     {
         parent::__construct();
@@ -70,7 +71,7 @@ class Tools extends Command
         /** @var QuestionHelper $helper */
         $helper = $this->getHelper('question');
         $messages = [
-            ['role' => 'system', 'content' => 'You are a helpful weather assistant. Use the get_current_weather function to check weather conditions and provide helpful responses.'],
+            ['role' => 'system', 'content' => 'You are a helpful assistant. Use the get_current_weather function to check weather conditions. Always use valid JSON for tool call arguments.'],
         ];
 
         while (true) {
@@ -89,7 +90,11 @@ class Tools extends Command
                     ->withModel($model)
                     ->withMessages($messages)
                     ->withTools($tools)
-                    ->withToolHandler('get_current_weather', function ($args) use ($output) {
+                    ->withToolHandler('get_current_weather', function ($args) use ($output, $model) {
+                        if (! isset($args['location'])) {
+                            throw new \InvalidArgumentException('Location is required for weather lookup');
+                        }
+
                         $output->writeln("\n<comment>Fetching weather for: {$args['location']}</comment>");
 
                         // Mock weather response
@@ -99,26 +104,96 @@ class Tools extends Command
                             'location' => $args['location'],
                         ];
 
-                        $output->writeln('<comment>Weather data: '.json_encode($weather)."</comment>\n");
+                        $weatherJson = json_encode($weather);
+                        $output->writeln("<comment>Weather data: {$weatherJson}</comment>\n");
+
+                        // Suggest using the tool:response command
+                        $output->writeln('<info>To get a response for this tool call, run:</info>');
+                        $output->writeln("<comment>./bin/lmstudio tool:response --model {$model} get_current_weather '{$weatherJson}'</comment>\n");
 
                         return $weather;
                     })
-                    ->stream(function ($chunk) use ($output) {
-                        if ($chunk->isToolCall) {
-                            $output->writeln("\n<comment>Making tool call: ".json_encode($chunk->toolCall).'</comment>');
-                        } else {
-                            $output->write($chunk->content);
-                        }
-                    });
+                    ->stream()
+                    ->send();
 
-                // Add the response to messages for context
-                if (! empty($response)) {
-                    $messages[] = ['role' => 'assistant', 'content' => $response];
+                $content = '';
+                $toolCallContent = '';
+                $inToolCall = false;
+
+                foreach ($response as $chunk) {
+                    if (is_string($chunk)) {
+                        // Check if this is a tool call start
+                        if (str_contains($chunk, '"tool_calls"')) {
+                            $inToolCall = true;
+                            $toolCallContent = '';
+
+                            continue;
+                        }
+
+                        // If we're in a tool call, accumulate the JSON
+                        if ($inToolCall) {
+                            $toolCallContent .= $chunk;
+
+                            try {
+                                if ($json = json_decode($toolCallContent, true, 512, JSON_THROW_ON_ERROR)) {
+                                    $output->writeln("\n<info>Tool Call:</info>");
+                                    $output->writeln("<comment>$toolCallContent</comment>\n");
+                                    $inToolCall = false;
+
+                                    // After successfully decoding the accumulated JSON...
+                                    if ($json = json_decode($toolCallContent, true, 512, JSON_THROW_ON_ERROR)) {
+                                        $output->writeln("\n<info>Tool Call:</info>");
+                                        $output->writeln("<comment>$toolCallContent</comment>\n");
+                                        $inToolCall = false;
+
+                                        // Extract the tool call from the nested structure
+                                        $toolCall = $json['choices'][0]['delta']['tool_calls'][0] ?? null;
+                                        if (! $toolCall || ! isset($toolCall['function']['arguments'])) {
+                                            $output->writeln('<error>Invalid tool call: Missing arguments</error>');
+
+                                            return Command::FAILURE;
+                                        }
+
+                                        $arguments = $toolCall['function']['arguments'];
+
+                                        // Try to decode the arguments and verify that they decode to an associative array
+                                        try {
+                                            $decodedArgs = json_decode($arguments, true, 512, JSON_THROW_ON_ERROR);
+                                            if (! is_array($decodedArgs)) {
+                                                $output->writeln('<error>Invalid tool call: Tool call arguments must be a valid JSON object</error>');
+
+                                                return Command::FAILURE;
+                                            }
+                                        } catch (\JsonException $e) {
+                                            $output->writeln('<error>Invalid tool call: Tool call arguments must be a valid JSON object</error>');
+
+                                            return Command::FAILURE;
+                                        }
+
+                                        continue;
+                                    }
+                                }
+                            } catch (\JsonException $e) {
+                                if (str_contains($toolCallContent, '"arguments"')) {
+                                    $output->writeln('<error>Invalid tool call: Invalid JSON in arguments</error>');
+
+                                    return Command::FAILURE;
+                                }
+
+                                continue;
+                            }
+
+                            continue;
+                        }
+
+                        // Regular content
+                        $output->write($chunk);
+                    }
                 }
 
                 $output->writeln("\n");
             } catch (\Exception $e) {
-                $output->writeln("<error>Error: {$e->getMessage()}</error>");
+                $output->writeln('<error>Error: '.$e->getMessage().'</error>');
 
                 return Command::FAILURE;
             }

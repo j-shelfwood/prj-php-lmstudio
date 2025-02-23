@@ -18,7 +18,11 @@ class Application extends BaseApplication
 
         // Initialize LMStudio client
         $config = require __DIR__.'/../../config/lmstudio.php';
-        $this->lmstudio = new LMStudio($config);
+        $this->lmstudio = new LMStudio(
+            host: $config['host'] ?? 'localhost',
+            port: $config['port'] ?? 1234,
+            timeout: $config['timeout'] ?? 30
+        );
 
         // Register commands
         $this->addCommands([

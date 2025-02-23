@@ -24,6 +24,7 @@ class LMStudioServiceProvider extends ServiceProvider
                 \Shelfwood\LMStudio\Commands\Chat::class,
                 \Shelfwood\LMStudio\Commands\Models::class,
                 \Shelfwood\LMStudio\Commands\Tools::class,
+                \Shelfwood\LMStudio\Commands\ToolResponse::class,
             ]);
         }
     }

@@ -225,13 +225,23 @@ class ChatBuilder
                     $currentToolCall['function']['arguments'] .= $toolCallDelta->function->arguments;
                 }
 
+                // Check if we have a complete tool call
                 if ($currentToolCall['function']['name'] && $currentToolCall['function']['arguments']) {
                     try {
-                        $result = $this->processCompletedToolCall($currentToolCall);
-                        yield $result;
+                        // Try to parse the arguments as JSON
+                        $args = json_decode($currentToolCall['function']['arguments'], true, 512, JSON_THROW_ON_ERROR);
+
+                        // If we got here, we have valid JSON
+                        if (isset($this->toolHandlers[$currentToolCall['function']['name']])) {
+                            $result = ($this->toolHandlers[$currentToolCall['function']['name']])($args);
+                            yield json_encode($result, JSON_THROW_ON_ERROR);
+                        } else {
+                            throw new ToolException("No handler registered for tool: {$currentToolCall['function']['name']}");
+                        }
                         $currentToolCall = null;
                     } catch (\JsonException $e) {
                         // Continue accumulating arguments if JSON is incomplete
+                        continue;
                     }
                 }
             } elseif (isset($data->choices[0]->delta->content)) {
@@ -248,24 +258,20 @@ class ChatBuilder
     protected function processCompletedToolCall(array $toolCall): string
     {
         $name = $toolCall['function']['name'];
+        $arguments = $toolCall['function']['arguments'];
 
         if (! isset($this->toolHandlers[$name])) {
-            throw ToolException::handlerNotFound($name);
+            throw new ToolException("No handler registered for tool: {$name}");
         }
 
         try {
-            $arguments = json_decode($toolCall['function']['arguments'], true);
-            if (! is_array($arguments)) {
-                throw ToolException::invalidToolCall('Tool call arguments must be a valid JSON object');
-            }
-
-            $result = ($this->toolHandlers[$name])($arguments);
-
-            return is_string($result) ? $result : json_encode($result);
+            $args = json_decode($arguments, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
-            throw ToolException::invalidToolCall('Invalid JSON in tool call arguments: '.$e->getMessage());
-        } catch (\Throwable $e) {
-            throw ToolException::toolExecutionFailed($name, $e->getMessage());
+            throw new ToolException('Invalid tool call: Tool call arguments must be a valid JSON object');
         }
+
+        $result = ($this->toolHandlers[$name])($args);
+
+        return json_encode($result, JSON_THROW_ON_ERROR);
     }
 }
