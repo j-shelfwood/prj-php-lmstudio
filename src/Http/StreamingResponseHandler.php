@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Http;
 
 use Psr\Http\Message\ResponseInterface;
+use Shelfwood\LMStudio\Contracts\StreamingResponseHandlerInterface;
 use Shelfwood\LMStudio\DTOs\Chat\Message;
 use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 
-class StreamingResponseHandler
+class StreamingResponseHandler implements StreamingResponseHandlerInterface
 {
     /**
      * Handle the streaming response and yield messages or tool calls.

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio;
 
+use Shelfwood\LMStudio\Contracts\ApiClientInterface;
+use Shelfwood\LMStudio\Contracts\StreamingResponseHandlerInterface;
 use Shelfwood\LMStudio\DTOs\Chat\Message;
 use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\DTOs\Model\ModelInfo;
@@ -16,31 +18,41 @@ use Shelfwood\LMStudio\Support\ChatBuilder;
 
 class LMStudio
 {
-    private ApiClient $apiClient;
+    private readonly ApiClientInterface $apiClient;
 
-    private StreamingResponseHandler $streamingHandler;
+    private readonly StreamingResponseHandlerInterface $streamingHandler;
 
     private readonly Config $config;
 
     public function __construct(
-        string|Config $config = 'localhost',
-        ?int $port = null,
-        ?int $timeout = null
+        Config $config,
+        ?ApiClientInterface $apiClient = null,
+        ?StreamingResponseHandlerInterface $streamingHandler = null
     ) {
-        $this->config = is_string($config)
-            ? new Config(
-                host: $config,
-                port: $port ?? 1234,
-                timeout: $timeout ?? 30
-            )
-            : $config;
+        $this->config = $config;
 
-        $this->apiClient = new ApiClient([
+        // Default implementations if not provided
+        $this->apiClient = $apiClient ?? new ApiClient([
             'base_uri' => "http://{$this->config->host}:{$this->config->port}",
             'timeout' => $this->config->timeout,
         ]);
 
-        $this->streamingHandler = new StreamingResponseHandler;
+        $this->streamingHandler = $streamingHandler ?? new StreamingResponseHandler;
+    }
+
+    /**
+     * Create a new instance with default configuration
+     */
+    public static function create(
+        string $host = 'localhost',
+        ?int $port = null,
+        ?int $timeout = null
+    ): self {
+        return new self(new Config(
+            host: $host,
+            port: $port ?? 1234,
+            timeout: $timeout ?? 30
+        ));
     }
 
     public function chat(): ChatBuilder
@@ -382,7 +394,7 @@ class LMStudio
         );
     }
 
-    public function getClient(): ApiClient
+    public function getClient(): ApiClientInterface
     {
         return $this->apiClient;
     }

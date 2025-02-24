@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Support;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
@@ -15,251 +14,234 @@ use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
 use Shelfwood\LMStudio\Exceptions\ValidationException;
 use Shelfwood\LMStudio\Http\ApiClient;
+use Shelfwood\LMStudio\Http\StreamingResponseHandler;
 use Shelfwood\LMStudio\LMStudio;
-use Tests\TestCase;
 
-class ChatBuilderTest extends TestCase
-{
-    protected MockHandler $mockHandler;
+beforeEach(function (): void {
+    // Create a mock handler and handler stack
+    $this->mock = new MockHandler;
+    $handlerStack = HandlerStack::create($this->mock);
 
-    protected LMStudio $lmstudio;
+    // Create dependencies with mocked client
+    $apiClient = new ApiClient(['handler' => $handlerStack]);
+    $streamingHandler = new StreamingResponseHandler;
+    $config = new Config(host: 'localhost', port: 1234, timeout: 30);
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+    // Create LMStudio instance with dependencies
+    $this->lmstudio = new LMStudio(
+        config: $config,
+        apiClient: $apiClient,
+        streamingHandler: $streamingHandler
+    );
 
-        $this->mockHandler = new MockHandler;
-        $handlerStack = HandlerStack::create($this->mockHandler);
-        $client = new Client(['handler' => $handlerStack]);
+    $this->chatBuilder = $this->lmstudio->chat();
+});
 
-        $this->lmstudio = new LMStudio(new Config(
-            host: 'localhost',
-            port: 1234,
-            timeout: 30
-        ));
+test('it can be instantiated', function (): void {
+    $chat = $this->lmstudio->chat();
+    expect($chat)->toBeObject();
+});
 
-        // Replace the client with our mocked version
-        $reflection = new \ReflectionClass($this->lmstudio);
-        $property = $reflection->getProperty('apiClient');
-        $property->setAccessible(true);
-        $property->setValue($this->lmstudio, new ApiClient(['handler' => $handlerStack]));
-    }
+test('it can set model', function (): void {
+    $chat = $this->lmstudio->chat()->withModel('test-model');
+    expect($chat)->toBeObject();
 
-    public function test_it_can_be_instantiated(): void
-    {
-        $chat = $this->lmstudio->chat();
-        expect($chat)->toBeObject();
-    }
+    expect(fn () => $this->lmstudio->chat()->withModel(''))
+        ->toThrow(ValidationException::class);
+});
 
-    public function test_it_can_set_model(): void
-    {
-        $chat = $this->lmstudio->chat()->withModel('test-model');
-        expect($chat)->toBeObject();
+test('it can set messages', function (): void {
+    $messages = [
+        new Message(Role::SYSTEM, 'System message'),
+        new Message(Role::USER, 'User message'),
+    ];
 
-        $this->expectException(ValidationException::class);
-        $this->lmstudio->chat()->withModel('');
-    }
+    $chat = $this->lmstudio->chat()->withMessages($messages);
+    expect($chat)->toBeObject();
 
-    public function test_it_can_set_messages(): void
-    {
-        $messages = [
-            new Message(Role::SYSTEM, 'System message'),
-            new Message(Role::USER, 'User message'),
-        ];
+    // Test with array format
+    $chat = $this->lmstudio->chat()->withMessages([
+        ['role' => 'system', 'content' => 'System message'],
+        ['role' => 'user', 'content' => 'User message'],
+    ]);
+    expect($chat)->toBeObject();
+});
 
-        $chat = $this->lmstudio->chat()->withMessages($messages);
-        expect($chat)->toBeObject();
+test('it can add a single message', function (): void {
+    $chat = $this->lmstudio->chat()->addMessage(Role::USER, 'Test message');
+    expect($chat)->toBeObject();
 
-        // Test with array format
-        $chat = $this->lmstudio->chat()->withMessages([
-            ['role' => 'system', 'content' => 'System message'],
-            ['role' => 'user', 'content' => 'User message'],
-        ]);
-        expect($chat)->toBeObject();
-    }
+    expect(fn () => $this->lmstudio->chat()->addMessage(Role::USER, ''))
+        ->toThrow(ValidationException::class);
+});
 
-    public function test_it_can_add_a_single_message(): void
-    {
-        $chat = $this->lmstudio->chat()->addMessage(Role::USER, 'Test message');
-        expect($chat)->toBeObject();
-
-        $this->expectException(ValidationException::class);
-        $this->lmstudio->chat()->addMessage(Role::USER, '');
-    }
-
-    public function test_it_can_set_tools(): void
-    {
-        $weatherTool = new ToolFunction(
-            name: 'get_current_weather',
-            description: 'Get the current weather',
-            parameters: [
-                'location' => [
-                    'type' => 'string',
-                    'description' => 'The location to get weather for',
-                ],
+test('it can set tools', function (): void {
+    $weatherTool = new ToolFunction(
+        name: 'get_current_weather',
+        description: 'Get the current weather',
+        parameters: [
+            'location' => [
+                'type' => 'string',
+                'description' => 'The location to get weather for',
             ],
-            required: ['location']
-        );
+        ],
+        required: ['location']
+    );
 
-        $chat = $this->lmstudio->chat()->withTools([$weatherTool]);
-        expect($chat)->toBeObject();
+    $chat = $this->lmstudio->chat()->withTools([$weatherTool]);
+    expect($chat)->toBeObject();
 
-        // Test with array format
-        $chat = $this->lmstudio->chat()->withTools([
-            [
-                'id' => 'test-id',
-                'type' => 'function',
-                'function' => [
-                    'name' => 'get_current_weather',
-                    'description' => 'Get the current weather',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'location' => [
-                                'type' => 'string',
-                                'description' => 'The location to get weather for',
-                            ],
+    // Test with array format
+    $chat = $this->lmstudio->chat()->withTools([
+        [
+            'id' => 'test-id',
+            'type' => 'function',
+            'function' => [
+                'name' => 'get_current_weather',
+                'description' => 'Get the current weather',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'location' => [
+                            'type' => 'string',
+                            'description' => 'The location to get weather for',
                         ],
-                        'required' => ['location'],
                     ],
+                    'required' => ['location'],
                 ],
             ],
-        ]);
-        expect($chat)->toBeObject();
-    }
+        ],
+    ]);
+    expect($chat)->toBeObject();
+});
 
-    public function test_it_can_register_tool_handlers(): void
-    {
-        $chat = $this->lmstudio->chat()->withToolHandler('test', fn () => true);
-        expect($chat)->toBeObject();
+test('it can register tool handlers', function (): void {
+    $chat = $this->lmstudio->chat()->withToolHandler('test', fn () => true);
+    expect($chat)->toBeObject();
 
-        $this->expectException(ValidationException::class);
-        $this->lmstudio->chat()->withToolHandler('', fn () => true);
-    }
+    expect(fn () => $this->lmstudio->chat()->withToolHandler('', fn () => true))
+        ->toThrow(ValidationException::class);
+});
 
-    public function test_it_can_send_chat_completion(): void
-    {
-        $this->mockHandler->append(new Response(200, [], json_encode([
-            'id' => 'chat-1',
-            'object' => 'chat.completion',
-            'created' => 1234567890,
-            'choices' => [
-                [
-                    'index' => 0,
-                    'message' => [
-                        'role' => 'assistant',
-                        'content' => 'Hello!',
-                    ],
+test('it can send chat completion', function (): void {
+    $this->mock->append(new Response(200, [], json_encode([
+        'id' => 'chat-1',
+        'object' => 'chat.completion',
+        'created' => 1234567890,
+        'choices' => [
+            [
+                'index' => 0,
+                'message' => [
+                    'role' => 'assistant',
+                    'content' => 'Hello!',
                 ],
             ],
-        ])));
+        ],
+    ])));
 
-        $result = $this->lmstudio->chat()
-            ->withModel('test-model')
-            ->withMessages([new Message(Role::USER, 'Hi!')])
-            ->send();
+    $result = $this->lmstudio->chat()
+        ->withModel('test-model')
+        ->withMessages([new Message(Role::USER, 'Hi!')])
+        ->send();
 
-        expect($result->id)->toBe('chat-1')
-            ->and($result->object)->toBe('chat.completion')
-            ->and($result->choices[0]->message->content)->toBe('Hello!');
+    expect($result->id)->toBe('chat-1')
+        ->and($result->object)->toBe('chat.completion')
+        ->and($result->choices[0]->message->content)->toBe('Hello!');
 
-        $this->expectException(ValidationException::class);
-        $this->lmstudio->chat()->send();
+    expect(fn () => $this->lmstudio->chat()->send())
+        ->toThrow(ValidationException::class);
+});
+
+test('it can stream chat completion', function (): void {
+    $events = [
+        json_encode([
+            'choices' => [[
+                'delta' => ['content' => 'Hello'],
+            ]],
+        ]).\PHP_EOL,
+        json_encode([
+            'choices' => [[
+                'delta' => ['content' => ' world!'],
+            ]],
+        ]).\PHP_EOL,
+        '[DONE]'.\PHP_EOL,
+    ];
+
+    $this->mock->append(new Response(200, [], implode('', $events)));
+
+    $messages = [];
+
+    foreach ($this->lmstudio->chat()
+        ->withModel('test-model')
+        ->withMessages([new Message(Role::USER, 'Hi!')])
+        ->stream()
+        ->send() as $message) {
+        $messages[] = $message;
     }
 
-    public function test_it_can_stream_chat_completion(): void
-    {
-        $events = [
-            json_encode([
-                'choices' => [[
-                    'delta' => ['content' => 'Hello'],
-                ]],
-            ]).\PHP_EOL,
-            json_encode([
-                'choices' => [[
-                    'delta' => ['content' => ' world!'],
-                ]],
-            ]).\PHP_EOL,
-            '[DONE]'.\PHP_EOL,
-        ];
+    expect($messages)->toHaveCount(2)
+        ->and($messages[0])->toBeInstanceOf(Message::class)
+        ->and($messages[0]->content)->toBe('Hello')
+        ->and($messages[1]->content)->toBe(' world!');
+});
 
-        $this->mockHandler->append(new Response(200, [], implode('', $events)));
-
-        $messages = [];
-
-        foreach ($this->lmstudio->chat()
-            ->withModel('test-model')
-            ->withMessages([new Message(Role::USER, 'Hi!')])
-            ->stream()
-            ->send() as $message) {
-            $messages[] = $message;
-        }
-
-        expect($messages)->toHaveCount(2)
-            ->and($messages[0])->toBeInstanceOf(Message::class)
-            ->and($messages[0]->content)->toBe('Hello')
-            ->and($messages[1]->content)->toBe(' world!');
-    }
-
-    public function test_it_can_handle_tool_calls(): void
-    {
-        $weatherTool = new ToolFunction(
-            name: 'get_current_weather',
-            description: 'Get the current weather',
-            parameters: [
-                'location' => [
-                    'type' => 'string',
-                    'description' => 'The location to get weather for',
-                ],
+test('it can handle tool calls', function (): void {
+    $weatherTool = new ToolFunction(
+        name: 'get_current_weather',
+        description: 'Get the current weather',
+        parameters: [
+            'location' => [
+                'type' => 'string',
+                'description' => 'The location to get weather for',
             ],
-            required: ['location']
-        );
+        ],
+        required: ['location']
+    );
 
-        $events = [
-            json_encode([
-                'choices' => [[
-                    'delta' => [
-                        'tool_calls' => [[
-                            'id' => '123',
-                            'type' => 'function',
-                            'function' => ['name' => 'get_current_weather'],
-                        ]],
-                    ],
-                ]],
-            ]).\PHP_EOL,
-            json_encode([
-                'choices' => [[
-                    'delta' => [
-                        'tool_calls' => [[
-                            'function' => ['arguments' => '{"location":"London"}'],
-                        ]],
-                    ],
-                ]],
-            ]).\PHP_EOL,
-            '[DONE]'.\PHP_EOL,
-        ];
+    $events = [
+        json_encode([
+            'choices' => [[
+                'delta' => [
+                    'tool_calls' => [[
+                        'id' => '123',
+                        'type' => 'function',
+                        'function' => ['name' => 'get_current_weather'],
+                    ]],
+                ],
+            ]],
+        ]).\PHP_EOL,
+        json_encode([
+            'choices' => [[
+                'delta' => [
+                    'tool_calls' => [[
+                        'function' => ['arguments' => '{"location":"London"}'],
+                    ]],
+                ],
+            ]],
+        ]).\PHP_EOL,
+        '[DONE]'.\PHP_EOL,
+    ];
 
-        $this->mockHandler->append(new Response(200, [], implode('', $events)));
+    $this->mock->append(new Response(200, [], implode('', $events)));
 
-        $messages = [];
+    $messages = [];
 
-        foreach ($this->lmstudio->chat()
-            ->withModel('test-model')
-            ->withMessages([new Message(Role::USER, 'What\'s the weather in London?')])
-            ->withTools([$weatherTool])
-            ->withToolHandler('get_current_weather', function (array $args) {
-                return ['temperature' => 20, 'condition' => 'sunny'];
-            })
-            ->stream()
-            ->send() as $message) {
-            $messages[] = $message;
-        }
-
-        expect($messages)->toHaveCount(1)
-            ->and($messages[0])->toBeInstanceOf(ToolCall::class)
-            ->and($messages[0]->function->name)->toBe('get_current_weather');
-
-        $args = $messages[0]->function->validateArguments('{"location":"London"}');
-        expect($args)->toBe(['location' => 'London']);
+    foreach ($this->lmstudio->chat()
+        ->withModel('test-model')
+        ->withMessages([new Message(Role::USER, 'What\'s the weather in London?')])
+        ->withTools([$weatherTool])
+        ->withToolHandler('get_current_weather', function (array $args) {
+            return ['temperature' => 20, 'condition' => 'sunny'];
+        })
+        ->stream()
+        ->send() as $message) {
+        $messages[] = $message;
     }
-}
+
+    expect($messages)->toHaveCount(1)
+        ->and($messages[0])->toBeInstanceOf(ToolCall::class)
+        ->and($messages[0]->function->name)->toBe('get_current_weather');
+
+    $args = $messages[0]->function->validateArguments('{"location":"London"}');
+    expect($args)->toBe(['location' => 'London']);
+});

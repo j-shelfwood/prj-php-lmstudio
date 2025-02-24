@@ -4,34 +4,33 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Commands;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
-use ReflectionClass;
 use Shelfwood\LMStudio\Commands\Tools;
 use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\Http\ApiClient;
+use Shelfwood\LMStudio\Http\StreamingResponseHandler;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
 
 beforeEach(function (): void {
-    $this->mockHandler = new MockHandler;
-    $handlerStack = HandlerStack::create($this->mockHandler);
-    $client = new Client(['handler' => $handlerStack]);
+    // Create a mock handler and handler stack
+    $this->mock = new MockHandler;
+    $handlerStack = HandlerStack::create($this->mock);
 
-    $this->lmstudio = new LMStudio(new Config(
-        host: 'localhost',
-        port: 1234,
-        timeout: 30
-    ));
+    // Create dependencies with mocked client
+    $apiClient = new ApiClient(['handler' => $handlerStack]);
+    $streamingHandler = new StreamingResponseHandler;
+    $config = new Config(host: 'localhost', port: 1234, timeout: 30);
 
-    // Replace the client with our mocked version
-    $reflection = new ReflectionClass($this->lmstudio);
-    $property = $reflection->getProperty('apiClient');
-    $property->setAccessible(true);
-    $property->setValue($this->lmstudio, new ApiClient(['handler' => $handlerStack]));
+    // Create LMStudio instance with dependencies
+    $this->lmstudio = new LMStudio(
+        config: $config,
+        apiClient: $apiClient,
+        streamingHandler: $streamingHandler
+    );
 
     // Create application and register command
     $application = new Application;
@@ -85,7 +84,7 @@ test('it can execute a tool call', function (): void {
         '[DONE]'.\PHP_EOL,
     ];
 
-    $this->mockHandler->append(new Response(200, [], implode('', $toolCallEvents)));
+    $this->mock->append(new Response(200, [], implode('', $toolCallEvents)));
 
     // Execute the command with input
     $this->commandTester->setInputs(['What is the weather in London?', 'exit']);
@@ -106,7 +105,7 @@ test('it handles missing tool handler', function (): void {
         "[DONE]\n",
     ];
 
-    $this->mockHandler->append(new Response(200, [], implode('', $toolCallEvents)));
+    $this->mock->append(new Response(200, [], implode('', $toolCallEvents)));
 
     // Execute the command with input
     $this->commandTester->setInputs(['What is the weather in London?', 'exit']);

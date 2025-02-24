@@ -6,9 +6,10 @@ namespace Shelfwood\LMStudio\Http;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Shelfwood\LMStudio\Contracts\ApiClientInterface;
 use Shelfwood\LMStudio\Exceptions\ConnectionException;
 
-class ApiClient
+class ApiClient implements ApiClientInterface
 {
     private Client $client;
 
