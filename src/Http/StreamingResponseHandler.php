@@ -101,7 +101,23 @@ class StreamingResponseHandler implements StreamingResponseHandlerInterface
                 $data = json_decode($buffer);
 
                 if (is_object($data)) {
-                    yield $data;
+                    $toolCallDelta = $data->choices[0]?->delta?->tool_calls[0] ?? null;
+
+                    if ($toolCallDelta !== null) {
+                        yield ToolCall::fromArray([
+                            'id' => $toolCallDelta->id ?? uniqid('call_'),
+                            'type' => $toolCallDelta->type ?? 'function',
+                            'function' => [
+                                'name' => $toolCallDelta->function?->name ?? '',
+                                'arguments' => $toolCallDelta->function?->arguments ?? '',
+                            ],
+                        ]);
+                    } elseif ($content = $data->choices[0]?->delta?->content ?? null) {
+                        yield Message::fromArray([
+                            'role' => 'assistant',
+                            'content' => $content,
+                        ]);
+                    }
                 }
             } catch (\JsonException $e) {
                 // Ignore invalid JSON at the end of the stream

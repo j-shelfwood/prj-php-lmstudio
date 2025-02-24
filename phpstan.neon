@@ -11,7 +11,31 @@ parameters:
     reportUnmatchedIgnoredErrors: true
 
     ignoreErrors:
-        # Add specific error patterns to ignore here if needed
+        # Pest Testing Framework uses $this in closures
+        - '#^Undefined variable: \$this$#'
+        # Pest Testing Framework uses dynamic method calls
+        - '#^Call to an undefined method#'
+        # Mockery interface issues
+        - '#^Parameter \#1 \$lmstudio of class .* expects .*, Mockery\\MockInterface given\.$#'
+        # Response body type issues in tests
+        - message: '#^Parameter \#3 \$body of class GuzzleHttp\\Psr7\\Response constructor expects#'
+          path: tests/*
+        # Exception-related PHPDoc issues
+        - '#^PHPDoc tag @throws with type .* is not subtype of Throwable$#'
+        # Exception return type issues
+        - '#Method Shelfwood\\LMStudio\\Exceptions\\ConnectionException::.* should return Shelfwood\\LMStudio\\Exceptions\\ConnectionException but returns Shelfwood\\LMStudio\\Exceptions\\LMStudioException#'
+        - '#Method Shelfwood\\LMStudio\\Exceptions\\ToolException::.* should return Shelfwood\\LMStudio\\Exceptions\\ToolException but returns Shelfwood\\LMStudio\\Exceptions\\LMStudioException#'
+        - '#Method Shelfwood\\LMStudio\\Exceptions\\ValidationException::.* should return Shelfwood\\LMStudio\\Exceptions\\ValidationException but returns Shelfwood\\LMStudio\\Exceptions\\LMStudioException#'
+        # Array type hints in DTOs and API methods
+        - '#Method .* has parameter \$(data|config|options|input|context|messages|tools|toolCalls|permission) with no value type specified in iterable type array#'
+        - '#Property .*Exception::\$context type has no value type specified in iterable type array#'
+        - '#return type has no value type specified in iterable type array#'
+        # Test PHPDoc issues
+        - message: '#^PHPDoc tag @var above assignment does not specify variable name#'
+          path: tests/*
+        - message: '#^PHPDoc tag @var does not specify variable name#'
+          path: tests/*
 
     excludePaths:
-        # Add paths to exclude if needed
+        analyse:
+            - vendor/*

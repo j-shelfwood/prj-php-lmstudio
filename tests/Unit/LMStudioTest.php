@@ -420,6 +420,7 @@ test('it fails rest embeddings with empty model', function (): void {
 });
 
 test('it can create chat completion with TTL and auto-evict', function (): void {
+    /** @var ApiClientInterface&\Mockery\MockInterface */
     $client = mock(ApiClientInterface::class);
     $client->shouldReceive('post')
         ->withArgs(function ($uri, $options) {
@@ -429,6 +430,7 @@ test('it can create chat completion with TTL and auto-evict', function (): void 
         })
         ->andReturn(['choices' => [['message' => ['content' => 'Test response']]]]);
 
+    /** @var LMStudio&\Mockery\MockInterface */
     $lmstudio = new LMStudio(
         config: new Config(defaultModel: 'test-model'),
         apiClient: $client
@@ -443,6 +445,7 @@ test('it can create chat completion with TTL and auto-evict', function (): void 
 });
 
 test('it can create chat completion with custom TTL and auto-evict', function (): void {
+    /** @var ApiClientInterface&\Mockery\MockInterface */
     $client = mock(ApiClientInterface::class);
     $client->shouldReceive('post')
         ->withArgs(function ($uri, $options) {
@@ -467,6 +470,7 @@ test('it can create chat completion with custom TTL and auto-evict', function ()
 });
 
 test('it can create chat completion with default tool use mode', function (): void {
+    /** @var ApiClientInterface&\Mockery\MockInterface */
     $client = mock(ApiClientInterface::class);
     $client->shouldReceive('post')
         ->withArgs(function ($uri, $options) {
@@ -509,6 +513,7 @@ test('it can create text completion with structured output', function (): void {
         ],
     ];
 
+    /** @var ApiClientInterface&\Mockery\MockInterface */
     $client = mock(ApiClientInterface::class);
     $client->shouldReceive('post')
         ->withArgs(function ($uri, $options) use ($schema) {

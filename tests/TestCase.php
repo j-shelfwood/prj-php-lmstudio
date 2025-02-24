@@ -13,6 +13,7 @@ use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\Http\StreamingResponseHandler;
 use Shelfwood\LMStudio\LMStudio;
 use Shelfwood\LMStudio\Providers\LMStudioServiceProvider;
+use Shelfwood\LMStudio\Support\ChatBuilder;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -22,7 +23,7 @@ abstract class TestCase extends BaseTestCase
 
     protected LMStudio $lmstudio;
 
-    protected $chatBuilder;
+    protected ChatBuilder $chatBuilder;
 
     protected function setUp(): void
     {

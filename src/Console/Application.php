@@ -7,6 +7,7 @@ namespace Shelfwood\LMStudio\Console;
 use Shelfwood\LMStudio\Commands\Chat;
 use Shelfwood\LMStudio\Commands\Models;
 use Shelfwood\LMStudio\Commands\Tools;
+use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Application as BaseApplication;
 
@@ -19,12 +20,13 @@ class Application extends BaseApplication
         parent::__construct($name, $version);
 
         // Initialize LMStudio client
-        $config = require __DIR__.'/../../config/lmstudio.php';
-        $this->lmstudio = new LMStudio(
-            host: $config['host'] ?? 'localhost',
-            port: $config['port'] ?? 1234,
-            timeout: $config['timeout'] ?? 30
+        $configArray = require __DIR__.'/../../config/lmstudio.php';
+        $config = new Config(
+            host: $configArray['host'] ?? 'localhost',
+            port: $configArray['port'] ?? 1234,
+            timeout: $configArray['timeout'] ?? 30
         );
+        $this->lmstudio = new LMStudio(config: $config);
 
         // Register commands
         $this->addCommands([

@@ -22,7 +22,7 @@ class ChatBuilder
     /** @var ToolCall[] */
     protected array $tools = [];
 
-    /** @var array<string, callable> */
+    /** @var array<string, callable(array<string, mixed>): mixed> */
     protected array $toolHandlers = [];
 
     protected bool $stream = false;
@@ -76,7 +76,7 @@ class ChatBuilder
     /**
      * Set the tools available for the chat
      *
-     * @param  array<ToolFunction|array>  $tools
+     * @param  array<ToolFunction|ToolCall|array<string, mixed>>  $tools
      */
     public function withTools(array $tools): self
     {
@@ -97,6 +97,8 @@ class ChatBuilder
 
     /**
      * Register a tool handler
+     *
+     * @param  callable(array<string, mixed>): mixed  $handler
      */
     public function withToolHandler(string $name, callable $handler): self
     {
@@ -145,9 +147,10 @@ class ChatBuilder
     /**
      * Handle streaming response
      *
+     * @param  \Iterator<object>  $response
      * @return \Generator<Message|ToolCall>
      */
-    protected function handleStream($response): \Generator
+    protected function handleStream(\Iterator $response): \Generator
     {
         $currentToolCall = null;
 
