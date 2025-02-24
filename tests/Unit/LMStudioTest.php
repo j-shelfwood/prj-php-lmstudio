@@ -435,7 +435,7 @@ test('it can create chat completion with TTL and auto-evict', function (): void 
     );
 
     $response = $lmstudio->createChatCompletion([
-        new Message(Role::USER, 'Test message')
+        new Message(Role::USER, 'Test message'),
     ]);
 
     expect($response)->toBeArray()
@@ -471,6 +471,7 @@ test('it can create chat completion with default tool use mode', function (): vo
     $client->shouldReceive('post')
         ->withArgs(function ($uri, $options) {
             $toolMessage = $options['json']['messages'][1];
+
             return $uri === '/v1/chat/completions'
                 && $toolMessage['role'] === 'user'
                 && $toolMessage['default_tool_call'] === true;
@@ -484,7 +485,7 @@ test('it can create chat completion with default tool use mode', function (): vo
 
     $response = $lmstudio->createChatCompletion([
         new Message(Role::USER, 'Test message'),
-        new Message(Role::TOOL, 'Tool response')
+        new Message(Role::TOOL, 'Tool response'),
     ]);
 
     expect($response)->toBeArray()
@@ -501,11 +502,11 @@ test('it can create text completion with structured output', function (): void {
                 'type' => 'object',
                 'properties' => [
                     'name' => ['type' => 'string'],
-                    'age' => ['type' => 'integer']
+                    'age' => ['type' => 'integer'],
                 ],
-                'required' => ['name', 'age']
-            ]
-        ]
+                'required' => ['name', 'age'],
+            ],
+        ],
     ];
 
     $client = mock(ApiClientInterface::class);

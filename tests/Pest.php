@@ -13,7 +13,8 @@ declare(strict_types=1);
 |
 */
 
-// uses(Tests\TestCase::class)->in('Feature');
+// Use our base TestCase for Unit and Feature tests
+uses(Tests\TestCase::class)->in('Unit', 'Feature');
 
 /*
 |--------------------------------------------------------------------------

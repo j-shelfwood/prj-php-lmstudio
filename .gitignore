@@ -1,5 +1,6 @@
 vendor/
 bin/
+build/
 
 .DS_Store
 

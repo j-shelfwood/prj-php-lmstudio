@@ -4,35 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Support;
 
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
-use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
 use Shelfwood\LMStudio\Exceptions\ToolException;
-use Shelfwood\LMStudio\Http\ApiClient;
-use Shelfwood\LMStudio\Http\StreamingResponseHandler;
-use Shelfwood\LMStudio\LMStudio;
-
-beforeEach(function (): void {
-    // Create a mock handler and handler stack
-    $this->mock = new MockHandler;
-    $handlerStack = HandlerStack::create($this->mock);
-
-    // Create dependencies with mocked client
-    $apiClient = new ApiClient(['handler' => $handlerStack]);
-    $streamingHandler = new StreamingResponseHandler;
-    $config = new Config(host: 'localhost', port: 1234, timeout: 30);
-
-    // Create LMStudio instance with dependencies
-    $lmstudio = new LMStudio(
-        config: $config,
-        apiClient: $apiClient,
-        streamingHandler: $streamingHandler
-    );
-
-    $this->chatBuilder = $lmstudio->chat();
-});
 
 test('it can register tool handler', function (): void {
     $weatherTool = new ToolFunction(

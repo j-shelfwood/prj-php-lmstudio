@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Commands;
 
-use Orchestra\Testbench\TestCase as Orchestra;
+use Mockery;
 use Shelfwood\LMStudio\Commands\Chat;
 use Shelfwood\LMStudio\Commands\Models;
 use Shelfwood\LMStudio\Commands\ToolResponse;
@@ -13,21 +13,11 @@ use Shelfwood\LMStudio\DTOs\Model\ModelInfo;
 use Shelfwood\LMStudio\DTOs\Model\ModelList;
 use Shelfwood\LMStudio\Facades\LMStudio;
 use Shelfwood\LMStudio\LMStudio as LMStudioClass;
+use Shelfwood\LMStudio\Support\ChatBuilder;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Tester\CommandTester;
 
-uses(Orchestra::class)->in(__DIR__);
-
 beforeEach(function (): void {
-    // Set up the application
-    $this->app['config']->set('app.env', 'testing');
-    $this->app['config']->set('lmstudio', [
-        'host' => 'localhost',
-        'port' => 1234,
-        'timeout' => 30,
-        'default_model' => 'test-model',
-    ]);
-
     // Set up the console application
     $this->console = new ConsoleApplication;
 
@@ -40,11 +30,10 @@ beforeEach(function (): void {
     );
 
     // Create a mock LMStudio instance
-    $this->lmstudio = mock(LMStudioClass::class)
-        ->makePartial()
-        ->shouldReceive('getConfig')
-        ->andReturn($config)
-        ->getMock();
+    /** @var LMStudioClass&\Mockery\MockInterface */
+    $this->lmstudio = Mockery::mock(LMStudioClass::class);
+    $this->lmstudio->makePartial();
+    $this->lmstudio->allows()->getConfig()->andReturn($config);
 
     // Register commands
     $this->console->add(new Models($this->lmstudio));
@@ -58,9 +47,9 @@ beforeEach(function (): void {
 
 test('models command lists available models', function (): void {
     // Set up mock response
-    $this->lmstudio->shouldReceive('listModels')
-        ->once()
-        ->andReturn(new ModelList(
+    /** @var LMStudioClass&\Mockery\MockInterface */
+    $this->lmstudio->expects()->listModels()->once()->andReturn(
+        new ModelList(
             object: 'list',
             data: [
                 new ModelInfo(
@@ -70,7 +59,8 @@ test('models command lists available models', function (): void {
                     ownedBy: 'owner'
                 ),
             ]
-        ));
+        )
+    );
 
     // Create command tester
     $command = $this->console->find('models');
@@ -86,17 +76,17 @@ test('models command lists available models', function (): void {
 
 test('chat command starts interactive chat session', function (): void {
     // Set up mock response
-    $this->lmstudio->shouldReceive('chat')
-        ->andReturn(mock(\Shelfwood\LMStudio\Support\ChatBuilder::class)
-            ->makePartial()
-            ->shouldReceive('withModel')
-            ->andReturnSelf()
-            ->shouldReceive('addMessage')
-            ->andReturnSelf()
-            ->shouldReceive('send')
-            ->andReturn('Test response')
-            ->getMock()
-        );
+    /** @var ChatBuilder&\Mockery\MockInterface */
+    $chatBuilder = Mockery::mock(ChatBuilder::class);
+    $chatBuilder->makePartial();
+    $chatBuilder->allows([
+        'withModel' => $chatBuilder,
+        'addMessage' => $chatBuilder,
+        'send' => 'Test response',
+    ]);
+
+    /** @var LMStudioClass&\Mockery\MockInterface */
+    $this->lmstudio->expects()->chat()->andReturn($chatBuilder);
 
     // Create command tester
     $command = $this->console->find('chat');
@@ -113,42 +103,40 @@ test('chat command starts interactive chat session', function (): void {
 
 test('tools command executes tool calls', function (): void {
     // Set up mock response
-    $this->lmstudio->shouldReceive('chat')
-        ->andReturn(mock(\Shelfwood\LMStudio\Support\ChatBuilder::class)
-            ->makePartial()
-            ->shouldReceive('withModel')
-            ->andReturnSelf()
-            ->shouldReceive('withMessages')
-            ->andReturnSelf()
-            ->shouldReceive('withTools')
-            ->andReturnSelf()
-            ->shouldReceive('withToolHandler')
-            ->andReturnSelf()
-            ->shouldReceive('stream')
-            ->andReturnSelf()
-            ->shouldReceive('send')
-            ->andReturn([
-                new \Shelfwood\LMStudio\DTOs\Chat\Message(
-                    role: \Shelfwood\LMStudio\DTOs\Chat\Role::ASSISTANT,
-                    content: 'Let me check the weather for London.'
-                ),
-                new \Shelfwood\LMStudio\DTOs\Tool\ToolCall(
-                    id: 'call_123',
-                    type: 'function',
-                    function: new \Shelfwood\LMStudio\DTOs\Tool\ToolFunction(
-                        name: 'get_current_weather',
-                        description: 'Get the current weather in a location',
-                        parameters: ['location' => ['type' => 'string', 'description' => 'The location to get weather for']],
-                        required: ['location']
-                    )
-                ),
-                new \Shelfwood\LMStudio\DTOs\Chat\Message(
-                    role: \Shelfwood\LMStudio\DTOs\Chat\Role::TOOL,
-                    content: '{"temperature":20,"condition":"sunny","location":"London"}'
-                ),
-            ])
-            ->getMock()
-        );
+    /** @var ChatBuilder&\Mockery\MockInterface */
+    $chatBuilder = Mockery::mock(ChatBuilder::class);
+    $chatBuilder->makePartial();
+    $chatBuilder->allows([
+        'withModel' => $chatBuilder,
+        'withMessages' => $chatBuilder,
+        'withTools' => $chatBuilder,
+        'withToolHandler' => $chatBuilder,
+        'stream' => $chatBuilder,
+    ]);
+
+    $chatBuilder->expects()->send()->andReturn([
+        new \Shelfwood\LMStudio\DTOs\Chat\Message(
+            role: \Shelfwood\LMStudio\DTOs\Chat\Role::ASSISTANT,
+            content: 'Let me check the weather for London.'
+        ),
+        new \Shelfwood\LMStudio\DTOs\Tool\ToolCall(
+            id: 'call_123',
+            type: 'function',
+            function: new \Shelfwood\LMStudio\DTOs\Tool\ToolFunction(
+                name: 'get_current_weather',
+                description: 'Get the current weather in a location',
+                parameters: ['location' => ['type' => 'string', 'description' => 'The location to get weather for']],
+                required: ['location']
+            )
+        ),
+        new \Shelfwood\LMStudio\DTOs\Chat\Message(
+            role: \Shelfwood\LMStudio\DTOs\Chat\Role::TOOL,
+            content: '{"temperature":20,"condition":"sunny","location":"London"}'
+        ),
+    ]);
+
+    /** @var LMStudioClass&\Mockery\MockInterface */
+    $this->lmstudio->expects()->chat()->andReturn($chatBuilder);
 
     // Create command tester
     $command = $this->console->find('tools');

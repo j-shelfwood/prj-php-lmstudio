@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Integration;
 
-use Orchestra\Testbench\TestCase as Orchestra;
 use Shelfwood\LMStudio\Commands\Chat;
 use Shelfwood\LMStudio\Commands\Models;
 use Shelfwood\LMStudio\Commands\ToolResponse;
@@ -13,19 +12,11 @@ use Shelfwood\LMStudio\DTOs\Common\Config as LMStudioConfig;
 use Shelfwood\LMStudio\Facades\LMStudio;
 use Shelfwood\LMStudio\LMStudio as LMStudioClass;
 use Symfony\Component\Console\Application as ConsoleApplication;
+use Tests\TestCase;
 
-uses(Orchestra::class)->in(__DIR__);
+uses(TestCase::class);
 
 beforeEach(function (): void {
-    // Set up the application
-    $this->app['config']->set('app.env', 'testing');
-    $this->app['config']->set('lmstudio', [
-        'host' => 'localhost',
-        'port' => 1234,
-        'timeout' => 30,
-        'default_model' => 'test-model',
-    ]);
-
     // Set up the console application
     $this->console = new ConsoleApplication;
 
