@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Shelfwood\LMStudio\Commands\Chat;
+use Shelfwood\LMStudio\Commands\Models;
+use Shelfwood\LMStudio\Commands\ToolResponse;
+use Shelfwood\LMStudio\Commands\Tools;
 use Shelfwood\LMStudio\LMStudio;
 
 class LMStudioServiceProvider extends ServiceProvider
@@ -23,10 +27,10 @@ class LMStudioServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([
-                \Shelfwood\LMStudio\Commands\Chat::class,
-                \Shelfwood\LMStudio\Commands\Models::class,
-                \Shelfwood\LMStudio\Commands\Tools::class,
-                \Shelfwood\LMStudio\Commands\ToolResponse::class,
+                Chat::class,
+                Models::class,
+                Tools::class,
+                ToolResponse::class,
             ]);
         }
     }

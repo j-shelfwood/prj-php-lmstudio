@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Commands;
 
+use Shelfwood\LMStudio\DTOs\Chat\Role;
 use Shelfwood\LMStudio\LMStudio;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
@@ -26,19 +27,21 @@ class Chat extends Command
     protected function configure(): void
     {
         $this
+            ->setName('chat')
+            ->setDescription('Start an interactive chat session')
             ->addOption(
                 'model',
                 'm',
-                InputOption::VALUE_OPTIONAL,
+                InputOption::VALUE_REQUIRED,
                 'The model to use for chat',
-                $this->lmstudio->getConfig()['default_model'] ?? null
+                $this->lmstudio->getConfig()->defaultModel
             )
             ->addOption(
                 'system',
                 's',
-                InputOption::VALUE_OPTIONAL,
-                'System message to set the behavior',
-                'You are a helpful assistant.'
+                InputOption::VALUE_REQUIRED,
+                'The system message to use',
+                null
             );
     }
 
@@ -47,48 +50,35 @@ class Chat extends Command
         $model = $input->getOption('model');
         $systemMessage = $input->getOption('system');
 
-        if (! $model) {
-            $output->writeln('<error>No model specified. Please provide a model with --model option.</error>');
+        if (empty($model)) {
+            $output->writeln('<error>No model specified. Please provide a model using the --model option.</error>');
 
             return Command::FAILURE;
         }
 
-        $output->writeln("<info>Starting chat with model: {$model}</info>");
-        $output->writeln("<info>Type 'exit' to end the conversation</info>\n");
+        $chat = $this->lmstudio->chat()
+            ->withModel($model);
+
+        if ($systemMessage) {
+            $chat->addMessage(Role::SYSTEM, $systemMessage);
+        }
 
         /** @var QuestionHelper $helper */
         $helper = $this->getHelper('question');
-        $messages = [
-            ['role' => 'system', 'content' => $systemMessage],
-        ];
+        $question = new Question('You: ');
 
         while (true) {
-            $question = new Question('<question>You:</question> ');
             $userInput = $helper->ask($input, $output, $question);
 
-            if ($userInput === 'exit') {
+            if ($userInput === null || strtolower($userInput) === 'exit') {
                 break;
             }
 
-            $messages[] = ['role' => 'user', 'content' => $userInput];
+            $chat->addMessage(Role::USER, $userInput);
+            $response = $chat->send();
 
-            try {
-                $output->write('<info>Assistant:</info> ');
-
-                $response = $this->lmstudio->chat()
-                    ->withModel($model)
-                    ->withMessages($messages)
-                    ->stream(function ($chunk) use ($output): void {
-                        $output->write($chunk->content);
-                    });
-
-                $messages[] = ['role' => 'assistant', 'content' => $response];
-                $output->writeln("\n");
-            } catch (\Exception $e) {
-                $output->writeln("<error>Error: {$e->getMessage()}</error>");
-
-                return Command::FAILURE;
-            }
+            $output->writeln("\nAssistant: ".$response);
+            $output->writeln('');
         }
 
         return Command::SUCCESS;
