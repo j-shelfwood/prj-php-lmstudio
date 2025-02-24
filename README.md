@@ -1,6 +1,6 @@
 # LMStudio PHP
 
-A PHP package for integrating with LMStudio’s local API. This library allows you to interact with LMStudio via both OpenAI‑compatible endpoints (/v1) and the new LM Studio REST API endpoints (/api/v0). It supports chat and text completions, embeddings, tool calls (including streaming responses), and is designed with dependency injection in mind.
+A PHP package for integrating with LMStudio's local API. This library allows you to interact with LMStudio via both OpenAI‑compatible endpoints (/v1) and the new LM Studio REST API endpoints (/api/v0). It supports chat and text completions, embeddings, tool calls (including streaming responses), and is designed with dependency injection in mind.
 
 ## Features
 
@@ -21,7 +21,7 @@ A PHP package for integrating with LMStudio’s local API. This library allows y
 
 - **Dependency Injection & Extensibility:**
 
-  - Designed to work seamlessly with DI containers (e.g., Laravel’s service container).
+  - Designed to work seamlessly with DI containers (e.g., Laravel's service container).
   - Interfaces for the API client and streaming response handler for easier customization.
 
 - **Laravel Integration:**
@@ -248,17 +248,47 @@ foreach ($chat->stream()->send() as $message) {
 The package includes several artisan commands (if using Laravel):
 
 - **chat:** Start an interactive chat session.
-- **models:** List available models.
-- **tools:** Test tool calls with LMStudio models.
-- **tool:response:** Process a tool call result.
 
-You can run these commands using:
+  ```bash
+  # Start a chat with the default model
+  php artisan chat
+
+  # Use a specific model
+  php artisan chat --model your-model
+
+  # Set a system message
+  php artisan chat --model your-model --system "You are a helpful assistant"
+  ```
+
+- **models:** List available models.
+
+  ```bash
+  php artisan models
+  ```
+
+- **tools:** Test tool calls with LMStudio models.
+
+  ```bash
+  # Start tool testing with the default model
+  php artisan tools
+
+  # Use a specific model
+  php artisan tools --model your-model
+  ```
+
+- **tool:response:** Process a tool call result.
+  ```bash
+  # Get a response for a tool call result
+  php artisan tool:response --model your-model get_current_weather '{"temperature":20,"condition":"sunny","location":"London"}'
+  ```
+
+You can run these commands directly if you're using the package as a standalone library:
 
 ```bash
-php artisan chat
-php artisan models
-php artisan tools
-php artisan tool:response --model your-model <tool> <result>
+./vendor/bin/lmstudio chat
+./vendor/bin/lmstudio models
+./vendor/bin/lmstudio tools
+./vendor/bin/lmstudio tool:response --model your-model <tool> <result>
 ```
 
 ## Dependency Injection
