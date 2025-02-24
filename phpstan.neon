@@ -1,0 +1,17 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    tmpDir: build/phpstan
+    checkMissingIterableValueType: true
+    checkGenericClassInNonGenericObjectType: true
+    checkMissingCallableSignature: true
+    treatPhpDocTypesAsCertain: true
+    reportUnmatchedIgnoredErrors: true
+
+    ignoreErrors:
+        # Add specific error patterns to ignore here if needed
+
+    excludePaths:
+        # Add paths to exclude if needed

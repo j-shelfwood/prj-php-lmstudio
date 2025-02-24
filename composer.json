@@ -30,7 +30,8 @@
     "pestphp/pest": "^2.0",
     "pestphp/pest-plugin-laravel": "^2.0",
     "orchestra/testbench": "^8.0",
-    "laravel/pint": "^1.0"
+    "laravel/pint": "^1.0",
+    "phpstan/phpstan": "^1.10"
   },
   "config": {
     "sort-packages": true,
@@ -56,6 +57,7 @@
     "test-coverage": "vendor/bin/pest --coverage",
     "format": "vendor/bin/pint",
     "check-style": "vendor/bin/pint --test",
-    "fix-style": "vendor/bin/pint"
+    "fix-style": "vendor/bin/pint",
+    "analyse": "vendor/bin/phpstan analyse"
   }
 }
