@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\DTOs\Tool;
 
-use JsonSerializable;
 use JsonException;
+use JsonSerializable;
 
 final readonly class ToolFunction implements JsonSerializable
 {
     /**
-     * @param array<string, mixed> $parameters
-     * @param array<string> $required
+     * @param  array<string, mixed>  $parameters
+     * @param  array<string>  $required
      */
     public function __construct(
         public string $name,
@@ -40,7 +40,7 @@ final readonly class ToolFunction implements JsonSerializable
                 'properties' => $this->parameters,
                 'required' => $this->required,
             ],
-        ], fn ($value) => !empty($value));
+        ], fn ($value) => ! empty($value));
     }
 
     /**
@@ -50,12 +50,12 @@ final readonly class ToolFunction implements JsonSerializable
     {
         $args = json_decode($arguments, true, 512, JSON_THROW_ON_ERROR);
 
-        if (!is_array($args)) {
+        if (! is_array($args)) {
             throw new JsonException('Arguments must be a valid JSON object');
         }
 
         foreach ($this->required as $requiredParam) {
-            if (!isset($args[$requiredParam])) {
+            if (! isset($args[$requiredParam])) {
                 throw new JsonException("Missing required parameter: {$requiredParam}");
             }
         }
