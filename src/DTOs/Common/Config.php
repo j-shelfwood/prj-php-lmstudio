@@ -17,6 +17,9 @@ final readonly class Config
         public ?string $defaultModel = null,
         public int $retryAttempts = 3,
         public int $retryDelay = 100,
+        public int $defaultTtl = 3600,
+        public bool $autoEvict = true,
+        public string $toolUseMode = 'native'
     ) {
         $this->validate();
     }
@@ -32,6 +35,9 @@ final readonly class Config
             defaultModel: $config['default_model'] ?? null,
             retryAttempts: $config['retry_attempts'] ?? 3,
             retryDelay: $config['retry_delay'] ?? 100,
+            defaultTtl: $config['default_ttl'] ?? 3600,
+            autoEvict: $config['auto_evict'] ?? true,
+            toolUseMode: $config['tool_use_mode'] ?? 'native'
         );
     }
 
@@ -42,37 +48,44 @@ final readonly class Config
         }
 
         if ($this->port < 1 || $this->port > 65535) {
-            throw ValidationException::invalidConfig(
-                'Port must be between 1 and 65535',
-                ['port' => $this->port]
+            throw ValidationException::invalidPort(
+                message: 'Port must be between 1 and 65535'
             );
         }
 
-        if ($this->timeout < 1) {
-            throw ValidationException::invalidConfig(
-                'Timeout must be greater than 0',
-                ['timeout' => $this->timeout]
+        if ($this->timeout < 0) {
+            throw ValidationException::invalidTimeout(
+                message: 'Timeout must be greater than or equal to 0'
             );
         }
 
         if ($this->temperature < 0 || $this->temperature > 2) {
-            throw ValidationException::invalidConfig(
-                'Temperature must be between 0 and 2',
-                ['temperature' => $this->temperature]
+            throw ValidationException::invalidTemperature(
+                message: 'Temperature must be between 0 and 2'
             );
         }
 
         if ($this->retryAttempts < 0) {
-            throw ValidationException::invalidConfig(
-                'Retry attempts must be greater than or equal to 0',
-                ['retry_attempts' => $this->retryAttempts]
+            throw ValidationException::invalidRetryAttempts(
+                message: 'Retry attempts must be greater than or equal to 0'
             );
         }
 
         if ($this->retryDelay < 0) {
-            throw ValidationException::invalidConfig(
-                'Retry delay must be greater than or equal to 0',
-                ['retry_delay' => $this->retryDelay]
+            throw ValidationException::invalidRetryDelay(
+                message: 'Retry delay must be greater than or equal to 0'
+            );
+        }
+
+        if ($this->defaultTtl < 0) {
+            throw ValidationException::invalidTtl(
+                message: 'Default TTL must be greater than or equal to 0'
+            );
+        }
+
+        if (! in_array($this->toolUseMode, ['native', 'default'], true)) {
+            throw ValidationException::invalidToolUseMode(
+                message: 'Tool use mode must be either "native" or "default"'
             );
         }
     }
@@ -88,6 +101,9 @@ final readonly class Config
             'default_model' => $this->defaultModel,
             'retry_attempts' => $this->retryAttempts,
             'retry_delay' => $this->retryDelay,
+            'default_ttl' => $this->defaultTtl,
+            'auto_evict' => $this->autoEvict,
+            'tool_use_mode' => $this->toolUseMode,
         ], fn ($value) => $value !== null);
     }
 }

@@ -29,4 +29,39 @@ class ValidationException extends LMStudioException
         return (new self("Invalid tool: {$message}"))
             ->withContext($context);
     }
+
+    public static function invalidPort(string $message): self
+    {
+        return new self($message);
+    }
+
+    public static function invalidTimeout(string $message): self
+    {
+        return new self($message);
+    }
+
+    public static function invalidTemperature(string $message): self
+    {
+        return new self($message);
+    }
+
+    public static function invalidRetryAttempts(string $message): self
+    {
+        return new self($message);
+    }
+
+    public static function invalidRetryDelay(string $message): self
+    {
+        return new self($message);
+    }
+
+    public static function invalidTtl(string $message): self
+    {
+        return new self($message);
+    }
+
+    public static function invalidToolUseMode(string $message): self
+    {
+        return new self($message);
+    }
 }

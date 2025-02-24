@@ -97,18 +97,28 @@ class LMStudio
     }
 
     /**
-     * Send a chat completion request
+     * Send a chat completion request.
      *
      * @param  array<Message>  $messages
      * @param  array<ToolCall>  $tools
+     * @param  array  $options  Additional parameters such as:
+     *                          - ttl: (int) Time-To-Live in seconds for JIT loading.
+     *                          - auto_evict: (bool) Whether to auto-evict previously loaded models.
+     *                          - top_p: (float) Nucleus sampling threshold.
+     *                          - stop: (string|array) Stop sequences.
+     *                          - presence_penalty: (float) Presence penalty.
+     *                          - frequency_penalty: (float) Frequency penalty.
+     *                          - logit_bias: (array) Token biases.
+     *                          - response_format: (array) Structured output format.
      *
-     * @throws ConnectionException
+     * @throws ValidationException|ConnectionException
      */
     public function createChatCompletion(
         array $messages,
         ?string $model = null,
         array $tools = [],
-        bool $stream = false
+        bool $stream = false,
+        array $options = []
     ): mixed {
         $model = $model ?? $this->config->defaultModel;
 
@@ -124,20 +134,35 @@ class LMStudio
             );
         }
 
+        // Merge default TTL and auto_evict from config if not provided
+        $options = array_merge([
+            'ttl' => $this->config->defaultTtl,
+            'auto_evict' => $this->config->autoEvict,
+        ], $options);
+
         $parameters = [
             'model' => $model,
-            'messages' => array_map(
-                callback: fn (Message $m) => $m->jsonSerialize(),
-                array: $messages
-            ),
+            'messages' => array_map(fn (Message $m) => $m->jsonSerialize(), $messages),
             'temperature' => $this->config->temperature,
             'max_tokens' => $this->config->maxTokens,
             'stream' => $stream,
-            'tools' => empty($tools) ? [] : array_map(
-                callback: fn (ToolCall $t) => $t->jsonSerialize(),
-                array: $tools
-            ),
+            'tools' => empty($tools) ? [] : array_map(fn (ToolCall $t) => $t->jsonSerialize(), $tools),
         ];
+
+        // Merge additional options (e.g. ttl, auto_evict, top_p, etc.)
+        $parameters = array_merge($parameters, $options);
+
+        // Handle tool use mode conversion if needed
+        if ($this->config->toolUseMode === 'default') {
+            $parameters['messages'] = array_map(function ($message) {
+                if (isset($message['role']) && $message['role'] === 'tool') {
+                    $message['role'] = 'user';
+                    $message['default_tool_call'] = true;
+                }
+
+                return $message;
+            }, $parameters['messages']);
+        }
 
         $response = $this->apiClient->post(
             uri: '/v1/chat/completions',
@@ -155,16 +180,38 @@ class LMStudio
     }
 
     /**
-     * Create text completion via /v1/completions
+     * Create text completion via /v1/completions.
      *
-     * @param  string  $prompt  The prompt text
-     * @param  string|null  $model  Model identifier; defaults to config->defaultModel
-     * @param  array  $options  Additional parameters (e.g., temperature, max_tokens, stream)
+     * @param  array  $options  Additional parameters such as:
+     *                          - ttl: (int) Time-To-Live in seconds for JIT loading.
+     *                          - auto_evict: (bool) Whether to auto-evict previously loaded models.
+     *                          - top_p: (float) Nucleus sampling threshold.
+     *                          - stop: (string|array) Stop sequences.
+     *                          - presence_penalty: (float) Presence penalty.
+     *                          - frequency_penalty: (float) Frequency penalty.
+     *                          - logit_bias: (array) Token biases.
+     *                          - response_format: (array) Structured output format.
+     *                          The response_format parameter should follow the structure:
+     *                          [
+     *                          "type" => "json_schema",
+     *                          "json_schema" => [
+     *                          "name" => "your_schema_name",
+     *                          "strict" => true,
+     *                          "schema" => [
+     *                          "type" => "object",
+     *                          "properties" => [...],
+     *                          "required" => [...]
+     *                          ]
+     *                          ]
+     *                          ]
      *
      * @throws ValidationException|ConnectionException
      */
-    public function createTextCompletion(string $prompt, ?string $model = null, array $options = []): mixed
-    {
+    public function createTextCompletion(
+        string $prompt,
+        ?string $model = null,
+        array $options = []
+    ): mixed {
         $model = $model ?? $this->config->defaultModel;
 
         if (empty($model)) {
@@ -175,9 +222,15 @@ class LMStudio
 
         if (empty($prompt)) {
             throw ValidationException::invalidMessage(
-                message: 'Prompt cannot be empty for text completion'
+                message: 'Prompt cannot be empty'
             );
         }
+
+        // Merge default TTL and auto_evict from config if not provided
+        $options = array_merge([
+            'ttl' => $this->config->defaultTtl,
+            'auto_evict' => $this->config->autoEvict,
+        ], $options);
 
         $parameters = array_merge([
             'model' => $model,

@@ -7,6 +7,7 @@ namespace Tests\Unit;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
+use Shelfwood\LMStudio\Contracts\ApiClientInterface;
 use Shelfwood\LMStudio\DTOs\Chat\Message;
 use Shelfwood\LMStudio\DTOs\Chat\Role;
 use Shelfwood\LMStudio\DTOs\Common\Config;
@@ -191,7 +192,7 @@ test('it fails text completion with empty prompt', function (): void {
     expect(fn () => $this->lmstudio->createTextCompletion(
         prompt: '',
         model: 'test-model'
-    ))->toThrow(ValidationException::class, 'Prompt cannot be empty for text completion');
+    ))->toThrow(ValidationException::class, 'Prompt cannot be empty');
 });
 
 test('it fails text completion with empty model', function (): void {
@@ -416,4 +417,115 @@ test('it fails rest embeddings with empty model', function (): void {
         model: '',
         input: 'Test text'
     ))->toThrow(ValidationException::class, 'Model identifier cannot be empty for REST embeddings');
+});
+
+test('it can create chat completion with TTL and auto-evict', function (): void {
+    $client = mock(ApiClientInterface::class);
+    $client->shouldReceive('post')
+        ->withArgs(function ($uri, $options) {
+            return $uri === '/v1/chat/completions'
+                && $options['json']['ttl'] === 3600
+                && $options['json']['auto_evict'] === true;
+        })
+        ->andReturn(['choices' => [['message' => ['content' => 'Test response']]]]);
+
+    $lmstudio = new LMStudio(
+        config: new Config(defaultModel: 'test-model'),
+        apiClient: $client
+    );
+
+    $response = $lmstudio->createChatCompletion([
+        new Message(Role::USER, 'Test message')
+    ]);
+
+    expect($response)->toBeArray()
+        ->and($response['choices'][0]['message']['content'])->toBe('Test response');
+});
+
+test('it can create chat completion with custom TTL and auto-evict', function (): void {
+    $client = mock(ApiClientInterface::class);
+    $client->shouldReceive('post')
+        ->withArgs(function ($uri, $options) {
+            return $uri === '/v1/chat/completions'
+                && $options['json']['ttl'] === 1800
+                && $options['json']['auto_evict'] === false;
+        })
+        ->andReturn(['choices' => [['message' => ['content' => 'Test response']]]]);
+
+    $lmstudio = new LMStudio(
+        config: new Config(defaultModel: 'test-model'),
+        apiClient: $client
+    );
+
+    $response = $lmstudio->createChatCompletion(
+        messages: [new Message(Role::USER, 'Test message')],
+        options: ['ttl' => 1800, 'auto_evict' => false]
+    );
+
+    expect($response)->toBeArray()
+        ->and($response['choices'][0]['message']['content'])->toBe('Test response');
+});
+
+test('it can create chat completion with default tool use mode', function (): void {
+    $client = mock(ApiClientInterface::class);
+    $client->shouldReceive('post')
+        ->withArgs(function ($uri, $options) {
+            $toolMessage = $options['json']['messages'][1];
+            return $uri === '/v1/chat/completions'
+                && $toolMessage['role'] === 'user'
+                && $toolMessage['default_tool_call'] === true;
+        })
+        ->andReturn(['choices' => [['message' => ['content' => 'Test response']]]]);
+
+    $lmstudio = new LMStudio(
+        config: new Config(defaultModel: 'test-model', toolUseMode: 'default'),
+        apiClient: $client
+    );
+
+    $response = $lmstudio->createChatCompletion([
+        new Message(Role::USER, 'Test message'),
+        new Message(Role::TOOL, 'Tool response')
+    ]);
+
+    expect($response)->toBeArray()
+        ->and($response['choices'][0]['message']['content'])->toBe('Test response');
+});
+
+test('it can create text completion with structured output', function (): void {
+    $schema = [
+        'type' => 'json_schema',
+        'json_schema' => [
+            'name' => 'test_schema',
+            'strict' => true,
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string'],
+                    'age' => ['type' => 'integer']
+                ],
+                'required' => ['name', 'age']
+            ]
+        ]
+    ];
+
+    $client = mock(ApiClientInterface::class);
+    $client->shouldReceive('post')
+        ->withArgs(function ($uri, $options) use ($schema) {
+            return $uri === '/v1/completions'
+                && $options['json']['response_format'] === $schema;
+        })
+        ->andReturn(['choices' => [['text' => '{"name":"John","age":30}']]]);
+
+    $lmstudio = new LMStudio(
+        config: new Config(defaultModel: 'test-model'),
+        apiClient: $client
+    );
+
+    $response = $lmstudio->createTextCompletion(
+        prompt: 'Generate a person object',
+        options: ['response_format' => $schema]
+    );
+
+    expect($response)->toBeArray()
+        ->and($response['choices'][0]['text'])->toBe('{"name":"John","age":30}');
 });

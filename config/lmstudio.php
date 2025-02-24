@@ -39,4 +39,7 @@ return [
     'default_model' => env('LMSTUDIO_DEFAULT_MODEL'),
     'temperature' => env('LMSTUDIO_TEMPERATURE', 0.7),
     'max_tokens' => env('LMSTUDIO_MAX_TOKENS', -1),
+    'default_ttl' => env('LMSTUDIO_DEFAULT_TTL', 3600),
+    'auto_evict' => env('LMSTUDIO_AUTO_EVICT', true),
+    'tool_use_mode' => env('LMSTUDIO_TOOL_USE_MODE', 'native'),
 ];
