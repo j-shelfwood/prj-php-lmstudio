@@ -1,228 +1,276 @@
-# LMStudio PHP Integration
+# LMStudio PHP
 
-This document outlines our learnings and requirements for creating a robust PHP integration with LMStudio's local API.
+A PHP package for integrating with LMStudio’s local API. This library allows you to interact with LMStudio via both OpenAI‑compatible endpoints (/v1) and the new LM Studio REST API endpoints (/api/v0). It supports chat and text completions, embeddings, tool calls (including streaming responses), and is designed with dependency injection in mind.
 
-## Background
+## Features
 
-LMStudio provides a local API that mimics OpenAI's API structure, allowing for running Large Language Models locally. While the API is similar to OpenAI's, there are some key differences and challenges that need to be addressed for robust integration.
+- **OpenAI Compatibility Endpoints (/v1):**
 
-## Key Learnings
+  - List models, get model information, chat completions, text completions, and embeddings.
+  - Support for streaming responses and tool call handling.
 
-### API Communication
+- **LM Studio REST API Endpoints (/api/v0):**
 
-1. **Connection Management**
+  - List all available models and get detailed model info.
+  - Create chat completions, text completions, and embeddings using the REST API.
 
-   - LMStudio runs locally (default: `localhost:1234`)
-   - Need robust connection handling with appropriate timeouts
-   - Should handle cases where LMStudio is not running or inaccessible
-   - Consider retry mechanisms for transient failures
+- **Tool Calls & Structured Output:**
 
-2. **Streaming Responses**
-   - LMStudio supports streaming responses similar to OpenAI
-   - Responses come in chunks that need to be properly buffered
-   - Tool calls can be split across multiple chunks
-   - Need to handle both content and tool calls in the stream
+  - Parse and execute tool calls requested by LMStudio.
+  - Accumulate partial streaming chunks for tool calls.
 
-### Tool Calls
+- **Dependency Injection & Extensibility:**
 
-1. **Format Differences**
+  - Designed to work seamlessly with DI containers (e.g., Laravel’s service container).
+  - Interfaces for the API client and streaming response handler for easier customization.
 
-   - LMStudio supports both native tool calls and embedded tool calls in content
-   - Tool calls can come in two formats:
+- **Laravel Integration:**
+  - Provides a Laravel service provider and facade for effortless integration.
+  - Artisan commands available for interactive usage (e.g., Chat, Models, Tools, ToolResponse).
 
-     ```json
-     // Native format (in tool_calls field)
-     {
-       "id": "call_xyz",
-       "type": "function",
-       "function": {
-         "name": "action_name",
-         "arguments": "..."
-       }
-     }
+## Installation
 
-     // Embedded format (in content)
-     <tool_call>
-     {
-       "name": "action_name",
-       "arguments": {
-         "arg1": "value1"
-       }
-     }
-     </tool_call>
-     ```
+Use Composer to install the package:
 
-2. **Streaming Challenges**
-   - Tool calls can be split across multiple chunks
-   - Need to buffer until complete JSON is received
-   - Must handle both formats simultaneously
-   - Should clean tool calls from content when embedded
-
-### Content Structure
-
-1. **Message Format**
-
-   ```php
-   [
-     'content' => [
-       'message' => 'The actual message content',
-       'action' => [
-         'name' => 'action_name',
-         'args' => ['parsed', 'arguments']
-       ]
-     ]
-   ]
-   ```
-
-2. **Content Processing**
-   - Need to properly trim whitespace
-   - Handle markdown formatting
-   - Clean up tool call markers from content
-   - Maintain proper content structure throughout
-
-## Package Requirements
-
-### Core Features
-
-1. **Configuration**
-
-   - Easy configuration of LMStudio connection details
-   - Configurable timeouts and retry settings
-   - Debug mode for detailed logging
-
-2. **Laravel Integration**
-
-   - Facade for easy access
-   - Service Provider for configuration
-   - Laravel-style configuration file
-   - Event system integration
-
-3. **Streaming Support**
-
-   - Proper handling of streaming responses
-   - Event-driven updates for real-time processing
-   - Buffer management for tool calls
-   - Error handling for incomplete streams
-
-4. **Tool Call Management**
-   - Support for registering available tools
-   - Validation of tool arguments
-   - Proper parsing and handling of both formats
-   - Clean separation of tools from content
-
-### API Design
-
-```php
-// Configuration
-'lmstudio' => [
-    'host' => 'localhost',
-    'port' => 1234,
-    'timeout' => 60,
-    'retry_attempts' => 3,
-    'retry_delay' => 100,
-]
-
-// Basic Usage
-$response = LMStudio::chat()
-    ->withMessages($messages)
-    ->withTools($tools)
-    ->stream();
-
-// Streaming with Events
-LMStudio::chat()
-    ->withMessages($messages)
-    ->stream(function($chunk) {
-        // Handle each chunk
-        if ($chunk->hasToolCall()) {
-            // Process tool call
-        }
-        // Process content
-    });
-
-// Tool Registration
-LMStudio::registerTool('action_name', [
-    'description' => '...',
-    'parameters' => [
-        'arg1' => ['type' => 'string', 'description' => '...'],
-    ],
-    'required' => ['arg1'],
-]);
+```bash
+composer require shelfwood/lmstudio-php
 ```
 
-### Error Handling
+If you're using Laravel, the package will auto-discover the service provider and alias. Otherwise, you can manually register the service provider:
 
-1. **Connection Errors**
+```php
+// config/app.php (for Laravel)
+'providers' => [
+    // Other Service Providers
+    Shelfwood\LMStudio\Providers\LMStudioServiceProvider::class,
+],
+'aliases' => [
+    // Other Facades
+    'LMStudio' => Shelfwood\LMStudio\Facades\LMStudio::class,
+],
+```
 
-   - Clear error messages for connection failures
-   - Proper exception hierarchy
-   - Retry mechanism for transient failures
+## Configuration
 
-2. **Parsing Errors**
+Publish the configuration file (if using Laravel):
 
-   - Handle incomplete JSON gracefully
-   - Proper logging of parsing failures
-   - Recovery mechanisms for partial responses
+```bash
+php artisan vendor:publish --tag=lmstudio-config
+```
 
-3. **Tool Call Errors**
-   - Validation of tool call format
-   - Handling of malformed tool calls
-   - Proper error propagation
+This will create a `lmstudio.php` configuration file in your `config` directory. You can customize settings such as:
 
-## Testing Requirements
+- `host`: LMStudio server hostname (default: `localhost`)
+- `port`: LMStudio server port (default: `1234`)
+- `timeout`: Connection timeout (default: `60`)
+- `retry_attempts` and `retry_delay`: For handling transient connection errors
+- `default_model`: The default model identifier
+- `temperature` and `max_tokens`: Inference parameters
 
-1. **Unit Tests**
+You can also set these values using environment variables:
 
-   - Test all parsing logic
-   - Test configuration handling
-   - Test tool registration and validation
+```dotenv
+LMSTUDIO_HOST=localhost
+LMSTUDIO_PORT=1234
+LMSTUDIO_TIMEOUT=60
+LMSTUDIO_DEFAULT_MODEL=your-model
+LMSTUDIO_TEMPERATURE=0.7
+LMSTUDIO_MAX_TOKENS=-1
+```
 
-2. **Integration Tests**
+## Usage
 
-   - Test actual LMStudio communication
-   - Test streaming functionality
-   - Test error conditions
+### Instantiating LMStudio
 
-3. **Mock Tests**
-   - Provide mock responses for testing
-   - Test error conditions
-   - Test timeout scenarios
+You can create an instance directly or via dependency injection. For example:
 
-## Documentation Requirements
+```php
+use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\DTOs\Common\Config;
 
-1. **Installation Guide**
+// Direct instantiation using default settings:
+$lmstudio = LMStudio::create();
 
-   - Clear prerequisites
-   - Step-by-step installation
-   - Configuration options
+// Or with custom configuration:
+$config = new Config(
+    host: 'localhost',
+    port: 1234,
+    timeout: 60,
+    temperature: 0.7,
+    maxTokens: -1,
+    defaultModel: 'your-model'
+);
+$lmstudio = new LMStudio($config);
+```
 
-2. **Usage Examples**
+If you use a DI container (like in Laravel), the `LMStudioServiceProvider` will inject the proper dependencies.
 
-   - Basic usage patterns
-   - Streaming examples
-   - Tool registration and usage
-   - Error handling examples
+### OpenAI-Compatible API (/v1)
 
-3. **API Reference**
-   - Complete method documentation
-   - Configuration options
-   - Event documentation
-   - Exception documentation
+#### Listing Models
 
-## Future Considerations
+```php
+use Shelfwood\LMStudio\LMStudio;
 
-1. **Performance Optimization**
+$lmstudio = LMStudio::create();
+$modelList = $lmstudio->listModels();
 
-   - Connection pooling
-   - Response caching
-   - Batch processing
+foreach ($modelList->data as $model) {
+    echo $model->id, PHP_EOL;
+}
+```
 
-2. **Security**
+#### Chat Completion
 
-   - Input validation
-   - Rate limiting
-   - Authentication support
+```php
+use Shelfwood\LMStudio\DTOs\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Chat\Role;
 
-3. **Monitoring**
-   - Performance metrics
-   - Error tracking
-   - Usage statistics
+$messages = [
+    new Message(Role::SYSTEM, 'You are a helpful assistant.'),
+    new Message(Role::USER, 'What is the weather like in London?'),
+];
+
+$response = $lmstudio->createChatCompletion($messages, 'your-model');
+
+// If not streaming, $response will be the decoded JSON response.
+echo $response->choices[0]->message->content;
+```
+
+#### Text Completion
+
+```php
+$response = $lmstudio->createTextCompletion(
+    prompt: 'Once upon a time, ',
+    model: 'your-model'
+);
+
+echo $response['choices'][0]['text'];
+```
+
+#### Embeddings
+
+```php
+$embeddings = $lmstudio->createEmbeddings('your-model', 'Some text to embed');
+print_r($embeddings);
+```
+
+### LM Studio REST API (/api/v0)
+
+These endpoints work similarly but target the new REST API.
+
+#### Listing Models via REST API
+
+```php
+$restModels = $lmstudio->listRestModels();
+print_r($restModels);
+```
+
+#### Getting Model Information
+
+```php
+$modelInfo = $lmstudio->getRestModel('your-model');
+print_r($modelInfo);
+```
+
+#### REST Chat Completion
+
+```php
+$response = $lmstudio->createRestChatCompletion($messages, 'your-model');
+echo $response['choices'][0]['message']['content'];
+```
+
+#### REST Text Completion
+
+```php
+$response = $lmstudio->createRestCompletion('Tell me a joke.', 'your-model');
+echo $response['choices'][0]['text'];
+```
+
+#### REST Embeddings
+
+```php
+$embeddings = $lmstudio->createRestEmbeddings('your-model', 'Some text to embed');
+print_r($embeddings);
+```
+
+### Tool Calls & Streaming
+
+Your library supports tool calls. When using the streaming mode, tool calls can be parsed and executed via your registered handlers. For example:
+
+```php
+use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
+use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
+use Shelfwood\LMStudio\DTOs\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Chat\Role;
+
+// Define a tool function for getting current weather.
+$weatherTool = new ToolFunction(
+    name: 'get_current_weather',
+    description: 'Get the current weather in a location',
+    parameters: [
+        'location' => [
+            'type' => 'string',
+            'description' => 'The location for which to get weather',
+        ],
+    ],
+    required: ['location']
+);
+
+// Register the tool with a handler.
+$chat = $lmstudio->chat()
+    ->withModel('your-model')
+    ->withTools([$weatherTool])
+    ->withToolHandler('get_current_weather', function (array $args) {
+        // Implement your actual weather lookup here.
+        return ['temperature' => 20, 'condition' => 'sunny'];
+    });
+
+// Send a chat message that triggers a tool call.
+$chat->withMessages([
+    new Message(Role::USER, 'What is the weather in London?'),
+]);
+
+// Use streaming mode to process responses.
+foreach ($chat->stream()->send() as $message) {
+    // Process each streamed message or tool call.
+    if ($message instanceof Message) {
+        echo $message->content;
+    } elseif ($message instanceof ToolCall) {
+        // The tool call has been processed; its output is in the message.
+        print_r($message);
+    }
+}
+```
+
+## CLI Commands
+
+The package includes several artisan commands (if using Laravel):
+
+- **chat:** Start an interactive chat session.
+- **models:** List available models.
+- **tools:** Test tool calls with LMStudio models.
+- **tool:response:** Process a tool call result.
+
+You can run these commands using:
+
+```bash
+php artisan chat
+php artisan models
+php artisan tools
+php artisan tool:response --model your-model <tool> <result>
+```
+
+## Dependency Injection
+
+The library now supports dependency injection. You can instantiate `LMStudio` by passing in your own implementations of `ApiClientInterface` and `StreamingResponseHandlerInterface`. If not provided, default implementations are used.
+
+For Laravel users, the `LMStudioServiceProvider` handles instantiation and binding.
+
+## Contributing
+
+Contributions are welcome!
+
+## License
+
+This package is open-sourced software licensed under the [MIT license](LICENSE).
