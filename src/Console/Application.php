@@ -6,6 +6,8 @@ namespace Shelfwood\LMStudio\Console;
 
 use Shelfwood\LMStudio\Commands\Chat;
 use Shelfwood\LMStudio\Commands\Models;
+use Shelfwood\LMStudio\Commands\Sequence;
+use Shelfwood\LMStudio\Commands\ToolResponse;
 use Shelfwood\LMStudio\Commands\Tools;
 use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\LMStudio;
@@ -33,6 +35,8 @@ class Application extends BaseApplication
             new Chat($this->lmstudio),
             new Models($this->lmstudio),
             new Tools($this->lmstudio),
+            new ToolResponse($this->lmstudio),
+            new Sequence($this->lmstudio),
         ]);
     }
 

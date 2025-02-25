@@ -11,7 +11,7 @@ final readonly class ModelInfo implements JsonSerializable
     public function __construct(
         public string $id,
         public string $object,
-        public int $created,
+        public ?int $created,
         public string $ownedBy,
         public array $permission = [],
         public ?string $root = null,
@@ -23,7 +23,7 @@ final readonly class ModelInfo implements JsonSerializable
         return new self(
             id: $data['id'],
             object: $data['object'],
-            created: $data['created'],
+            created: $data['created'] ?? null,
             ownedBy: $data['owned_by'],
             permission: $data['permission'] ?? [],
             root: $data['root'] ?? null,
