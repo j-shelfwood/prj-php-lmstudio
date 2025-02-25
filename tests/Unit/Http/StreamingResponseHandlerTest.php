@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Tests\Unit\Http;
 
 use GuzzleHttp\Psr7\Response;
-use Shelfwood\LMStudio\DTOs\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\Http\StreamingResponseHandler;
 
 beforeEach(function (): void {
@@ -24,10 +22,12 @@ test('it can handle content stream', function (): void {
 
     $messages = iterator_to_array($this->handler->handle($response));
 
-    expect($messages)->toHaveCount(2)
-        ->and($messages[0])->toBeInstanceOf(Message::class)
-        ->and($messages[0]->content)->toBe('Hello')
-        ->and($messages[1]->content)->toBe(' world!');
+    expect($messages)->toHaveCount(3)
+        ->and($messages[0]->type)->toBe('message')
+        ->and($messages[0]->message->content)->toBe('Hello')
+        ->and($messages[1]->type)->toBe('message')
+        ->and($messages[1]->message->content)->toBe(' world!')
+        ->and($messages[2]->type)->toBe('done');
 });
 
 test('it can handle tool call stream', function (): void {
@@ -59,10 +59,11 @@ test('it can handle tool call stream', function (): void {
 
     $messages = iterator_to_array($this->handler->handle($response));
 
-    expect($messages)->toHaveCount(1)
-        ->and($messages[0])->toBeInstanceOf(ToolCall::class)
-        ->and($messages[0]->function->name)->toBe('test_tool')
-        ->and($messages[0]->arguments)->toBe('{"arg":"value"}');
+    expect($messages)->toHaveCount(2)
+        ->and($messages[0]->type)->toBe('tool_call')
+        ->and($messages[0]->toolCall->function->name)->toBe('test_tool')
+        ->and($messages[0]->toolCall->arguments)->toBe('{"arg":"value"}')
+        ->and($messages[1]->type)->toBe('done');
 });
 
 test('it ignores invalid json lines', function (): void {
@@ -76,9 +77,10 @@ test('it ignores invalid json lines', function (): void {
 
     $messages = iterator_to_array($this->handler->handle($response));
 
-    expect($messages)->toHaveCount(1)
-        ->and($messages[0])->toBeInstanceOf(Message::class)
-        ->and($messages[0]->content)->toBe('Hello');
+    expect($messages)->toHaveCount(2)
+        ->and($messages[0]->type)->toBe('message')
+        ->and($messages[0]->message->content)->toBe('Hello')
+        ->and($messages[1]->type)->toBe('done');
 });
 
 test('it handles empty lines', function (): void {
@@ -93,9 +95,10 @@ test('it handles empty lines', function (): void {
 
     $messages = iterator_to_array($this->handler->handle($response));
 
-    expect($messages)->toHaveCount(1)
-        ->and($messages[0])->toBeInstanceOf(Message::class)
-        ->and($messages[0]->content)->toBe('Hello');
+    expect($messages)->toHaveCount(2)
+        ->and($messages[0]->type)->toBe('message')
+        ->and($messages[0]->message->content)->toBe('Hello')
+        ->and($messages[1]->type)->toBe('done');
 });
 
 test('it handles partial tool calls', function (): void {
@@ -136,8 +139,9 @@ test('it handles partial tool calls', function (): void {
 
     $messages = iterator_to_array($this->handler->handle($response));
 
-    expect($messages)->toHaveCount(1)
-        ->and($messages[0])->toBeInstanceOf(ToolCall::class)
-        ->and($messages[0]->function->name)->toBe('test_tool')
-        ->and($messages[0]->arguments)->toBe('{"arg":"value"}');
+    expect($messages)->toHaveCount(2)
+        ->and($messages[0]->type)->toBe('tool_call')
+        ->and($messages[0]->toolCall->function->name)->toBe('test_tool')
+        ->and($messages[0]->toolCall->arguments)->toBe('{"arg":"value"}')
+        ->and($messages[1]->type)->toBe('done');
 });

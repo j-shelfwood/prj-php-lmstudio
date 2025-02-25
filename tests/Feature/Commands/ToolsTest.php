@@ -51,7 +51,7 @@ test('it fails when no model is specified', function (): void {
 test('it can execute a tool call', function (): void {
     // Mock the tool call response
     $toolCallEvents = [
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -62,7 +62,7 @@ test('it can execute a tool call', function (): void {
                 ],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -71,17 +71,17 @@ test('it can execute a tool call', function (): void {
                 ],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => ['content' => 'The weather in London is '],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => ['content' => 'sunny!'],
             ]],
         ]).\PHP_EOL,
-        '[DONE]'.\PHP_EOL,
+        'data: [DONE]'.\PHP_EOL,
     ];
 
     $this->mock->append(new Response(200, [], implode('', $toolCallEvents)));
@@ -100,9 +100,9 @@ test('it can execute a tool call', function (): void {
 test('it handles missing tool handler', function (): void {
     // Mock a tool call for an unregistered handler
     $toolCallEvents = [
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['id' => '123', 'type' => 'function', 'function' => (object) ['name' => 'unknown_tool']]]]]]])."\n",
-        json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['function' => (object) ['arguments' => '{"arg":"value"}']]]]]]])."\n",
-        "[DONE]\n",
+        'data: '.json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['id' => '123', 'type' => 'function', 'function' => (object) ['name' => 'unknown_tool']]]]]]])."\n",
+        'data: '.json_encode((object) ['choices' => [(object) ['delta' => (object) ['tool_calls' => [(object) ['function' => (object) ['arguments' => '{"arg":"value"}']]]]]]])."\n",
+        "data: [DONE]\n",
     ];
 
     $this->mock->append(new Response(200, [], implode('', $toolCallEvents)));

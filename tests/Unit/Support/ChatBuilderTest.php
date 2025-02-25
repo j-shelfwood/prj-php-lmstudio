@@ -10,7 +10,6 @@ use GuzzleHttp\Psr7\Response;
 use Shelfwood\LMStudio\DTOs\Chat\Message;
 use Shelfwood\LMStudio\DTOs\Chat\Role;
 use Shelfwood\LMStudio\DTOs\Common\Config;
-use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
 use Shelfwood\LMStudio\Exceptions\ValidationException;
 use Shelfwood\LMStudio\Http\ApiClient;
@@ -154,17 +153,17 @@ test('it can send chat completion', function (): void {
 
 test('it can stream chat completion', function (): void {
     $events = [
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => ['content' => 'Hello'],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => ['content' => ' world!'],
             ]],
         ]).\PHP_EOL,
-        '[DONE]'.\PHP_EOL,
+        'data: [DONE]'.\PHP_EOL,
     ];
 
     $this->mock->append(new Response(200, [], implode('', $events)));
@@ -179,10 +178,12 @@ test('it can stream chat completion', function (): void {
         $messages[] = $message;
     }
 
-    expect($messages)->toHaveCount(2)
-        ->and($messages[0])->toBeInstanceOf(Message::class)
-        ->and($messages[0]->content)->toBe('Hello')
-        ->and($messages[1]->content)->toBe(' world!');
+    expect($messages)->toHaveCount(3)
+        ->and($messages[0]->type)->toBe('message')
+        ->and($messages[0]->message->content)->toBe('Hello')
+        ->and($messages[1]->type)->toBe('message')
+        ->and($messages[1]->message->content)->toBe(' world!')
+        ->and($messages[2]->type)->toBe('done');
 });
 
 test('it can handle tool calls', function (): void {
@@ -199,7 +200,7 @@ test('it can handle tool calls', function (): void {
     );
 
     $events = [
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -210,7 +211,7 @@ test('it can handle tool calls', function (): void {
                 ],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -219,7 +220,7 @@ test('it can handle tool calls', function (): void {
                 ],
             ]],
         ]).\PHP_EOL,
-        '[DONE]'.\PHP_EOL,
+        'data: [DONE]'.\PHP_EOL,
     ];
 
     $this->mock->append(new Response(200, [], implode('', $events)));
@@ -238,10 +239,11 @@ test('it can handle tool calls', function (): void {
         $messages[] = $message;
     }
 
-    expect($messages)->toHaveCount(1)
-        ->and($messages[0])->toBeInstanceOf(ToolCall::class)
-        ->and($messages[0]->function->name)->toBe('get_current_weather');
+    expect($messages)->toHaveCount(2)
+        ->and($messages[0]->type)->toBe('tool_call')
+        ->and($messages[0]->toolCall->function->name)->toBe('get_current_weather')
+        ->and($messages[1]->type)->toBe('done');
 
-    $args = $messages[0]->function->validateArguments('{"location":"London"}');
+    $args = $messages[0]->toolCall->function->validateArguments('{"location":"London"}');
     expect($args)->toBe(['location' => 'London']);
 });

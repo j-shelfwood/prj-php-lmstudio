@@ -18,9 +18,14 @@ interface ApiClientInterface
     /**
      * Send a POST request
      *
-     * @return array<string, mixed>|ResponseInterface
+     * @return array<string, mixed>
      */
-    public function post(string $uri, array $options = []): array|ResponseInterface;
+    public function post(string $uri, array $options = []): array;
+
+    /**
+     * Send a POST request with streaming response
+     */
+    public function postStreaming(string $uri, array $options = []): ResponseInterface;
 
     /**
      * Get the underlying HTTP client

@@ -143,18 +143,19 @@ test('it can stream chat completion', function (): void {
 
     $messages = [];
 
-    foreach ($this->lmstudio->createChatCompletion(
+    foreach ($this->lmstudio->createChatCompletionStream(
         messages: [new Message(Role::USER, 'Hi!')],
-        model: 'test-model',
-        stream: true
+        model: 'test-model'
     ) as $message) {
         $messages[] = $message;
     }
 
-    expect($messages)->toHaveCount(2)
-        ->and($messages[0])->toBeInstanceOf(Message::class)
-        ->and($messages[0]->content)->toBe('Hello')
-        ->and($messages[1]->content)->toBe(' world!');
+    expect($messages)->toHaveCount(3)
+        ->and($messages[0]->type)->toBe('message')
+        ->and($messages[0]->message->content)->toBe('Hello')
+        ->and($messages[1]->type)->toBe('message')
+        ->and($messages[1]->message->content)->toBe(' world!')
+        ->and($messages[2]->type)->toBe('done');
 });
 
 test('it can stream text completion', function (): void {
@@ -184,9 +185,12 @@ test('it can stream text completion', function (): void {
         $messages[] = $message;
     }
 
-    expect($messages)->toHaveCount(2)
-        ->and($messages[0]->content)->toBe('Hello')
-        ->and($messages[1]->content)->toBe(' world!');
+    expect($messages)->toHaveCount(3)
+        ->and($messages[0]->type)->toBe('message')
+        ->and($messages[0]->message->content)->toBe('Hello')
+        ->and($messages[1]->type)->toBe('message')
+        ->and($messages[1]->message->content)->toBe(' world!')
+        ->and($messages[2]->type)->toBe('done');
 });
 
 test('it fails text completion with empty prompt', function (): void {
@@ -243,20 +247,20 @@ test('it can stream chat completion with tool calls', function (): void {
 
     $messages = [];
 
-    foreach ($this->lmstudio->createChatCompletion(
+    foreach ($this->lmstudio->createChatCompletionStream(
         messages: [new Message(Role::USER, 'What\'s the weather in London?')],
         model: 'test-model',
-        tools: [new ToolCall(uniqid('call_'), 'function', $weatherTool)],
-        stream: true
+        tools: [new ToolCall(uniqid('call_'), 'function', $weatherTool)]
     ) as $message) {
         $messages[] = $message;
     }
 
     expect($messages)
-        ->toHaveCount(1)
-        ->and($messages[0])->toBeInstanceOf(ToolCall::class)
-        ->and($messages[0]->function->name)->toBe('get_current_weather')
-        ->and($messages[0]->arguments)->toBe('{"location":"London"}');
+        ->toHaveCount(2)
+        ->and($messages[0]->type)->toBe('tool_call')
+        ->and($messages[0]->toolCall->function->name)->toBe('get_current_weather')
+        ->and($messages[0]->toolCall->arguments)->toBe('{"location":"London"}')
+        ->and($messages[1]->type)->toBe('done');
 });
 
 // -------------------------------

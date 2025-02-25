@@ -136,11 +136,18 @@ class ChatBuilder
             throw ValidationException::invalidMessage('At least one message is required');
         }
 
+        if ($this->stream) {
+            return $this->client->createChatCompletionStream(
+                messages: $this->messages,
+                model: $this->model,
+                tools: $this->tools
+            );
+        }
+
         return $this->client->createChatCompletion(
             messages: $this->messages,
             model: $this->model,
-            tools: $this->tools,
-            stream: $this->stream,
+            tools: $this->tools
         );
     }
 

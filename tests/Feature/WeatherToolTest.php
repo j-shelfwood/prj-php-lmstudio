@@ -10,7 +10,6 @@ use GuzzleHttp\Psr7\Response;
 use Shelfwood\LMStudio\DTOs\Chat\Message;
 use Shelfwood\LMStudio\DTOs\Chat\Role;
 use Shelfwood\LMStudio\DTOs\Common\Config;
-use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
 use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\Http\StreamingResponseHandler;
@@ -48,7 +47,7 @@ test('it can get weather for a location', function (): void {
     );
 
     $events = [
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -59,7 +58,7 @@ test('it can get weather for a location', function (): void {
                 ],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -68,7 +67,7 @@ test('it can get weather for a location', function (): void {
                 ],
             ]],
         ]).\PHP_EOL,
-        '[DONE]'.\PHP_EOL,
+        'data: [DONE]'.\PHP_EOL,
     ];
 
     $this->mock->append(new Response(200, [], implode('', $events)));
@@ -87,11 +86,12 @@ test('it can get weather for a location', function (): void {
         $messages[] = $message;
     }
 
-    expect($messages)->toHaveCount(1)
-        ->and($messages[0])->toBeInstanceOf(ToolCall::class)
-        ->and($messages[0]->function->name)->toBe('get_current_weather');
+    expect($messages)->toHaveCount(2)
+        ->and($messages[0]->type)->toBe('tool_call')
+        ->and($messages[0]->toolCall->function->name)->toBe('get_current_weather')
+        ->and($messages[1]->type)->toBe('done');
 
-    $args = $messages[0]->function->validateArguments('{"location":"London"}');
+    $args = $messages[0]->toolCall->function->validateArguments('{"location":"London"}');
     expect($args)->toBe(['location' => 'London']);
 });
 
@@ -109,7 +109,7 @@ test('it handles multiple weather requests in a conversation', function (): void
     );
 
     $events = [
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -120,7 +120,7 @@ test('it handles multiple weather requests in a conversation', function (): void
                 ],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -129,7 +129,7 @@ test('it handles multiple weather requests in a conversation', function (): void
                 ],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -140,7 +140,7 @@ test('it handles multiple weather requests in a conversation', function (): void
                 ],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => [
                     'tool_calls' => [[
@@ -149,7 +149,7 @@ test('it handles multiple weather requests in a conversation', function (): void
                 ],
             ]],
         ]).\PHP_EOL,
-        '[DONE]'.\PHP_EOL,
+        'data: [DONE]'.\PHP_EOL,
     ];
 
     $this->mock->append(new Response(200, [], implode('', $events)));
@@ -171,14 +171,15 @@ test('it handles multiple weather requests in a conversation', function (): void
         $messages[] = $message;
     }
 
-    expect($messages)->toHaveCount(2)
-        ->and($messages[0])->toBeInstanceOf(ToolCall::class)
-        ->and($messages[0]->function->name)->toBe('get_current_weather')
-        ->and($messages[1])->toBeInstanceOf(ToolCall::class)
-        ->and($messages[1]->function->name)->toBe('get_current_weather');
+    expect($messages)->toHaveCount(3)
+        ->and($messages[0]->type)->toBe('tool_call')
+        ->and($messages[0]->toolCall->function->name)->toBe('get_current_weather')
+        ->and($messages[1]->type)->toBe('tool_call')
+        ->and($messages[1]->toolCall->function->name)->toBe('get_current_weather')
+        ->and($messages[2]->type)->toBe('done');
 
-    $args1 = $messages[0]->function->validateArguments('{"location":"London"}');
-    $args2 = $messages[1]->function->validateArguments('{"location":"Paris"}');
+    $args1 = $messages[0]->toolCall->function->validateArguments('{"location":"London"}');
+    $args2 = $messages[1]->toolCall->function->validateArguments('{"location":"Paris"}');
 
     expect($args1)->toBe(['location' => 'London'])
         ->and($args2)->toBe(['location' => 'Paris']);

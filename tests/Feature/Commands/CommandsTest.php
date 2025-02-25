@@ -115,24 +115,33 @@ test('tools command executes tool calls', function (): void {
     ]);
 
     $chatBuilder->expects()->send()->andReturn([
-        new \Shelfwood\LMStudio\DTOs\Chat\Message(
-            role: \Shelfwood\LMStudio\DTOs\Chat\Role::ASSISTANT,
-            content: 'Let me check the weather for London.'
-        ),
-        new \Shelfwood\LMStudio\DTOs\Tool\ToolCall(
-            id: 'call_123',
-            type: 'function',
-            function: new \Shelfwood\LMStudio\DTOs\Tool\ToolFunction(
-                name: 'get_current_weather',
-                description: 'Get the current weather in a location',
-                parameters: ['location' => ['type' => 'string', 'description' => 'The location to get weather for']],
-                required: ['location']
-            )
-        ),
-        new \Shelfwood\LMStudio\DTOs\Chat\Message(
-            role: \Shelfwood\LMStudio\DTOs\Chat\Role::TOOL,
-            content: '{"temperature":20,"condition":"sunny","location":"London"}'
-        ),
+        (object) [
+            'type' => 'message',
+            'message' => new \Shelfwood\LMStudio\DTOs\Chat\Message(
+                role: \Shelfwood\LMStudio\DTOs\Chat\Role::ASSISTANT,
+                content: 'Let me check the weather for London.'
+            ),
+        ],
+        (object) [
+            'type' => 'tool_call',
+            'toolCall' => new \Shelfwood\LMStudio\DTOs\Tool\ToolCall(
+                id: 'call_123',
+                type: 'function',
+                function: new \Shelfwood\LMStudio\DTOs\Tool\ToolFunction(
+                    name: 'get_current_weather',
+                    description: 'Get the current weather in a location',
+                    parameters: ['location' => ['type' => 'string', 'description' => 'The location to get weather for']],
+                    required: ['location']
+                )
+            ),
+        ],
+        (object) [
+            'type' => 'message',
+            'message' => new \Shelfwood\LMStudio\DTOs\Chat\Message(
+                role: \Shelfwood\LMStudio\DTOs\Chat\Role::TOOL,
+                content: '{"temperature":20,"condition":"sunny","location":"London"}'
+            ),
+        ],
     ]);
 
     /** @var LMStudioClass&\Mockery\MockInterface */

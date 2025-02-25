@@ -44,8 +44,8 @@ test('it can make post request', function (): void {
 test('it can handle streaming response', function (): void {
     $this->mockHandler->append(new Response(200, [], 'stream data'));
 
-    $result = $this->client->post('/test', [
-        'stream' => true,
+    $result = $this->client->postStreaming('/test', [
+        'json' => ['data' => 'test'],
     ]);
 
     expect($result)->toBeInstanceOf(\Psr\Http\Message\ResponseInterface::class)

@@ -99,18 +99,19 @@ class LMStudio
     /**
      * Send a chat completion request.
      *
-     * @param  array<Message>  $messages
-     * @param  array<ToolCall>  $tools
-     * @param  array  $options  Additional parameters such as:
-     *                          - ttl: (int) Time-To-Live in seconds for JIT loading.
-     *                          - auto_evict: (bool) Whether to auto-evict previously loaded models.
-     *                          - top_p: (float) Nucleus sampling threshold.
-     *                          - stop: (string|array) Stop sequences.
-     *                          - presence_penalty: (float) Presence penalty.
-     *                          - frequency_penalty: (float) Frequency penalty.
-     *                          - logit_bias: (array) Token biases.
-     *                          - response_format: (array) Structured output format.
-     * @return DTOs\Response\ChatCompletion|\Generator<Message|ToolCall>|array
+     * @param  array<Message>  $messages  Array of message objects (system, user, assistant, tool)
+     * @param  ?string  $model  The model to use, defaults to the one in config
+     * @param  array<ToolCall>  $tools  Array of tools the model can use
+     * @param  array<string, mixed>  $options  Additional options:
+     *                                         - temperature: (float) Sampling temperature.
+     *                                         - top_p: (float) Nucleus sampling parameter.
+     *                                         - top_k: (int) Top-k sampling parameter.
+     *                                         - max_tokens: (int) Max tokens to generate (-1 for model default).
+     *                                         - stop: (array|string) Stop sequences.
+     *                                         - presence_penalty: (float) Presence penalty.
+     *                                         - frequency_penalty: (float) Frequency penalty.
+     *                                         - logit_bias: (array) Token biases.
+     *                                         - response_format: (array) Structured output format.
      *
      * @throws ValidationException|ConnectionException
      */
@@ -118,9 +119,8 @@ class LMStudio
         array $messages,
         ?string $model = null,
         array $tools = [],
-        bool $stream = false,
         array $options = []
-    ): DTOs\Response\ChatCompletion|\Generator|array {
+    ): DTOs\Response\ChatCompletion {
         $model = $model ?? $this->config->defaultModel;
 
         if (empty($model)) {
@@ -146,7 +146,7 @@ class LMStudio
             'messages' => array_map(fn (Message $m) => $m->jsonSerialize(), $messages),
             'temperature' => $this->config->temperature,
             'max_tokens' => $this->config->maxTokens,
-            'stream' => $stream,
+            'stream' => false,
             'tools' => empty($tools) ? [] : array_map(fn (ToolCall $t) => $t->jsonSerialize(), $tools),
         ];
 
@@ -169,16 +169,82 @@ class LMStudio
             uri: '/v1/chat/completions',
             options: [
                 'json' => $parameters,
-                'stream' => $stream,
             ]
         );
 
-        if ($stream) {
-            return $this->streamingHandler->handle(response: $response);
-        }
-
         // Always return a ChatCompletion object
         return DTOs\Response\ChatCompletion::fromArray($response);
+    }
+
+    /**
+     * Send a streaming chat completion request.
+     *
+     * @param  array<Message>  $messages  Array of message objects (system, user, assistant, tool)
+     * @param  ?string  $model  The model to use, defaults to the one in config
+     * @param  array<ToolCall>  $tools  Array of tools the model can use
+     * @param  array<string, mixed>  $options  Additional options (see createChatCompletion)
+     * @return \Generator<int, DTOs\Response\StreamingResponse, mixed, void>
+     *
+     * @throws ValidationException|ConnectionException
+     */
+    public function createChatCompletionStream(
+        array $messages,
+        ?string $model = null,
+        array $tools = [],
+        array $options = []
+    ): \Generator {
+        $model = $model ?? $this->config->defaultModel;
+
+        if (empty($model)) {
+            throw ValidationException::invalidModel(
+                message: 'Model must be specified for chat completion'
+            );
+        }
+
+        if (empty($messages)) {
+            throw ValidationException::invalidMessage(
+                message: 'At least one message is required for chat completion'
+            );
+        }
+
+        // Merge default TTL and auto_evict from config if not provided
+        $options = array_merge([
+            'ttl' => $this->config->defaultTtl,
+            'auto_evict' => $this->config->autoEvict,
+        ], $options);
+
+        $parameters = [
+            'model' => $model,
+            'messages' => array_map(fn (Message $m) => $m->jsonSerialize(), $messages),
+            'temperature' => $this->config->temperature,
+            'max_tokens' => $this->config->maxTokens,
+            'stream' => true,
+            'tools' => empty($tools) ? [] : array_map(fn (ToolCall $t) => $t->jsonSerialize(), $tools),
+        ];
+
+        // Merge additional options (e.g. ttl, auto_evict, top_p, etc.)
+        $parameters = array_merge($parameters, $options);
+
+        // Handle tool use mode conversion if needed
+        if ($this->config->toolUseMode === 'default') {
+            $parameters['messages'] = array_map(function ($message) {
+                if (isset($message['role']) && $message['role'] === 'tool') {
+                    $message['role'] = 'user';
+                    $message['default_tool_call'] = true;
+                }
+
+                return $message;
+            }, $parameters['messages']);
+        }
+
+        $response = $this->apiClient->postStreaming(
+            uri: '/v1/chat/completions',
+            options: [
+                'json' => $parameters,
+            ]
+        );
+
+        return $this->streamingHandler->handle($response);
     }
 
     /**
@@ -236,24 +302,30 @@ class LMStudio
         ], $options);
 
         $parameters = array_merge([
-            'model' => $model,
             'prompt' => $prompt,
+            'model' => $model,
             'temperature' => $this->config->temperature,
             'max_tokens' => $this->config->maxTokens,
             'stream' => $options['stream'] ?? false,
         ], $options);
 
+        if ($parameters['stream']) {
+            $response = $this->apiClient->postStreaming(
+                uri: '/v1/completions',
+                options: [
+                    'json' => $parameters,
+                ]
+            );
+
+            return $this->streamingHandler->handle(response: $response);
+        }
+
         $response = $this->apiClient->post(
             uri: '/v1/completions',
             options: [
                 'json' => $parameters,
-                'stream' => $parameters['stream'],
             ]
         );
-
-        if ($parameters['stream']) {
-            return $this->streamingHandler->handle(response: $response);
-        }
 
         // For test-model, return the raw array response to match test expectations
         if ($model === 'test-model') {
@@ -345,42 +417,42 @@ class LMStudio
 
         if (empty($model)) {
             throw ValidationException::invalidModel(
-                message: 'Model must be specified for REST chat completion'
+                message: 'Model must be specified for chat completion'
             );
         }
 
         if (empty($messages)) {
             throw ValidationException::invalidMessage(
-                message: 'At least one message is required for REST chat completion'
+                message: 'At least one message is required for chat completion'
             );
         }
 
         $parameters = array_merge([
             'model' => $model,
-            'messages' => array_map(
-                callback: fn (Message $m) => $m->jsonSerialize(),
-                array: $messages
-            ),
+            'messages' => array_map(fn (Message $m) => $m->jsonSerialize(), $messages),
             'temperature' => $this->config->temperature,
             'max_tokens' => $this->config->maxTokens,
             'stream' => $options['stream'] ?? false,
-            'tools' => empty($tools) ? [] : array_map(
-                callback: fn (ToolCall $t) => $t->jsonSerialize(),
-                array: $tools
-            ),
+            'tools' => empty($tools) ? [] : array_map(fn (ToolCall $t) => $t->jsonSerialize(), $tools),
         ], $options);
+
+        if ($parameters['stream']) {
+            $response = $this->apiClient->postStreaming(
+                uri: '/api/v0/chat/completions',
+                options: [
+                    'json' => $parameters,
+                ]
+            );
+
+            return $this->streamingHandler->handle(response: $response);
+        }
 
         $response = $this->apiClient->post(
             uri: '/api/v0/chat/completions',
             options: [
                 'json' => $parameters,
-                'stream' => $parameters['stream'],
             ]
         );
-
-        if ($parameters['stream']) {
-            return $this->streamingHandler->handle(response: $response);
-        }
 
         return $response;
     }
@@ -396,35 +468,35 @@ class LMStudio
 
         if (empty($model)) {
             throw ValidationException::invalidModel(
-                message: 'Model must be specified for REST completion'
-            );
-        }
-
-        if (empty($prompt)) {
-            throw ValidationException::invalidMessage(
-                message: 'Prompt cannot be empty for REST completion'
+                message: 'Model must be specified for completion'
             );
         }
 
         $parameters = array_merge([
-            'model' => $model,
             'prompt' => $prompt,
+            'model' => $model,
             'temperature' => $this->config->temperature,
             'max_tokens' => $this->config->maxTokens,
             'stream' => $options['stream'] ?? false,
         ], $options);
 
+        if ($parameters['stream']) {
+            $response = $this->apiClient->postStreaming(
+                uri: '/api/v0/completions',
+                options: [
+                    'json' => $parameters,
+                ]
+            );
+
+            return $this->streamingHandler->handle(response: $response);
+        }
+
         $response = $this->apiClient->post(
             uri: '/api/v0/completions',
             options: [
                 'json' => $parameters,
-                'stream' => $parameters['stream'],
             ]
         );
-
-        if ($parameters['stream']) {
-            return $this->streamingHandler->handle(response: $response);
-        }
 
         return $response;
     }
@@ -459,13 +531,24 @@ class LMStudio
         );
     }
 
-    public function getClient(): ApiClientInterface
+    /**
+     * Create a structured output builder
+     */
+    public function structuredOutput(): Support\StructuredOutputBuilder
     {
-        return $this->apiClient;
+        return new Support\StructuredOutputBuilder($this);
     }
 
+    /**
+     * Get the current configuration
+     */
     public function getConfig(): Config
     {
         return $this->config;
+    }
+
+    public function getClient(): ApiClientInterface
+    {
+        return $this->apiClient;
     }
 }

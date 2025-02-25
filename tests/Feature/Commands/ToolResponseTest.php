@@ -64,17 +64,17 @@ test('it fails with invalid json result', function (): void {
 
 test('it can get response for tool result', function (): void {
     $events = [
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => ['content' => 'The weather is '],
             ]],
         ]).\PHP_EOL,
-        json_encode([
+        'data: '.json_encode([
             'choices' => [[
                 'delta' => ['content' => 'sunny!'],
             ]],
         ]).\PHP_EOL,
-        '[DONE]'.\PHP_EOL,
+        'data: [DONE]'.\PHP_EOL,
     ];
 
     $this->mock->append(new Response(200, [], implode('', $events)));

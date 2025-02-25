@@ -87,8 +87,8 @@ class ToolResponse extends Command
             $output->write('<info>Assistant:</info> ');
 
             foreach ($response as $chunk) {
-                if ($chunk instanceof Message) {
-                    $output->write($chunk->content);
+                if ($chunk->type === 'message' && $chunk->message !== null) {
+                    $output->write($chunk->message->content);
                 }
             }
             $output->writeln("\n");

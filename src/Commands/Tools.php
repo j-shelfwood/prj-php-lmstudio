@@ -120,15 +120,15 @@ class Tools extends Command
                     ->send();
 
                 foreach ($response as $chunk) {
-                    if ($chunk instanceof Message) {
-                        if ($chunk->role === Role::TOOL) {
-                            $output->writeln("\n<comment>Tool response: {$chunk->content}</comment>\n");
+                    if ($chunk->type === 'message' && $chunk->message !== null) {
+                        if ($chunk->message->role === Role::TOOL) {
+                            $output->writeln("\n<comment>Tool response: {$chunk->message->content}</comment>\n");
                         } else {
-                            $output->write($chunk->content);
+                            $output->write($chunk->message->content);
                         }
-                    } elseif ($chunk instanceof ToolCall) {
-                        if ($chunk->function->name !== 'get_current_weather') {
-                            $output->writeln("<error>No handler registered for tool: {$chunk->function->name}</error>");
+                    } elseif ($chunk->type === 'tool_call' && $chunk->toolCall !== null) {
+                        if ($chunk->toolCall->function->name !== 'get_current_weather') {
+                            $output->writeln("<e>No handler registered for tool: {$chunk->toolCall->function->name}</e>");
 
                             return Command::FAILURE;
                         }

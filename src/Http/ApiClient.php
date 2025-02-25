@@ -39,9 +39,9 @@ class ApiClient implements ApiClientInterface
     }
 
     /**
-     * @return array<string, mixed>|ResponseInterface
+     * @return array<string, mixed>
      */
-    public function post(string $uri, array $options = []): array|ResponseInterface
+    public function post(string $uri, array $options = []): array
     {
         try {
             $response = $this->client->post(
@@ -49,8 +49,11 @@ class ApiClient implements ApiClientInterface
                 options: $options
             );
 
+            // Handle streaming option by redirecting to postStreaming
             if (($options['stream'] ?? false) === true) {
-                return $response;
+                throw new \InvalidArgumentException(
+                    'Use postStreaming() for streaming requests instead of post() with stream=true'
+                );
             }
 
             return $this->decode(json: $response->getBody()->getContents());
@@ -62,19 +65,39 @@ class ApiClient implements ApiClientInterface
     }
 
     /**
+     * Send a POST request with streaming response
+     */
+    public function postStreaming(string $uri, array $options = []): ResponseInterface
+    {
+        // Ensure stream is set to true
+        $options['stream'] = true;
+
+        try {
+            return $this->client->post(
+                uri: $uri,
+                options: $options
+            );
+        } catch (GuzzleException $e) {
+            throw ConnectionException::connectionFailed(
+                message: "Streaming POST request to '{$uri}' failed: {$e->getMessage()}"
+            );
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function decode(string $json): array
     {
-        $data = json_decode($json, true);
+        try {
+            $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
 
-        if ($data === null) {
+            return $data;
+        } catch (\JsonException $e) {
             throw ConnectionException::invalidResponse(
-                message: 'Response is not a valid JSON: '.json_last_error_msg()
+                message: 'Response is not a valid JSON: '.$e->getMessage()
             );
         }
-
-        return $data;
     }
 
     public function getClient(): Client
