@@ -14,7 +14,7 @@ class StreamingResponseHandler implements StreamingResponseHandlerInterface
     /**
      * Handle the streaming response and yield messages or tool calls.
      *
-     * @return \Generator<Message|ToolCall>
+     * @return \Generator<int, Message|ToolCall, mixed, void>
      */
     public function handle(ResponseInterface $response): \Generator
     {

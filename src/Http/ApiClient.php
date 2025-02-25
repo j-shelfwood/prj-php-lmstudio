@@ -6,6 +6,7 @@ namespace Shelfwood\LMStudio\Http;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Psr\Http\Message\ResponseInterface;
 use Shelfwood\LMStudio\Contracts\ApiClientInterface;
 use Shelfwood\LMStudio\Exceptions\ConnectionException;
 
@@ -18,7 +19,10 @@ class ApiClient implements ApiClientInterface
         $this->client = new Client($config);
     }
 
-    public function get(string $uri, array $options = []): mixed
+    /**
+     * @return array<string, mixed>
+     */
+    public function get(string $uri, array $options = []): array
     {
         try {
             $response = $this->client->get(
@@ -34,7 +38,10 @@ class ApiClient implements ApiClientInterface
         }
     }
 
-    public function post(string $uri, array $options = []): mixed
+    /**
+     * @return array<string, mixed>|ResponseInterface
+     */
+    public function post(string $uri, array $options = []): array|ResponseInterface
     {
         try {
             $response = $this->client->post(
@@ -46,15 +53,7 @@ class ApiClient implements ApiClientInterface
                 return $response;
             }
 
-            // Use object format only for chat completion endpoints
-            $assoc = ! str_contains($uri, '/chat/completions');
-
-            // Always use array format for REST API endpoints
-            if (str_starts_with($uri, '/api/v0')) {
-                $assoc = true;
-            }
-
-            return $this->decode(json: $response->getBody()->getContents(), assoc: $assoc);
+            return $this->decode(json: $response->getBody()->getContents());
         } catch (GuzzleException $e) {
             throw ConnectionException::connectionFailed(
                 message: "POST request to '{$uri}' failed: {$e->getMessage()}"
@@ -62,9 +61,12 @@ class ApiClient implements ApiClientInterface
         }
     }
 
-    private function decode(string $json, bool $assoc = true): mixed
+    /**
+     * @return array<string, mixed>
+     */
+    private function decode(string $json): array
     {
-        $data = json_decode($json, $assoc);
+        $data = json_decode($json, true);
 
         if ($data === null) {
             throw ConnectionException::invalidResponse(

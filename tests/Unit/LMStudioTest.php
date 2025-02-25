@@ -13,6 +13,7 @@ use Shelfwood\LMStudio\DTOs\Chat\Role;
 use Shelfwood\LMStudio\DTOs\Common\Config;
 use Shelfwood\LMStudio\DTOs\Model\ModelInfo;
 use Shelfwood\LMStudio\DTOs\Model\ModelList;
+use Shelfwood\LMStudio\DTOs\Response\ChatCompletion;
 use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
 use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
 use Shelfwood\LMStudio\Exceptions\ValidationException;
@@ -440,8 +441,8 @@ test('it can create chat completion with TTL and auto-evict', function (): void 
         new Message(Role::USER, 'Test message'),
     ]);
 
-    expect($response)->toBeArray()
-        ->and($response['choices'][0]['message']['content'])->toBe('Test response');
+    expect($response)->toBeInstanceOf(ChatCompletion::class)
+        ->and($response->choices[0]->message->content)->toBe('Test response');
 });
 
 test('it can create chat completion with custom TTL and auto-evict', function (): void {
@@ -465,8 +466,8 @@ test('it can create chat completion with custom TTL and auto-evict', function ()
         options: ['ttl' => 1800, 'auto_evict' => false]
     );
 
-    expect($response)->toBeArray()
-        ->and($response['choices'][0]['message']['content'])->toBe('Test response');
+    expect($response)->toBeInstanceOf(ChatCompletion::class)
+        ->and($response->choices[0]->message->content)->toBe('Test response');
 });
 
 test('it can create chat completion with default tool use mode', function (): void {
@@ -492,8 +493,8 @@ test('it can create chat completion with default tool use mode', function (): vo
         new Message(Role::TOOL, 'Tool response'),
     ]);
 
-    expect($response)->toBeArray()
-        ->and($response['choices'][0]['message']['content'])->toBe('Test response');
+    expect($response)->toBeInstanceOf(ChatCompletion::class)
+        ->and($response->choices[0]->message->content)->toBe('Test response');
 });
 
 test('it can create text completion with structured output', function (): void {

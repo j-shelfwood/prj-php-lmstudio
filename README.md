@@ -133,8 +133,12 @@ $messages = [
 
 $response = $lmstudio->createChatCompletion($messages, 'your-model');
 
-// If not streaming, $response will be the decoded JSON response.
+// The response is now a ChatCompletion DTO with strongly typed properties
 echo $response->choices[0]->message->content;
+
+// You can also access additional metadata
+echo "Model: {$response->model}\n";
+echo "Token usage: {$response->usage->totalTokens}\n";
 ```
 
 #### Text Completion
@@ -145,14 +149,24 @@ $response = $lmstudio->createTextCompletion(
     model: 'your-model'
 );
 
-echo $response['choices'][0]['text'];
+// Response is now a TextCompletion DTO
+echo $response->choices[0]->text;
+
+// Access metadata
+echo "Model: {$response->model}\n";
+echo "Usage: {$response->usage->totalTokens} tokens\n";
 ```
 
 #### Embeddings
 
 ```php
 $embeddings = $lmstudio->createEmbeddings('your-model', 'Some text to embed');
-print_r($embeddings);
+
+// Response is now an Embedding DTO
+$vector = $embeddings->data[0]->embedding;
+echo "Vector dimension: " . count($vector) . "\n";
+echo "Model: {$embeddings->model}\n";
+echo "Usage: {$embeddings->usage->totalTokens} tokens\n";
 ```
 
 ### LM Studio REST API (/api/v0)
@@ -237,8 +251,14 @@ foreach ($chat->stream()->send() as $message) {
     if ($message instanceof Message) {
         echo $message->content;
     } elseif ($message instanceof ToolCall) {
-        // The tool call has been processed; its output is in the message.
-        print_r($message);
+        // Tool calls are now strongly typed DTOs
+        $name = $message->function->name;
+        $args = $message->function->arguments;
+
+        // The tool call has been processed automatically
+        // You can access the result directly
+        $result = $message->function->result;
+        echo "Tool '{$name}' returned: " . json_encode($result) . "\n";
     }
 }
 ```
