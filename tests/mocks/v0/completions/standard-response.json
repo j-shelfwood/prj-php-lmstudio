@@ -1,0 +1,38 @@
+{
+  "id": "cmpl-l7o25hmi2eogutjith3ljs",
+  "object": "text_completion",
+  "created": 1740598359,
+  "model": "granite-3.1-8b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "text": ", there was a young girl named Lily who lived in a small village nestled between the mountains and the sea. She had always been fascinated by the stories her grandmother told her about the magical creatures",
+      "logprobs": null,
+      "finish_reason": "length"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 4,
+    "completion_tokens": 49,
+    "total_tokens": 53
+  },
+  "stats": {
+    "tokens_per_second": 28.274668205424117,
+    "time_to_first_token": 0.056,
+    "generation_time": 1.733,
+    "stop_reason": "maxPredictedTokensReached"
+  },
+  "model_info": {
+    "arch": "granite",
+    "quant": "Q8_0",
+    "format": "gguf",
+    "context_length": 16384
+  },
+  "runtime": {
+    "name": "llama.cpp-mac-arm64-apple-metal-advsimd",
+    "version": "1.17.1",
+    "supported_formats": [
+      "gguf"
+    ]
+  }
+}

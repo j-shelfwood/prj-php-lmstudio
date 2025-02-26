@@ -1,0 +1,41 @@
+{
+  "id": "chatcmpl-jinpu9j96ag0svrr5z6txi9",
+  "object": "chat.completion",
+  "created": 1740598352,
+  "model": "granite-3.1-8b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "I'm sorry for any inconvenience, but as an AI, I don't have real-time capabilities to provide current weather updates or forecasts. Please check a reliable weather website or app for the most accurate information on the weather in London."
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 49,
+    "completion_tokens": 49,
+    "total_tokens": 98
+  },
+  "stats": {
+    "tokens_per_second": 29.69918291607961,
+    "time_to_first_token": 0.272,
+    "generation_time": 1.684,
+    "stop_reason": "stop"
+  },
+  "model_info": {
+    "arch": "granite",
+    "quant": "Q8_0",
+    "format": "gguf",
+    "context_length": 16384
+  },
+  "runtime": {
+    "name": "llama.cpp-mac-arm64-apple-metal-advsimd",
+    "version": "1.17.1",
+    "supported_formats": [
+      "gguf"
+    ]
+  }
+}

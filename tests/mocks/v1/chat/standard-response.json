@@ -1,0 +1,24 @@
+{
+  "id": "chatcmpl-l2h08ceu3pl6medaupa8j",
+  "object": "chat.completion",
+  "created": 1740598362,
+  "model": "granite-3.1-8b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "I'm sorry for any inconvenience, but as an AI, I don't have real-time capabilities to provide current weather updates or live data. For accurate and up-to-date information on the weather in London, please refer to a reliable weather forecasting service or website. They can give you the most recent details about temperature, precipitation, wind conditions, etc."
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 49,
+    "completion_tokens": 77,
+    "total_tokens": 126
+  },
+  "stats": {},
+  "system_fingerprint": "granite-3.1-8b-instruct"
+}
