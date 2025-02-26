@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Commands;
 
-use Shelfwood\LMStudio\DTOs\Model\ModelInfo;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\DTOs\LMStudio\Model\ModelInfo;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\InputInterface;
@@ -28,17 +28,17 @@ class Models extends Command
             $modelList = $this->lmstudio->listModels();
 
             $table = new Table($output);
-            $table->setHeaders(['ID', 'Object', 'Created', 'Owner', 'Root', 'Parent']);
+            $table->setHeaders(['ID', 'Object', 'Type', 'Publisher', 'Arch', 'State']);
 
             /** @var ModelInfo $model */
             foreach ($modelList->data as $model) {
                 $table->addRow([
                     $model->id,
                     $model->object,
-                    date('Y-m-d H:i:s', $model->created),
-                    $model->ownedBy,
-                    $model->root ?? 'N/A',
-                    $model->parent ?? 'N/A',
+                    $model->type,
+                    $model->publisher ?? 'N/A',
+                    $model->arch ?? 'N/A',
+                    $model->state,
                 ]);
             }
 

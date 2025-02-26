@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Commands;
 
-use Shelfwood\LMStudio\DTOs\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Chat\Role;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Role;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'tool:response',
@@ -49,12 +50,13 @@ class ToolResponse extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $io = new SymfonyStyle($input, $output);
         $model = $input->getOption('model');
         $tool = $input->getArgument('tool');
         $result = $input->getArgument('result');
 
         if (! $model) {
-            $output->writeln('<error>No model specified. Please provide a model with --model option.</error>');
+            $io->error('No model specified. Please provide a model with --model option.');
 
             return Command::FAILURE;
         }
@@ -63,12 +65,12 @@ class ToolResponse extends Command
             $decodedResult = json_decode($result, true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
-                $output->writeln('<error>Invalid JSON result provided.</error>');
+                $io->error('Invalid JSON result provided.');
 
                 return Command::FAILURE;
             }
 
-            $response = $this->lmstudio->chat()
+            $chat = $this->lmstudio->chat()
                 ->withModel($model)
                 ->withMessages([
                     new Message(
@@ -80,22 +82,21 @@ class ToolResponse extends Command
                         content: $result,
                         name: $tool
                     ),
-                ])
-                ->stream()
-                ->send();
+                ]);
 
-            $output->write('<info>Assistant:</info> ');
+            $response = $chat->stream();
+
+            $io->writeln('<info>Assistant:</info>');
 
             foreach ($response as $chunk) {
                 if ($chunk->type === 'message' && $chunk->message !== null) {
-                    $output->write($chunk->message->content);
+                    $io->writeln($chunk->message->content);
                 }
             }
-            $output->writeln("\n");
 
             return Command::SUCCESS;
         } catch (\Exception $e) {
-            $output->writeln("<error>Error: {$e->getMessage()}</error>");
+            $io->error("Error: {$e->getMessage()}");
 
             return Command::FAILURE;
         }

@@ -10,7 +10,7 @@ use Shelfwood\LMStudio\Commands\Sequence;
 use Shelfwood\LMStudio\Commands\ToolResponse;
 use Shelfwood\LMStudio\Commands\Tools;
 use Shelfwood\LMStudio\DTOs\Common\Config;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Symfony\Component\Console\Application as BaseApplication;
 
 class Application extends BaseApplication

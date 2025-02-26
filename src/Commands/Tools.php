@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Commands;
 
-use Shelfwood\LMStudio\DTOs\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Chat\Role;
-use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
-use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Role;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolCall;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolFunction;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
@@ -116,8 +116,7 @@ class Tools extends Command
 
                         return $weather;
                     })
-                    ->stream()
-                    ->send();
+                    ->stream();
 
                 foreach ($response as $chunk) {
                     if ($chunk->type === 'message' && $chunk->message !== null) {

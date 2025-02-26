@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array createChatCompletion(array $parameters)
  * @method static array createEmbeddings(string $model, string|array $input)
  *
- * @see \Shelfwood\LMStudio\LMStudio
+ * @see \Shelfwood\LMStudio\Endpoints\LMStudio
  */
 class LMStudio extends Facade
 {

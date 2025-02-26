@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Commands;
 
-use Shelfwood\LMStudio\DTOs\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Chat\Role;
-use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Role;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolFunction;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
@@ -22,6 +22,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class Sequence extends Command
 {
+    /** @var array<string, array{status: string, message: string}> */
     private array $results = [];
 
     public function __construct(private LMStudio $lmstudio)
@@ -29,6 +30,9 @@ class Sequence extends Command
         parent::__construct();
     }
 
+    /**
+     * Configures the command
+     */
     protected function configure(): void
     {
         $this
@@ -47,6 +51,9 @@ class Sequence extends Command
             );
     }
 
+    /**
+     * Executes the command
+     */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
@@ -83,6 +90,9 @@ class Sequence extends Command
         return Command::SUCCESS;
     }
 
+    /**
+     * Tests the list models endpoint
+     */
     private function testListModels(SymfonyStyle $io, bool $detailed): void
     {
         $io->section('Testing: List Models');
@@ -121,6 +131,9 @@ class Sequence extends Command
         }
     }
 
+    /**
+     * Tests the get model info endpoint
+     */
     private function testGetModel(SymfonyStyle $io, string $model, bool $detailed): void
     {
         $io->section('Testing: Get Model Info');
@@ -158,6 +171,9 @@ class Sequence extends Command
         }
     }
 
+    /**
+     * Tests the chat completion endpoint (non-streaming)
+     */
     private function testChatCompletion(SymfonyStyle $io, string $model, bool $detailed): void
     {
         $io->section('Testing: Chat Completion (non-streaming)');
@@ -169,15 +185,16 @@ class Sequence extends Command
             ];
 
             $response = $this->lmstudio->createChatCompletion($messages, $model);
+            $message = $response->choices[0]->message;
 
-            if ($detailed) {
+            if ($detailed && $message !== null) {
                 $io->writeln('<info>Response:</info>');
-                $io->writeln($response->choices[0]->message->content);
+                $io->writeln($message->content ?? 'No content available');
             }
 
             $this->results['Chat Completion'] = [
                 'status' => 'Success',
-                'message' => 'Received response with '.strlen($response->choices[0]->message->content).' characters',
+                'message' => 'Received response with '.strlen($message?->content ?? '').' characters',
             ];
 
             $io->success('Successfully completed chat completion');
@@ -191,6 +208,9 @@ class Sequence extends Command
         }
     }
 
+    /**
+     * Tests the chat completion endpoint (streaming)
+     */
     private function testChatCompletionStream(SymfonyStyle $io, string $model, bool $detailed): void
     {
         $io->section('Testing: Chat Completion (streaming)');
@@ -242,6 +262,9 @@ class Sequence extends Command
         }
     }
 
+    /**
+     * Tests the tool calls endpoint
+     */
     private function testToolCalls(SymfonyStyle $io, string $model, bool $detailed): void
     {
         $io->section('Testing: Tool Calls');
@@ -294,9 +317,15 @@ class Sequence extends Command
                     $responseData = $response->jsonSerialize();
 
                     if (isset($responseData['choices'][0]['message']['content'])) {
-                        $io->writeln($responseData['choices'][0]['message']['content']);
+                        $io->writeln((string) $responseData['choices'][0]['message']['content']);
                     } else {
-                        $io->writeln(json_encode($responseData, JSON_PRETTY_PRINT));
+                        $encodedResponse = json_encode($responseData, JSON_PRETTY_PRINT);
+
+                        if ($encodedResponse === false) {
+                            $io->writeln('Failed to encode response data');
+                        } else {
+                            $io->writeln($encodedResponse);
+                        }
                     }
                 } else {
                     $io->writeln('Response is not in the expected format');
@@ -319,6 +348,9 @@ class Sequence extends Command
         }
     }
 
+    /**
+     * Displays the summary of the tests
+     */
     private function displaySummary(SymfonyStyle $io): void
     {
         $io->section('Test Summary');

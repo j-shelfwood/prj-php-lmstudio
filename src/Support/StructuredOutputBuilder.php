@@ -5,29 +5,29 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Support;
 
 use InvalidArgumentException;
-use Shelfwood\LMStudio\DTOs\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Chat\ResponseFormat;
-use Shelfwood\LMStudio\DTOs\Chat\Role;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Common\Chat\ResponseFormat;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Role;
+use Shelfwood\LMStudio\Endpoints\APIGate;
 
 class StructuredOutputBuilder
 {
-    private LMStudio $lmstudio;
+    private APIGate $api;
 
     private ?string $model = null;
 
     private array $messages = [];
 
-    private ?ResponseFormat $responseFormat = null;
+    protected ?ResponseFormat $responseFormat = null;
 
     private array $options = [];
 
     /**
      * Create a new structured output builder instance
      */
-    public function __construct(LMStudio $lmstudio)
+    public function __construct(APIGate $api)
     {
-        $this->lmstudio = $lmstudio;
+        $this->api = $api;
     }
 
     /**
@@ -118,6 +118,7 @@ class StructuredOutputBuilder
      * @return array<string, mixed> The structured JSON response
      *
      * @throws InvalidArgumentException
+     * @throws \JsonException
      */
     public function send(): array
     {
@@ -133,15 +134,19 @@ class StructuredOutputBuilder
             'response_format' => $this->responseFormat->jsonSerialize(),
         ]);
 
-        $response = $this->lmstudio->createChatCompletion(
+        $response = $this->api->createChatCompletion(
             messages: $this->messages,
             model: $this->model,
             options: $options
         );
 
-        $content = $response->choices[0]->message->content;
+        $message = $response->choices[0]->message;
+
+        if (! $message || ! $message->content) {
+            throw new InvalidArgumentException('Response did not contain valid content');
+        }
 
         // Parse and return the JSON structure
-        return json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        return json_decode($message->content, true, 512, JSON_THROW_ON_ERROR);
     }
 }

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Support;
 
-use Shelfwood\LMStudio\DTOs\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Chat\Role;
-use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
-use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Role;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolCall;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolFunction;
+use Shelfwood\LMStudio\Endpoints\APIGate;
 use Shelfwood\LMStudio\Exceptions\ToolException;
 use Shelfwood\LMStudio\Exceptions\ValidationException;
-use Shelfwood\LMStudio\LMStudio;
 
 class ChatBuilder
 {
@@ -25,9 +25,7 @@ class ChatBuilder
     /** @var array<string, callable(array<string, mixed>): mixed> */
     protected array $toolHandlers = [];
 
-    protected bool $stream = false;
-
-    public function __construct(protected LMStudio $client) {}
+    public function __construct(protected APIGate $api) {}
 
     /**
      * Set the model to use
@@ -89,7 +87,11 @@ class ChatBuilder
                 return $tool;
             }
 
-            return ToolCall::fromArray($tool);
+            if (is_array($tool)) {
+                return ToolCall::fromArray($tool);
+            }
+
+            throw new ValidationException('Invalid tool type provided');
         }, $tools);
 
         return $this;
@@ -112,13 +114,30 @@ class ChatBuilder
     }
 
     /**
-     * Enable streaming
+     * Validate the chat request
+     *
+     * @throws ValidationException
      */
-    public function stream(): self
+    protected function validate(): void
     {
-        $this->stream = true;
+        if ($this->model === null) {
+            throw ValidationException::invalidModel('Model must be specified');
+        }
 
-        return $this;
+        if (empty($this->messages)) {
+            throw ValidationException::invalidMessage('At least one message is required');
+        }
+    }
+
+    protected function getOptions(): array
+    {
+        $options = [];
+
+        if (! empty($this->tools)) {
+            $options['tools'] = $this->tools;
+        }
+
+        return $options;
     }
 
     /**
@@ -128,26 +147,26 @@ class ChatBuilder
      */
     public function send(): mixed
     {
-        if ($this->model === null) {
-            throw ValidationException::invalidModel('Model must be specified');
-        }
+        $this->validate();
 
-        if (empty($this->messages)) {
-            throw ValidationException::invalidMessage('At least one message is required');
-        }
+        return $this->api->createChatCompletion(
+            $this->messages,
+            $this->model,
+            $this->getOptions()
+        );
+    }
 
-        if ($this->stream) {
-            return $this->client->createChatCompletionStream(
-                messages: $this->messages,
-                model: $this->model,
-                tools: $this->tools
-            );
-        }
+    /**
+     * Stream the chat request
+     */
+    public function stream(): \Generator
+    {
+        $this->validate();
 
-        return $this->client->createChatCompletion(
-            messages: $this->messages,
-            model: $this->model,
-            tools: $this->tools
+        return $this->api->createChatCompletionStream(
+            $this->messages,
+            $this->model,
+            $this->getOptions()
         );
     }
 

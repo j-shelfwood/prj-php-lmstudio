@@ -7,13 +7,13 @@ namespace Tests\Feature;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
-use Shelfwood\LMStudio\DTOs\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Chat\Role;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Role;
 use Shelfwood\LMStudio\DTOs\Common\Config;
-use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolFunction;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\Http\StreamingResponseHandler;
-use Shelfwood\LMStudio\LMStudio;
 
 beforeEach(function (): void {
     // Create a mock handler and handler stack
@@ -28,7 +28,7 @@ beforeEach(function (): void {
     // Create LMStudio instance with dependencies
     $this->lmstudio = new LMStudio(
         config: $config,
-        apiClient: $apiClient,
+        client: $apiClient,
         streamingHandler: $streamingHandler
     );
 });
@@ -81,8 +81,7 @@ test('it can get weather for a location', function (): void {
         ->withToolHandler('get_current_weather', function (array $args) {
             return ['temperature' => 20, 'condition' => 'sunny'];
         })
-        ->stream()
-        ->send() as $message) {
+        ->stream() as $message) {
         $messages[] = $message;
     }
 
@@ -166,8 +165,7 @@ test('it handles multiple weather requests in a conversation', function (): void
                 'condition' => $args['location'] === 'London' ? 'sunny' : 'cloudy',
             ];
         })
-        ->stream()
-        ->send() as $message) {
+        ->stream() as $message) {
         $messages[] = $message;
     }
 

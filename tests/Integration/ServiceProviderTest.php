@@ -9,8 +9,8 @@ use Shelfwood\LMStudio\Commands\Models;
 use Shelfwood\LMStudio\Commands\ToolResponse;
 use Shelfwood\LMStudio\Commands\Tools;
 use Shelfwood\LMStudio\DTOs\Common\Config as LMStudioConfig;
+use Shelfwood\LMStudio\Endpoints\LMStudio as LMStudioClass;
 use Shelfwood\LMStudio\Facades\LMStudio;
-use Shelfwood\LMStudio\LMStudio as LMStudioClass;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Tests\TestCase;
 

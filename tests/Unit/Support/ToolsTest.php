@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Support;
 
-use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
-use Shelfwood\LMStudio\DTOs\Tool\ToolFunction;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolCall;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolFunction;
 use Shelfwood\LMStudio\Exceptions\ToolException;
 
 test('it can register tool handler', function (): void {

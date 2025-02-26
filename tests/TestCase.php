@@ -9,9 +9,9 @@ use GuzzleHttp\HandlerStack;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Orchestra\Testbench\TestCase as BaseTestCase;
 use Shelfwood\LMStudio\DTOs\Common\Config;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Shelfwood\LMStudio\Http\ApiClient;
 use Shelfwood\LMStudio\Http\StreamingResponseHandler;
-use Shelfwood\LMStudio\LMStudio;
 use Shelfwood\LMStudio\Providers\LMStudioServiceProvider;
 use Shelfwood\LMStudio\Support\ChatBuilder;
 
@@ -41,7 +41,7 @@ abstract class TestCase extends BaseTestCase
         // Create LMStudio instance with dependencies
         $this->lmstudio = new LMStudio(
             config: $config,
-            apiClient: $apiClient,
+            client: $apiClient,
             streamingHandler: $streamingHandler
         );
 

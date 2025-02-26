@@ -19,7 +19,8 @@ final readonly class Config
         public int $retryDelay = 100,
         public int $defaultTtl = 3600,
         public bool $autoEvict = true,
-        public string $toolUseMode = 'native'
+        public string $toolUseMode = 'native',
+        public string $apiVersion = 'v1' // 'v1' for OpenAI compatibility, 'v0' for LM Studio native
     ) {
         $this->validate();
     }
@@ -37,7 +38,8 @@ final readonly class Config
             retryDelay: $config['retry_delay'] ?? 100,
             defaultTtl: $config['default_ttl'] ?? 3600,
             autoEvict: $config['auto_evict'] ?? true,
-            toolUseMode: $config['tool_use_mode'] ?? 'native'
+            toolUseMode: $config['tool_use_mode'] ?? 'native',
+            apiVersion: $config['api_version'] ?? 'v1'
         );
     }
 
@@ -88,6 +90,12 @@ final readonly class Config
                 message: 'Tool use mode must be either "native" or "default"'
             );
         }
+
+        if (! in_array($this->apiVersion, ['v0', 'v1'], true)) {
+            throw ValidationException::invalidConfig(
+                message: 'API version must be either "v0" or "v1"'
+            );
+        }
     }
 
     public function toArray(): array
@@ -104,6 +112,7 @@ final readonly class Config
             'default_ttl' => $this->defaultTtl,
             'auto_evict' => $this->autoEvict,
             'tool_use_mode' => $this->toolUseMode,
+            'api_version' => $this->apiVersion,
         ], fn ($value) => $value !== null);
     }
 }

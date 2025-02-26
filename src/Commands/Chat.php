@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Commands;
 
-use Shelfwood\LMStudio\DTOs\Chat\Role;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Role;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputInterface;

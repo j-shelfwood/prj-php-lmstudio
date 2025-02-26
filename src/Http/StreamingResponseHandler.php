@@ -6,9 +6,9 @@ namespace Shelfwood\LMStudio\Http;
 
 use Psr\Http\Message\ResponseInterface;
 use Shelfwood\LMStudio\Contracts\StreamingResponseHandlerInterface;
-use Shelfwood\LMStudio\DTOs\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Response\StreamingResponse;
-use Shelfwood\LMStudio\DTOs\Tool\ToolCall;
+use Shelfwood\LMStudio\DTOs\Common\Chat\Message;
+use Shelfwood\LMStudio\DTOs\Common\Response\StreamingResponse;
+use Shelfwood\LMStudio\DTOs\Common\Tool\ToolCall;
 
 class StreamingResponseHandler implements StreamingResponseHandlerInterface
 {
@@ -19,40 +19,39 @@ class StreamingResponseHandler implements StreamingResponseHandlerInterface
      */
     public function handle(ResponseInterface $response): \Generator
     {
-        $buffer = '';
-        $stream = $response->getBody();
-        $currentToolCall = null;
-        $isJsonComplete = false;
+        return (function () use ($response) {
+            $buffer = '';
+            $stream = $response->getBody();
+            $currentToolCall = null;
+            $isJsonComplete = false;
 
-        while (! $stream->eof()) {
-            $chunk = $stream->read(1024);
+            while (! $stream->eof()) {
+                $chunk = $stream->read(1024);
 
-            if ($chunk === '') {
-                break;
+                if ($chunk === '') {
+                    break;
+                }
+                $buffer .= $chunk;
+
+                // Process complete SSE events
+                while (($pos = strpos($buffer, "\n\n")) !== false) {
+                    $event = substr($buffer, 0, $pos);
+                    $buffer = substr($buffer, $pos + 2);
+
+                    foreach ($this->processEvent($event, $currentToolCall, $isJsonComplete) as $response) {
+                        yield $response;
+                    }
+                }
             }
 
-            $buffer .= $chunk;
-
-            // Process complete SSE events
-            while (($pos = strpos($buffer, "\n\n")) !== false) {
-                $event = substr($buffer, 0, $pos);
-                $buffer = substr($buffer, $pos + 2);
-
-                foreach ($this->processEvent($event, $currentToolCall, $isJsonComplete) as $response) {
+            if (! empty(trim($buffer))) {
+                foreach ($this->processEvent($buffer, $currentToolCall, $isJsonComplete) as $response) {
                     yield $response;
                 }
             }
-        }
 
-        // Process any remaining data
-        if (! empty(trim($buffer))) {
-            foreach ($this->processEvent($buffer, $currentToolCall, $isJsonComplete) as $response) {
-                yield $response;
-            }
-        }
-
-        // Signal end of stream
-        yield StreamingResponse::done();
+            yield StreamingResponse::done();
+        })();
     }
 
     /**
@@ -161,19 +160,5 @@ class StreamingResponseHandler implements StreamingResponseHandlerInterface
         }
 
         return null;
-    }
-
-    /**
-     * Check if a string is a complete JSON object
-     */
-    private function isCompleteJson(string $json): bool
-    {
-        try {
-            json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-
-            return true;
-        } catch (\JsonException $e) {
-            return false;
-        }
     }
 }

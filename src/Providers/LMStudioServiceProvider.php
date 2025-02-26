@@ -9,7 +9,7 @@ use Shelfwood\LMStudio\Commands\Chat;
 use Shelfwood\LMStudio\Commands\Models;
 use Shelfwood\LMStudio\Commands\ToolResponse;
 use Shelfwood\LMStudio\Commands\Tools;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 
 class LMStudioServiceProvider extends ServiceProvider
 {

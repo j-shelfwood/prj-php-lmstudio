@@ -85,7 +85,7 @@ LMSTUDIO_MAX_TOKENS=-1
 You can create an instance directly or via dependency injection. For example:
 
 ```php
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 use Shelfwood\LMStudio\DTOs\Common\Config;
 
 // Direct instantiation using default settings:
@@ -110,7 +110,7 @@ If you use a DI container (like in Laravel), the `LMStudioServiceProvider` will 
 #### Listing Models
 
 ```php
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\Endpoints\LMStudio;
 
 $lmstudio = LMStudio::create();
 $modelList = $lmstudio->listModels();
@@ -246,7 +246,7 @@ $chat->withMessages([
 ]);
 
 // Use streaming mode to process responses.
-foreach ($chat->stream()->send() as $message) {
+foreach ($chat->stream(); $message) {
     // Process each streamed message or tool call.
     if ($message instanceof Message) {
         echo $message->content;

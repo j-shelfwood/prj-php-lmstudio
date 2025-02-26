@@ -64,4 +64,10 @@ class ValidationException extends LMStudioException
     {
         return new self($message);
     }
+
+    public static function invalidInput(string $message, array $context = []): self
+    {
+        return (new self("Invalid input: {$message}"))
+            ->withContext($context);
+    }
 }
