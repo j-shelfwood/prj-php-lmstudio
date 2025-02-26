@@ -13,10 +13,6 @@ parameters:
     ignoreErrors:
         # Pest Testing Framework uses $this in closures
         - '#^Undefined variable: \$this$#'
-        # Pest Testing Framework uses dynamic method calls
-        - '#^Call to an undefined method#'
-        # Mockery interface issues
-        - '#^Parameter \#1 \$lmstudio of class .* expects .*, Mockery\\MockInterface given\.$#'
         # Response body type issues in tests
         - message: '#^Parameter \#3 \$body of class GuzzleHttp\\Psr7\\Response constructor expects#'
           path: tests/*
@@ -30,19 +26,18 @@ parameters:
         - '#Method .* has parameter \$(data|config|options|input|context|messages|tools|toolCalls|permission) with no value type specified in iterable type array#'
         - '#Property .*Exception::\$context type has no value type specified in iterable type array#'
         - '#return type has no value type specified in iterable type array#'
-        # Test PHPDoc issues
-        - message: '#^PHPDoc tag @var above assignment does not specify variable name#'
-          path: tests/*
-        - message: '#^PHPDoc tag @var does not specify variable name#'
-          path: tests/*
-        # Array type hints in builders and structured output
+        # Array type hints in builders
         - '#Property .*Builder::\$(messages|options|schema) type has no value type specified in iterable type array#'
         # Streaming response type mismatches (if we can't fix them directly)
         - '#Method .*Stream\(\) should return Generator<int, .*, mixed, void> but returns#'
-        # Property visibility in builders (if we want to keep private)
-        - '#Private property .*Builder::\$.* overriding protected property#'
-        # Unused properties in builders (if they're needed for future use)
-        - '#Property .*Builder::\$.* is never read, only written#'
+        # False positives for static constructors in abstract classes
+        - '#Unsafe usage of new static\(\)#'
+        # False positives for unreachable code
+        - '#Unreachable statement - code above always terminates#'
+        # False positives for ternary operator conditions
+        - '#Else branch is unreachable because ternary operator condition is always true#'
+        # False positives for streaming response handler return type
+        - '#Method Shelfwood\\LMStudio\\Http\\StreamingResponseHandler::handle\(\) with return type void returns Generator#'
 
     excludePaths:
         analyse:
