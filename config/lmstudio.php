@@ -8,38 +8,17 @@ return [
     | LMStudio API Configuration
     |--------------------------------------------------------------------------
     |
-    | This file contains the configuration settings for connecting to your local
-    | LMStudio API server. Adjust these settings based on your setup.
+    | This file is for configuring the LMStudio API client. You can specify
+    | the base URL, API key (not required for LMStudio but kept for OpenAI
+    | compatibility), timeout, and additional headers.
     |
     */
 
-    'host' => env('LMSTUDIO_HOST', 'localhost'),
-    'port' => env('LMSTUDIO_PORT', 1234),
+    'base_url' => env('LMSTUDIO_BASE_URL', 'http://localhost:1234'),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Connection Settings
-    |--------------------------------------------------------------------------
-    |
-    | Configure the connection behavior for API requests
-    |
-    */
-    'timeout' => env('LMSTUDIO_TIMEOUT', 60),
-    'retry_attempts' => env('LMSTUDIO_RETRY_ATTEMPTS', 3),
-    'retry_delay' => env('LMSTUDIO_RETRY_DELAY', 100),
+    'api_key' => env('LMSTUDIO_API_KEY', 'lm-studio'),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Default Model Settings
-    |--------------------------------------------------------------------------
-    |
-    | Configure the default model and settings to use for requests
-    |
-    */
-    'default_model' => env('LMSTUDIO_DEFAULT_MODEL'),
-    'temperature' => env('LMSTUDIO_TEMPERATURE', 0.7),
-    'max_tokens' => env('LMSTUDIO_MAX_TOKENS', -1),
-    'default_ttl' => env('LMSTUDIO_DEFAULT_TTL', 3600),
-    'auto_evict' => env('LMSTUDIO_AUTO_EVICT', true),
-    'tool_use_mode' => env('LMSTUDIO_TOOL_USE_MODE', 'native'),
+    'timeout' => env('LMSTUDIO_TIMEOUT', 30),
+
+    'headers' => [],
 ];

@@ -4,161 +4,97 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Http;
 
-use Psr\Http\Message\ResponseInterface;
-use Shelfwood\LMStudio\Contracts\StreamingResponseHandlerInterface;
-use Shelfwood\LMStudio\DTOs\Common\Chat\Message;
-use Shelfwood\LMStudio\DTOs\Common\Response\StreamingResponse;
-use Shelfwood\LMStudio\DTOs\Common\Tool\ToolCall;
+use Generator;
 
-class StreamingResponseHandler implements StreamingResponseHandlerInterface
+/**
+ * Handles streaming responses from the LMStudio API.
+ */
+class StreamingResponseHandler
 {
     /**
-     * Handle the streaming response and yield StreamingResponse objects.
+     * Accumulate content from streaming chunks.
      *
-     * @return \Generator<int, StreamingResponse, mixed, void>
+     * @param  Generator  $stream  The stream of chunks
      */
-    public function handle(ResponseInterface $response): \Generator
+    public function accumulateContent(Generator $stream): string
     {
-        return (function () use ($response) {
-            $buffer = '';
-            $stream = $response->getBody();
-            $currentToolCall = null;
-            $isJsonComplete = false;
+        $content = '';
 
-            while (! $stream->eof()) {
-                $chunk = $stream->read(1024);
-
-                if ($chunk === '') {
-                    break;
-                }
-                $buffer .= $chunk;
-
-                // Process complete SSE events
-                while (($pos = strpos($buffer, "\n\n")) !== false) {
-                    $event = substr($buffer, 0, $pos);
-                    $buffer = substr($buffer, $pos + 2);
-
-                    foreach ($this->processEvent($event, $currentToolCall, $isJsonComplete) as $response) {
-                        yield $response;
-                    }
-                }
+        foreach ($stream as $chunk) {
+            if (isset($chunk['choices'][0]['delta']['content'])) {
+                $content .= $chunk['choices'][0]['delta']['content'];
             }
+        }
 
-            if (! empty(trim($buffer))) {
-                foreach ($this->processEvent($buffer, $currentToolCall, $isJsonComplete) as $response) {
-                    yield $response;
-                }
-            }
-
-            yield StreamingResponse::done();
-        })();
+        return $content;
     }
 
     /**
-     * Process an SSE event
+     * Accumulate tool calls from streaming chunks.
      *
-     * @param  string  $event  The event data
-     * @param  array<string, mixed>|null  $currentToolCall  Reference to current tool call state
-     * @param  bool  $isJsonComplete  Reference to JSON completion flag
-     * @return \Generator<int, StreamingResponse, mixed, void>
+     * @param  Generator  $stream  The stream of chunks
+     * @return array The accumulated tool calls
      */
-    private function processEvent(
-        string $event,
-        ?array &$currentToolCall,
-        bool &$isJsonComplete
-    ): \Generator {
-        $lines = explode("\n", $event);
+    public function accumulateToolCalls(Generator $stream): array
+    {
+        $toolCalls = [];
+        $currentToolCall = null;
+        $currentId = null;
+        $currentName = null;
+        $currentArguments = '';
 
-        foreach ($lines as $line) {
-            if (empty(trim($line)) || ! str_starts_with($line, 'data: ')) {
+        foreach ($stream as $chunk) {
+            if (! isset($chunk['choices'][0]['delta'])) {
                 continue;
             }
 
-            $data = substr($line, 6);
+            $delta = $chunk['choices'][0]['delta'];
 
-            if ($data === '[DONE]') {
-                return;
-            }
+            // Handle tool call initialization
+            if (isset($delta['tool_calls'])) {
+                foreach ($delta['tool_calls'] as $toolCallDelta) {
+                    // New tool call with ID
+                    if (isset($toolCallDelta['id'])) {
+                        $currentId = $toolCallDelta['id'];
+                        $currentToolCall = [
+                            'id' => $currentId,
+                            'type' => $toolCallDelta['type'] ?? 'function',
+                            'function' => [
+                                'name' => '',
+                                'arguments' => '',
+                            ],
+                        ];
+                        $toolCalls[$currentId] = $currentToolCall;
+                    }
 
-            try {
-                $json = json_decode($data, false, 512, JSON_THROW_ON_ERROR);
+                    // Update function name
+                    if (isset($toolCallDelta['function']['name'])) {
+                        $currentName = $toolCallDelta['function']['name'];
+                        $toolCalls[$currentId]['function']['name'] = $currentName;
+                    }
 
-                // Handle tool calls
-                $toolCallDelta = $json->choices[0]->delta->tool_calls[0] ?? null;
-
-                if ($toolCallDelta !== null) {
-                    $toolCallResponse = $this->processToolCallDelta($toolCallDelta, $currentToolCall, $isJsonComplete);
-
-                    if ($toolCallResponse !== null) {
-                        yield $toolCallResponse;
+                    // Append to arguments
+                    if (isset($toolCallDelta['function']['arguments'])) {
+                        $currentArguments .= $toolCallDelta['function']['arguments'];
+                        $toolCalls[$currentId]['function']['arguments'] = $currentArguments;
                     }
                 }
-                // Handle message content
-                elseif ($content = $json->choices[0]->delta->content ?? null) {
-                    yield StreamingResponse::fromMessage(
-                        Message::fromArray([
-                            'role' => 'assistant',
-                            'content' => $content,
-                        ])
-                    );
-                }
-            } catch (\JsonException $e) {
-                // Skip invalid JSON
             }
         }
+
+        return array_values($toolCalls);
     }
 
     /**
-     * Process a tool call delta
+     * Handle a streaming response.
      *
-     * @param  object  $delta  The tool call delta object
-     * @param  array<string, mixed>|null  $currentToolCall  Reference to current tool call state
-     * @param  bool  $isJsonComplete  Reference to JSON completion flag
+     * @param  Generator  $stream  The stream of chunks
+     * @param  callable  $callback  The callback to handle each chunk
      */
-    private function processToolCallDelta(
-        object $delta,
-        ?array &$currentToolCall,
-        bool &$isJsonComplete
-    ): ?StreamingResponse {
-        if (! isset($currentToolCall)) {
-            $currentToolCall = [
-                'id' => $delta->id ?? uniqid('call_'),
-                'type' => $delta->type ?? 'function',
-                'function' => [
-                    'name' => $delta->function->name ?? '',
-                    'arguments' => '',
-                ],
-            ];
+    public function handle(Generator $stream, callable $callback): void
+    {
+        foreach ($stream as $chunk) {
+            $callback($chunk);
         }
-
-        if (isset($delta->function->name)) {
-            $currentToolCall['function']['name'] = $delta->function->name;
-        }
-
-        if (isset($delta->function->arguments)) {
-            $currentToolCall['function']['arguments'] .= $delta->function->arguments;
-
-            // Check if arguments form a complete JSON object
-            try {
-                json_decode($currentToolCall['function']['arguments'], true, 512, JSON_THROW_ON_ERROR);
-                $isJsonComplete = true;
-            } catch (\JsonException $e) {
-                $isJsonComplete = false;
-            }
-
-            // Only yield when we have a complete JSON object
-            if ($isJsonComplete && ! empty($currentToolCall['function']['name'])) {
-                $response = StreamingResponse::fromToolCall(
-                    ToolCall::fromArray($currentToolCall)
-                );
-
-                $currentToolCall = null;
-                $isJsonComplete = false;
-
-                return $response;
-            }
-        }
-
-        return null;
     }
 }

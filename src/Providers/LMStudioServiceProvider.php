@@ -5,34 +5,29 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Shelfwood\LMStudio\Commands\Chat;
-use Shelfwood\LMStudio\Commands\Models;
-use Shelfwood\LMStudio\Commands\ToolResponse;
-use Shelfwood\LMStudio\Commands\Tools;
-use Shelfwood\LMStudio\Endpoints\LMStudio;
+use Shelfwood\LMStudio\Config\LMStudioConfig;
+use Shelfwood\LMStudio\LMStudio;
 
 class LMStudioServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(
-            __DIR__.'/../../config/lmstudio.php', 'lmstudio'
-        );
+        $this->mergeConfigFrom(__DIR__.'/../../config/lmstudio.php', 'lmstudio');
 
-        $this->app->singleton('lmstudio', function ($app) {
-            return new LMStudio(
-                config('lmstudio')
+        $this->app->singleton(LMStudioConfig::class, function ($app) {
+            $config = $app['config']['lmstudio'];
+
+            return new LMStudioConfig(
+                baseUrl: $config['base_url'] ?? 'http://localhost:1234',
+                apiKey: $config['api_key'] ?? 'lm-studio',
+                timeout: $config['timeout'] ?? 30,
+                headers: $config['headers'] ?? [],
             );
         });
 
-        if ($this->app->runningInConsole()) {
-            $this->commands([
-                Chat::class,
-                Models::class,
-                Tools::class,
-                ToolResponse::class,
-            ]);
-        }
+        $this->app->singleton(LMStudio::class, function ($app) {
+            return new LMStudio($app->make(LMStudioConfig::class));
+        });
     }
 
     public function boot(): void

@@ -5,20 +5,22 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Facades;
 
 use Illuminate\Support\Facades\Facade;
+use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
 
 /**
- * @method static \Shelfwood\LMStudio\Support\ChatBuilder chat()
- * @method static array listModels()
- * @method static array getModel(string $model)
- * @method static array createChatCompletion(array $parameters)
- * @method static array createEmbeddings(string $model, string|array $input)
+ * @method static LMStudioClientInterface lms()
+ * @method static LMStudioClientInterface openai()
+ * @method static \Shelfwood\LMStudio\LMStudio withBaseUrl(string $baseUrl)
+ * @method static \Shelfwood\LMStudio\LMStudio withApiKey(string $apiKey)
+ * @method static \Shelfwood\LMStudio\LMStudio withHeaders(array $headers)
+ * @method static \Shelfwood\LMStudio\LMStudio withTimeout(int $timeout)
  *
- * @see \Shelfwood\LMStudio\Endpoints\LMStudio
+ * @see \Shelfwood\LMStudio\LMStudio
  */
 class LMStudio extends Facade
 {
     protected static function getFacadeAccessor(): string
     {
-        return 'lmstudio';
+        return \Shelfwood\LMStudio\LMStudio::class;
     }
 }
