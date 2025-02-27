@@ -6,6 +6,10 @@ namespace Shelfwood\LMStudio\Http;
 
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
 use Shelfwood\LMStudio\Exceptions\LMStudioException;
 
@@ -13,13 +17,40 @@ class Client
 {
     protected GuzzleClient $client;
 
+    protected bool $debug = false;
+
     public function __construct(
         private LMStudioConfig $config
     ) {
+        // Create a handler stack with logging middleware if debug is enabled
+        $stack = HandlerStack::create();
+
+        // Check if debug is enabled via environment variable
+        $this->debug = (bool) getenv('LMSTUDIO_DEBUG');
+
+        if ($this->debug) {
+            // Add request logging
+            $stack->push(Middleware::mapRequest(function (RequestInterface $request) {
+                echo "\n[DEBUG] Request: ".$request->getMethod().' '.$request->getUri()."\n";
+                echo '[DEBUG] Headers: '.json_encode($request->getHeaders())."\n";
+
+                return $request;
+            }));
+
+            // Add response logging
+            $stack->push(Middleware::mapResponse(function (ResponseInterface $response) {
+                echo '[DEBUG] Response Status: '.$response->getStatusCode()."\n";
+                echo '[DEBUG] Response Headers: '.json_encode($response->getHeaders())."\n";
+
+                return $response;
+            }));
+        }
+
         $this->client = new GuzzleClient([
             'base_uri' => $config->getBaseUrl(),
             'timeout' => $config->getTimeout(),
             'headers' => $config->getHeaders(),
+            'handler' => $stack,
         ]);
     }
 
@@ -51,10 +82,19 @@ class Client
     public function stream(string $uri, array $data = []): \Generator
     {
         try {
+            if ($this->debug) {
+                echo "\n[DEBUG] Streaming Request: POST ".$this->config->getBaseUrl().'/'.$uri."\n";
+                echo '[DEBUG] Streaming Data: '.json_encode($data)."\n";
+            }
+
             $response = $this->client->post($uri, [
                 'json' => $data,
                 'stream' => true,
             ]);
+
+            if ($this->debug) {
+                echo '[DEBUG] Streaming Response Status: '.$response->getStatusCode()."\n";
+            }
 
             $buffer = '';
             $stream = $response->getBody();
@@ -73,12 +113,20 @@ class Client
                             $data = substr($line, 6);
 
                             if ($data === '[DONE]') {
+                                if ($this->debug) {
+                                    echo "[DEBUG] Streaming completed with [DONE] message\n";
+                                }
+
                                 return;
                             }
 
                             $decoded = json_decode($data, true);
 
                             if ($decoded !== null) {
+                                if ($this->debug) {
+                                    echo '[DEBUG] Streaming chunk: '.json_encode($decoded)."\n";
+                                }
+
                                 yield $decoded;
                             }
                         }
@@ -86,6 +134,10 @@ class Client
                 }
             }
         } catch (GuzzleException $e) {
+            if ($this->debug) {
+                echo '[DEBUG] Streaming error: '.$e->getMessage()."\n";
+            }
+
             throw new LMStudioException($e->getMessage(), $e->getCode(), $e);
         }
     }
@@ -99,9 +151,18 @@ class Client
     {
         try {
             $response = $this->client->request($method, $uri, $options);
+            $contents = $response->getBody()->getContents();
 
-            return json_decode($response->getBody()->getContents(), true);
+            if ($this->debug) {
+                echo '[DEBUG] Response Body: '.$contents."\n";
+            }
+
+            return json_decode($contents, true);
         } catch (GuzzleException $e) {
+            if ($this->debug) {
+                echo '[DEBUG] Request error: '.$e->getMessage()."\n";
+            }
+
             throw new LMStudioException($e->getMessage(), $e->getCode(), $e);
         }
     }

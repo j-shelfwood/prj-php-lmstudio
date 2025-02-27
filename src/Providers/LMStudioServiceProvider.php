@@ -28,6 +28,8 @@ class LMStudioServiceProvider extends ServiceProvider
         $this->app->singleton(LMStudio::class, function ($app) {
             return new LMStudio($app->make(LMStudioConfig::class));
         });
+
+        $this->app->register(LMStudioConsoleServiceProvider::class);
     }
 
     public function boot(): void

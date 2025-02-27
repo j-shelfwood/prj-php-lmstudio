@@ -25,23 +25,19 @@ class LMS implements LMStudioClientInterface
 
     public function __construct(LMStudioConfig $config)
     {
-        // Ensure base URL points to v0 API
-        $config = $config->withBaseUrl(
-            rtrim($config->getBaseUrl(), '/').'/'.$this->apiVersion
-        );
-
+        // Use the base URL as is, but ensure paths include api/v0
         $this->client = new Client($config);
         $this->streamingHandler = new StreamingResponseHandler;
     }
 
     public function models(): array
     {
-        return $this->client->get('models');
+        return $this->client->get($this->apiVersion.'/models');
     }
 
     public function chat(array $messages, array $options = []): ChatCompletion
     {
-        $response = $this->client->post('chat/completions', array_merge([
+        $response = $this->client->post($this->apiVersion.'/chat/completions', array_merge([
             'messages' => $messages,
         ], $options));
 
@@ -50,7 +46,7 @@ class LMS implements LMStudioClientInterface
 
     public function streamChat(array $messages, array $options = []): \Generator
     {
-        return $this->client->stream('chat/completions', array_merge([
+        return $this->client->stream($this->apiVersion.'/chat/completions', array_merge([
             'messages' => $messages,
             'stream' => true,
         ], $options));
@@ -58,7 +54,7 @@ class LMS implements LMStudioClientInterface
 
     public function completion(string $prompt, array $options = []): TextCompletion
     {
-        $response = $this->client->post('completions', array_merge([
+        $response = $this->client->post($this->apiVersion.'/completions', array_merge([
             'prompt' => $prompt,
         ], $options));
 
@@ -67,7 +63,7 @@ class LMS implements LMStudioClientInterface
 
     public function streamCompletion(string $prompt, array $options = []): \Generator
     {
-        return $this->client->stream('completions', array_merge([
+        return $this->client->stream($this->apiVersion.'/completions', array_merge([
             'prompt' => $prompt,
             'stream' => true,
         ], $options));
@@ -77,7 +73,7 @@ class LMS implements LMStudioClientInterface
     {
         $input = is_array($input) ? $input : [$input];
 
-        $response = $this->client->post('embeddings', array_merge([
+        $response = $this->client->post($this->apiVersion.'/embeddings', array_merge([
             'input' => $input,
         ], $options));
 
