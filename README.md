@@ -22,6 +22,7 @@ A PHP package for integrating with LMStudio's local API. This library allows you
 
   - Parse and execute tool calls requested by LMStudio.
   - Accumulate partial streaming chunks for tool calls.
+  - [Learn more about using tool functions](docs/tool-functions.md)
 
 - **Dependency Injection & Extensibility:**
 

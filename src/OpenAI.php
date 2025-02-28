@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio;
 
+use Generator;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
 use Shelfwood\LMStudio\Http\Client;
 use Shelfwood\LMStudio\Http\StreamingResponseHandler;
+use Shelfwood\LMStudio\Requests\Common\RequestInterface;
+use Shelfwood\LMStudio\Requests\V1\ChatCompletionRequest;
+use Shelfwood\LMStudio\Requests\V1\EmbeddingRequest;
+use Shelfwood\LMStudio\Requests\V1\TextCompletionRequest;
 use Shelfwood\LMStudio\Responses\V1\ChatCompletion;
 use Shelfwood\LMStudio\Responses\V1\Embedding;
 use Shelfwood\LMStudio\Responses\V1\TextCompletion;
 use Shelfwood\LMStudio\Traits\HandlesStreamingResponses;
+use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 
 class OpenAI implements LMStudioClientInterface
 {
@@ -35,59 +41,161 @@ class OpenAI implements LMStudioClientInterface
         return $this->client->get($this->apiVersion.'/models');
     }
 
-    public function chat(array $messages, array $options = []): ChatCompletion
+    /**
+     * Create a chat completion using a request object.
+     */
+    public function chatCompletion(RequestInterface $request): ChatCompletion
     {
-        $response = $this->client->post($this->apiVersion.'/chat/completions', array_merge([
-            'messages' => $messages,
-        ], $options));
+        $response = $this->client->post(
+            $this->apiVersion.'/chat/completions',
+            $request->toArray()
+        );
 
         return ChatCompletion::fromArray($response);
     }
 
-    public function streamChat(array $messages, array $options = []): \Generator
+    /**
+     * Create a streaming chat completion using a request object.
+     */
+    public function streamChatCompletion(RequestInterface $request): Generator
     {
-        return $this->client->stream($this->apiVersion.'/chat/completions', array_merge([
-            'messages' => $messages,
-            'stream' => true,
-        ], $options));
+        // Ensure streaming is enabled
+        $data = $request->toArray();
+        $data['stream'] = true;
+
+        return $this->client->stream(
+            $this->apiVersion.'/chat/completions',
+            $data
+        );
     }
 
-    public function completion(string $prompt, array $options = []): TextCompletion
+    /**
+     * Create a text completion using a request object.
+     */
+    public function textCompletion(RequestInterface $request): TextCompletion
     {
-        $response = $this->client->post($this->apiVersion.'/completions', array_merge([
-            'prompt' => $prompt,
-        ], $options));
+        $response = $this->client->post(
+            $this->apiVersion.'/completions',
+            $request->toArray()
+        );
 
         return TextCompletion::fromArray($response);
     }
 
-    public function streamCompletion(string $prompt, array $options = []): \Generator
+    /**
+     * Create a streaming text completion using a request object.
+     */
+    public function streamTextCompletion(RequestInterface $request): Generator
     {
-        return $this->client->stream($this->apiVersion.'/completions', array_merge([
-            'prompt' => $prompt,
-            'stream' => true,
-        ], $options));
+        // Ensure streaming is enabled
+        $data = $request->toArray();
+        $data['stream'] = true;
+
+        return $this->client->stream(
+            $this->apiVersion.'/completions',
+            $data
+        );
     }
 
-    public function embeddings(string|array $input, array $options = []): Embedding
+    /**
+     * Create embeddings using a request object.
+     */
+    public function createEmbeddings(RequestInterface $request): Embedding
     {
-        $input = is_array($input) ? $input : [$input];
-
-        $response = $this->client->post($this->apiVersion.'/embeddings', array_merge([
-            'input' => $input,
-        ], $options));
+        $response = $this->client->post(
+            $this->apiVersion.'/embeddings',
+            $request->toArray()
+        );
 
         return Embedding::fromArray($response);
     }
 
     /**
-     * Accumulate content from a streaming chat completion.
+     * Create a chat completion (legacy method).
      *
-     * @param  array  $messages  The messages to generate a completion for
-     * @param  array  $options  Additional options for the completion
+     * @deprecated Use chatCompletion() instead
      */
-    public function accumulateChatContent(array $messages, array $options = []): string
+    public function chat(array $messages, array $options = []): ChatCompletion
     {
+        $model = $options['model'] ?? 'gpt-3.5-turbo';
+        unset($options['model']);
+
+        $request = new ChatCompletionRequest($messages, $model, $options);
+
+        return $this->chatCompletion($request);
+    }
+
+    /**
+     * Create a streaming chat completion (legacy method).
+     *
+     * @deprecated Use streamChatCompletion() instead
+     */
+    public function streamChat(array $messages, array $options = []): Generator
+    {
+        $model = $options['model'] ?? 'gpt-3.5-turbo';
+        unset($options['model']);
+
+        $request = new ChatCompletionRequest($messages, $model, $options);
+        $request = $request->withStreaming(true);
+
+        return $this->streamChatCompletion($request);
+    }
+
+    /**
+     * Create a completion (legacy method).
+     *
+     * @deprecated Use textCompletion() instead
+     */
+    public function completion(string $prompt, array $options = []): TextCompletion
+    {
+        $model = $options['model'] ?? 'gpt-3.5-turbo';
+        unset($options['model']);
+
+        $request = new TextCompletionRequest($prompt, $model, $options);
+
+        return $this->textCompletion($request);
+    }
+
+    /**
+     * Create a streaming completion (legacy method).
+     *
+     * @deprecated Use streamTextCompletion() instead
+     */
+    public function streamCompletion(string $prompt, array $options = []): Generator
+    {
+        $model = $options['model'] ?? 'gpt-3.5-turbo';
+        unset($options['model']);
+
+        $request = new TextCompletionRequest($prompt, $model, $options);
+        $request = $request->withStreaming(true);
+
+        return $this->streamTextCompletion($request);
+    }
+
+    /**
+     * Create embeddings (legacy method).
+     *
+     * @deprecated Use createEmbeddings() instead
+     */
+    public function embeddings(string|array $input, array $options = []): Embedding
+    {
+        $model = $options['model'] ?? 'text-embedding-ada-002';
+        unset($options['model']);
+
+        $request = new EmbeddingRequest($input, $model, $options);
+
+        return $this->createEmbeddings($request);
+    }
+
+    /**
+     * Accumulate content from a streaming chat completion.
+     */
+    public function accumulateChatContent(array|ChatHistory $messages, array $options = []): string
+    {
+        if ($messages instanceof ChatHistory) {
+            $messages = $messages->getMessages();
+        }
+
         return $this->streamingHandler->accumulateContent(
             $this->streamChat($messages, $options)
         );
@@ -95,12 +203,13 @@ class OpenAI implements LMStudioClientInterface
 
     /**
      * Accumulate tool calls from a streaming chat completion.
-     *
-     * @param  array  $messages  The messages to generate a completion for
-     * @param  array  $options  Additional options for the completion
      */
-    public function accumulateChatToolCalls(array $messages, array $options = []): array
+    public function accumulateChatToolCalls(array|ChatHistory $messages, array $options = []): array
     {
+        if ($messages instanceof ChatHistory) {
+            $messages = $messages->getMessages();
+        }
+
         return $this->streamingHandler->accumulateToolCalls(
             $this->streamChat($messages, $options)
         );
@@ -108,9 +217,6 @@ class OpenAI implements LMStudioClientInterface
 
     /**
      * Accumulate content from a streaming text completion.
-     *
-     * @param  string  $prompt  The prompt to generate a completion for
-     * @param  array  $options  Additional options for the completion
      */
     public function accumulateCompletionContent(string $prompt, array $options = []): string
     {
