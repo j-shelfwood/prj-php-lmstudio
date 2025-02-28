@@ -6,6 +6,8 @@ namespace Shelfwood\LMStudio\ValueObjects;
 
 /**
  * Represents a chat history.
+ *
+ * @implements \IteratorAggregate<int, Message>
  */
 class ChatHistory implements \Countable, \IteratorAggregate, \JsonSerializable
 {

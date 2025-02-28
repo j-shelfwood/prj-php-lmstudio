@@ -16,6 +16,9 @@ declare(strict_types=1);
 // Use our base TestCase for Unit and Feature tests
 uses(Tests\TestCase::class)->in('Unit', 'Feature');
 
+// Use the ClientMockingTrait in client test files
+uses(Tests\Traits\ClientMockingTrait::class)->in('Unit/LMSTest.php', 'Unit/OpenAITest.php', 'Unit/LMStudioTest.php');
+
 /*
 |--------------------------------------------------------------------------
 | Expectations

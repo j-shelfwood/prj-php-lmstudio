@@ -33,6 +33,16 @@ class LMStudio
     }
 
     /**
+     * Set the LMS client instance.
+     */
+    public function setLmsClient(LMS $client): self
+    {
+        $this->lms = $client;
+
+        return $this;
+    }
+
+    /**
      * Get the OpenAI compatibility API client (v1).
      */
     public function openai(): LMStudioClientInterface
@@ -42,6 +52,16 @@ class LMStudio
         }
 
         return $this->openai;
+    }
+
+    /**
+     * Set the OpenAI client instance.
+     */
+    public function setOpenAiClient(OpenAI $client): self
+    {
+        $this->openai = $client;
+
+        return $this;
     }
 
     /**
@@ -72,6 +92,8 @@ class LMStudio
 
     /**
      * Create a new instance with different headers.
+     *
+     * @param  array<string, string>  $headers
      */
     public function withHeaders(array $headers): self
     {

@@ -12,7 +12,7 @@ class ToolFunction implements \JsonSerializable
     /**
      * @param  string  $name  The name of the function
      * @param  string  $description  The description of the function
-     * @param  array  $parameters  The parameters of the function (JSON Schema)
+     * @param  array<string, mixed>  $parameters  The parameters of the function (JSON Schema)
      */
     public function __construct(
         public readonly string $name,

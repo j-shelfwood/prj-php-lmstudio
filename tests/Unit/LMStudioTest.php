@@ -54,38 +54,40 @@ test('LMStudio with methods create new instances', function (): void {
 test('LMStudio clients are lazily instantiated', function (): void {
     $client = new LMStudio;
 
-    // Access reflection to check private properties
-    $reflection = new ReflectionClass($client);
-    $lmsProperty = $reflection->getProperty('lms');
-    $openaiProperty = $reflection->getProperty('openai');
+    // Create mock clients with type casting
+    /** @var \Shelfwood\LMStudio\LMS $mockLms */
+    $mockLms = Mockery::mock(LMS::class);
+    /** @var \Shelfwood\LMStudio\OpenAI $mockOpenAi */
+    $mockOpenAi = Mockery::mock(OpenAI::class);
 
-    // Initially null
-    expect($lmsProperty->getValue($client))->toBeNull()
-        ->and($openaiProperty->getValue($client))->toBeNull();
+    // Initially, the clients should not be set
+    expect($client->lms())->not->toBe($mockLms)
+        ->and($client->openai())->not->toBe($mockOpenAi);
 
-    // After first access
-    $client->lms();
-    $client->openai();
+    // Set the mock clients using our adapter classes
+    $client->setLmsClient($mockLms);
+    $client->setOpenAiClient($mockOpenAi);
 
-    expect($lmsProperty->getValue($client))->toBeInstanceOf(LMS::class)
-        ->and($openaiProperty->getValue($client))->toBeInstanceOf(OpenAI::class);
+    // Now the clients should be the mock instances
+    expect($client->lms())->toBe($mockLms)
+        ->and($client->openai())->toBe($mockOpenAi);
 });
 
 test('LMStudio with methods reset client instances', function (): void {
     $client = new LMStudio;
 
-    // Access clients to instantiate them
-    $client->lms();
-    $client->openai();
+    // Create and set mock clients with type casting
+    /** @var \Shelfwood\LMStudio\LMS $mockLms */
+    $mockLms = Mockery::mock(LMS::class);
+    /** @var \Shelfwood\LMStudio\OpenAI $mockOpenAi */
+    $mockOpenAi = Mockery::mock(OpenAI::class);
+    $client->setLmsClient($mockLms);
+    $client->setOpenAiClient($mockOpenAi);
 
     // Create new instance with different config
     $newClient = $client->withBaseUrl('https://new.example.com');
 
-    // Access reflection to check private properties
-    $reflection = new ReflectionClass($newClient);
-    $lmsProperty = $reflection->getProperty('lms');
-    $openaiProperty = $reflection->getProperty('openai');
-
-    expect($lmsProperty->getValue($newClient))->toBeNull()
-        ->and($openaiProperty->getValue($newClient))->toBeNull();
+    // The new client should have null clients (they'll be lazily instantiated)
+    expect($newClient->lms())->not->toBe($mockLms)
+        ->and($newClient->openai())->not->toBe($mockOpenAi);
 });

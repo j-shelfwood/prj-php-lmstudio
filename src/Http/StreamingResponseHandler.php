@@ -86,10 +86,10 @@ class StreamingResponseHandler
     }
 
     /**
-     * Handle a streaming response.
+     * Handle a streaming response by calling a callback for each chunk.
      *
      * @param  Generator  $stream  The stream of chunks
-     * @param  callable  $callback  The callback to handle each chunk
+     * @param  callable(array<string, mixed>): void  $callback  The callback to handle each chunk
      */
     public function handle(Generator $stream, callable $callback): void
     {

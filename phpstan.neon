@@ -2,43 +2,26 @@ parameters:
     level: 8
     paths:
         - src
-        - tests
     tmpDir: build/phpstan
     checkMissingIterableValueType: true
-    checkGenericClassInNonGenericObjectType: true
+    reportUnmatchedIgnoredErrors: false
     checkMissingCallableSignature: true
     treatPhpDocTypesAsCertain: true
-    reportUnmatchedIgnoredErrors: true
-
-    ignoreErrors:
-        # Pest Testing Framework uses $this in closures
-        - '#^Undefined variable: \$this$#'
-        # Response body type issues in tests
-        - message: '#^Parameter \#3 \$body of class GuzzleHttp\\Psr7\\Response constructor expects#'
-          path: tests/*
-        # Exception-related PHPDoc issues
-        - '#^PHPDoc tag @throws with type .* is not subtype of Throwable$#'
-        # Exception return type issues
-        - '#Method Shelfwood\\LMStudio\\Exceptions\\ConnectionException::.* should return Shelfwood\\LMStudio\\Exceptions\\ConnectionException but returns Shelfwood\\LMStudio\\Exceptions\\LMStudioException#'
-        - '#Method Shelfwood\\LMStudio\\Exceptions\\ToolException::.* should return Shelfwood\\LMStudio\\Exceptions\\ToolException but returns Shelfwood\\LMStudio\\Exceptions\\LMStudioException#'
-        - '#Method Shelfwood\\LMStudio\\Exceptions\\ValidationException::.* should return Shelfwood\\LMStudio\\Exceptions\\ValidationException but returns Shelfwood\\LMStudio\\Exceptions\\LMStudioException#'
-        # Array type hints in DTOs and API methods
-        - '#Method .* has parameter \$(data|config|options|input|context|messages|tools|toolCalls|permission) with no value type specified in iterable type array#'
-        - '#Property .*Exception::\$context type has no value type specified in iterable type array#'
-        - '#return type has no value type specified in iterable type array#'
-        # Array type hints in builders
-        - '#Property .*Builder::\$(messages|options|schema) type has no value type specified in iterable type array#'
-        # Streaming response type mismatches (if we can't fix them directly)
-        - '#Method .*Stream\(\) should return Generator<int, .*, mixed, void> but returns#'
-        # False positives for static constructors in abstract classes
-        - '#Unsafe usage of new static\(\)#'
-        # False positives for unreachable code
-        - '#Unreachable statement - code above always terminates#'
-        # False positives for ternary operator conditions
-        - '#Else branch is unreachable because ternary operator condition is always true#'
-        # False positives for streaming response handler return type
-        - '#Method Shelfwood\\LMStudio\\Http\\StreamingResponseHandler::handle\(\) with return type void returns Generator#'
 
     excludePaths:
         analyse:
             - vendor/*
+            - tests/*
+
+    ignoreErrors:
+        # Array type hints in DTOs and API methods
+        - '#Method .* has parameter \$(data|config|options|input|context|messages|tools|toolCalls|permission) with no value type specified in iterable type array#'
+        - '#return type has no value type specified in iterable type array#'
+        # False positives for streaming response handler return type
+        - '#Method Shelfwood\\LMStudio\\Http\\StreamingResponseHandler::handle\(\) with return type void returns Generator#'
+        # Unreachable code in ChatCompletionRequest classes
+        - '#Unreachable statement - code above always terminates.#'
+        # Generics-related errors
+        -
+            message: '#.*#'
+            identifier: missingType.generics

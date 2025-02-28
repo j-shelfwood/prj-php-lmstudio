@@ -17,7 +17,7 @@ class EmbeddingRequest extends BaseRequest
     private array $input;
 
     /**
-     * @var array Additional options for the embedding
+     * @var array<string, mixed> Additional options for the embedding
      */
     private array $options = [];
 

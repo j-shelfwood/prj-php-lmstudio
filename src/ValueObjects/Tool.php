@@ -20,6 +20,8 @@ class Tool implements \JsonSerializable
 
     /**
      * Create a function tool.
+     *
+     * @param  array<string, mixed>  $parameters
      */
     public static function function(string $name, string $description, array $parameters = []): self
     {

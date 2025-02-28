@@ -17,11 +17,11 @@ class TextCompletion
      * @param  string  $object  The object type
      * @param  int  $created  The timestamp when the completion was created
      * @param  string  $model  The model used for the completion
-     * @param  array<array{text: string, index: int, logprobs: ?array, finish_reason: string}>  $choices  The choices in the completion
+     * @param  array<array{text: string, index: int, logprobs: ?array<string, mixed>, finish_reason: string}>  $choices  The choices in the completion
      * @param  Usage  $usage  The token usage information
-     * @param  array  $stats  Additional stats about the completion
-     * @param  array  $modelInfo  Information about the model
-     * @param  array  $runtime  Information about the runtime
+     * @param  array<string, mixed>  $stats  Additional stats about the completion
+     * @param  array<string, mixed>  $modelInfo  Information about the model
+     * @param  array<string, mixed>  $runtime  Information about the runtime
      */
     public function __construct(
         public readonly string $id,

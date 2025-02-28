@@ -29,11 +29,42 @@ class LMS implements LMStudioClientInterface
 
     private string $apiVersion = 'api/v0';
 
+    private LMStudioConfig $config;
+
     public function __construct(LMStudioConfig $config)
     {
+        $this->config = $config;
         // Use the base URL as is, but ensure paths include api/v0
         $this->client = new Client($config);
         $this->streamingHandler = new StreamingResponseHandler;
+    }
+
+    /**
+     * Set the HTTP client instance.
+     */
+    public function setHttpClient(Client $client): self
+    {
+        $this->client = $client;
+
+        return $this;
+    }
+
+    /**
+     * Set the streaming response handler instance.
+     */
+    public function setStreamingHandler(StreamingResponseHandler $handler): self
+    {
+        $this->streamingHandler = $handler;
+
+        return $this;
+    }
+
+    /**
+     * Get the client configuration.
+     */
+    public function getConfig(): LMStudioConfig
+    {
+        return $this->config;
     }
 
     public function models(): array
@@ -48,7 +79,7 @@ class LMS implements LMStudioClientInterface
     {
         $response = $this->client->post(
             $this->apiVersion.'/chat/completions',
-            $request->toArray() 
+            $request->toArray()
         );
 
         return ChatCompletion::fromArray($response);

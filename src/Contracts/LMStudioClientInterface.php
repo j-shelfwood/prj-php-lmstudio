@@ -8,7 +8,7 @@ use Generator;
 use Shelfwood\LMStudio\Requests\Common\RequestInterface;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 
-interface LMStudioClientInterface
+interface LMStudioClientInterface extends ConfigAwareInterface
 {
     /**
      * List available models.

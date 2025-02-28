@@ -10,13 +10,15 @@ class LMStudioConfig
      * @param  string  $baseUrl  The base URL for the LMStudio API
      * @param  string  $apiKey  The API key (not required for LMStudio but kept for OpenAI compatibility)
      * @param  int  $timeout  Request timeout in seconds
-     * @param  array  $headers  Additional headers to send with requests
+     * @param  array<string, string>  $headers  Additional headers to send with requests
+     * @param  string|null  $defaultModel  The default model to use for requests
      */
     public function __construct(
         private string $baseUrl = 'http://localhost:1234',
         private string $apiKey = 'lm-studio',
         private int $timeout = 30,
-        private array $headers = []
+        private array $headers = [],
+        private ?string $defaultModel = null
     ) {}
 
     /**
@@ -41,6 +43,14 @@ class LMStudioConfig
     public function getTimeout(): int
     {
         return $this->timeout;
+    }
+
+    /**
+     * Get the default model.
+     */
+    public function getDefaultModel(): ?string
+    {
+        return $this->defaultModel;
     }
 
     /**
@@ -78,6 +88,8 @@ class LMStudioConfig
 
     /**
      * Create a new instance with different headers.
+     *
+     * @param  array<string, string>  $headers
      */
     public function withHeaders(array $headers): self
     {
@@ -94,6 +106,17 @@ class LMStudioConfig
     {
         $clone = clone $this;
         $clone->timeout = $timeout;
+
+        return $clone;
+    }
+
+    /**
+     * Create a new instance with a different default model.
+     */
+    public function withDefaultModel(?string $defaultModel): self
+    {
+        $clone = clone $this;
+        $clone->defaultModel = $defaultModel;
 
         return $clone;
     }

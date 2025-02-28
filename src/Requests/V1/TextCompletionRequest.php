@@ -17,7 +17,7 @@ class TextCompletionRequest extends BaseRequest
     private string $prompt;
 
     /**
-     * @var array Additional options for the completion
+     * @var array<string, mixed> Additional options for the completion
      */
     private array $options = [];
 

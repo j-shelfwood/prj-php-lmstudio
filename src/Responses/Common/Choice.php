@@ -15,7 +15,7 @@ class Choice
      * @param  int  $index  The index of the choice
      * @param  Message  $message  The message in the choice
      * @param  FinishReason  $finishReason  The reason the generation finished
-     * @param  array|null  $logprobs  The log probabilities of the tokens
+     * @param  array<string, mixed>|null  $logprobs  The log probabilities of the tokens
      */
     public function __construct(
         public readonly int $index,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Shelfwood\LMStudio\Commands\Chat;
 use Shelfwood\LMStudio\Commands\Sequence;
 
 class LMStudioConsoleServiceProvider extends ServiceProvider
@@ -14,6 +15,7 @@ class LMStudioConsoleServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 Sequence::class,
+                Chat::class,
             ]);
         }
     }

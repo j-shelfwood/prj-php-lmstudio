@@ -25,12 +25,12 @@ class ChatCompletionRequest extends BaseRequest
     private array $tools = [];
 
     /**
-     * @var string|array|null The tool choice strategy
+     * @var string|array<string, mixed>|null The tool choice strategy
      */
     private string|array|null $toolChoice = null;
 
     /**
-     * @var array Additional options for the completion
+     * @var array<string, mixed> Additional options for the completion
      */
     private array $options = [];
 
@@ -101,7 +101,7 @@ class ChatCompletionRequest extends BaseRequest
     /**
      * Set the tool choice strategy.
      *
-     * @param  string|array|null  $toolChoice  The tool choice strategy
+     * @param  string|array<string, mixed>|null  $toolChoice  The tool choice strategy
      */
     public function withToolChoice(string|array|null $toolChoice): self
     {

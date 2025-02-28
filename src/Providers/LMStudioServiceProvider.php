@@ -22,6 +22,7 @@ class LMStudioServiceProvider extends ServiceProvider
                 apiKey: $config['api_key'] ?? 'lm-studio',
                 timeout: $config['timeout'] ?? 30,
                 headers: $config['headers'] ?? [],
+                defaultModel: $config['default_model'] ?? null,
             );
         });
 

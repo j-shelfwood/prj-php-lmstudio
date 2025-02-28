@@ -42,7 +42,7 @@ test('it returns chat completion dto', function (): void {
         'runtime' => ['some_runtime' => 'value'],
     ];
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
@@ -57,11 +57,8 @@ test('it returns chat completion dto', function (): void {
     // Create LMS instance with mocked dependencies
     $lms = new LMS($mockConfig);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($lms);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($lms, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $lms->setHttpClient($mockClient);
 
     // Create a request object
     $messages = new ChatHistory([
@@ -107,7 +104,7 @@ test('it returns text completion dto', function (): void {
         'runtime' => ['some_runtime' => 'value'],
     ];
 
-    // Create a mock client
+        /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
@@ -122,11 +119,8 @@ test('it returns text completion dto', function (): void {
     // Create LMS instance with mocked dependencies
     $lms = new LMS($mockConfig);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($lms);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($lms, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $lms->setHttpClient($mockClient);
 
     // Create a request object
     $request = new TextCompletionRequest('Test prompt', 'text-davinci-003');
@@ -163,7 +157,7 @@ test('it returns embedding dto', function (): void {
         ],
     ];
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
@@ -178,11 +172,8 @@ test('it returns embedding dto', function (): void {
     // Create LMS instance with mocked dependencies
     $lms = new LMS($mockConfig);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($lms);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($lms, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $lms->setHttpClient($mockClient);
 
     // Create a request object
     $request = new EmbeddingRequest('Test text', 'text-embedding-ada-002');
@@ -205,7 +196,7 @@ test('it streams chat completions', function (): void {
         yield ['choices' => [['delta' => ['content' => 'chunk2']]]];
     };
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('stream')
         ->once()
@@ -220,11 +211,8 @@ test('it streams chat completions', function (): void {
     // Create LMS instance with mocked dependencies
     $lms = new LMS($mockConfig);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($lms);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($lms, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $lms->setHttpClient($mockClient);
 
     // Create a request object
     $messages = new ChatHistory([
@@ -251,7 +239,7 @@ test('it streams completions', function (): void {
         yield ['choices' => [['text' => 'chunk2']]];
     };
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('stream')
         ->once()
@@ -266,11 +254,8 @@ test('it streams completions', function (): void {
     // Create LMS instance with mocked dependencies
     $lms = new LMS($mockConfig);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($lms);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($lms, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $lms->setHttpClient($mockClient);
 
     // Create a request object
     $request = new TextCompletionRequest('Test prompt', 'text-davinci-003');
@@ -311,7 +296,7 @@ test('it uses new request objects in legacy chat method', function (): void {
         ],
     ];
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
@@ -326,11 +311,8 @@ test('it uses new request objects in legacy chat method', function (): void {
     // Create LMS instance with mocked dependencies
     $lms = new LMS($mockConfig);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($lms);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($lms, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $lms->setHttpClient($mockClient);
 
     // Test the legacy method
     $result = $lms->chat([
@@ -347,13 +329,13 @@ test('it accumulates chat content using request objects', function (): void {
         yield ['choices' => [['delta' => ['content' => 'chunk2']]]];
     };
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('stream')
         ->once()
         ->andReturn($mockGenerator());
 
-    // Create a mock streaming handler
+    /** @var \Shelfwood\LMStudio\Http\StreamingResponseHandler|Mockery\MockInterface $mockStreamingHandler */
     $mockStreamingHandler = Mockery::mock(StreamingResponseHandler::class);
     $mockStreamingHandler->shouldReceive('accumulateContent')
         ->once()
@@ -368,16 +350,9 @@ test('it accumulates chat content using request objects', function (): void {
     // Create LMS instance with mocked dependencies
     $lms = new LMS($mockConfig);
 
-    // Replace the properties with our mocks
-    $reflection = new ReflectionClass($lms);
-
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($lms, $mockClient);
-
-    $handlerProperty = $reflection->getProperty('streamingHandler');
-    $handlerProperty->setAccessible(true);
-    $handlerProperty->setValue($lms, $mockStreamingHandler);
+    // Set the client and streaming handler using setter methods
+    $lms->setHttpClient($mockClient);
+    $lms->setStreamingHandler($mockStreamingHandler);
 
     // Create a request object
     $messages = new ChatHistory([

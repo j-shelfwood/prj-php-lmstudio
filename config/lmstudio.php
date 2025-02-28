@@ -21,4 +21,17 @@ return [
     'timeout' => env('LMSTUDIO_TIMEOUT', 30),
 
     'headers' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default Model
+    |--------------------------------------------------------------------------
+    |
+    | This is the default model that will be used when no model is specified.
+    | For LM Studio, common models include 'granite-3.1-8b-instruct' or others
+    | available in your LM Studio installation.
+    |
+    */
+
+    'default_model' => env('LMSTUDIO_DEFAULT_MODEL', 'granite-3.1-8b-instruct'),
 ];

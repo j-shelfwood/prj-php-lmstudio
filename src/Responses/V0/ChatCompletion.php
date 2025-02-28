@@ -19,9 +19,9 @@ class ChatCompletion
      * @param  string  $model  The model used for the completion
      * @param  array<Choice>  $choices  The choices in the completion
      * @param  Usage  $usage  The token usage information
-     * @param  array  $stats  Additional stats about the completion
-     * @param  array  $modelInfo  Information about the model
-     * @param  array  $runtime  Information about the runtime
+     * @param  array<string, mixed>  $stats  Additional stats about the completion
+     * @param  array<string, mixed>  $modelInfo  Information about the model
+     * @param  array<string, mixed>  $runtime  Information about the runtime
      * @param  string|null  $systemFingerprint  The system fingerprint
      */
     public function __construct(

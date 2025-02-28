@@ -48,17 +48,14 @@ test('it returns chat completion dto', function (): void {
     // Create OpenAI instance
     $openai = new OpenAI($config);
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
         ->andReturn($mockResponse);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($openai);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($openai, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $openai->setHttpClient($mockClient);
 
     // Create a request object
     $messages = new ChatHistory([
@@ -107,17 +104,14 @@ test('it returns text completion dto', function (): void {
     // Create OpenAI instance
     $openai = new OpenAI($config);
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
         ->andReturn($mockResponse);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($openai);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($openai, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $openai->setHttpClient($mockClient);
 
     // Create a request object
     $request = new TextCompletionRequest('Test prompt', 'text-davinci-003');
@@ -160,17 +154,14 @@ test('it returns embedding dto', function (): void {
     // Create OpenAI instance
     $openai = new OpenAI($config);
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
         ->andReturn($mockResponse);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($openai);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($openai, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $openai->setHttpClient($mockClient);
 
     // Create a request object
     $request = new EmbeddingRequest('Test text', 'text-embedding-ada-002');
@@ -202,17 +193,14 @@ test('it streams chat completions', function (): void {
     // Create OpenAI instance
     $openai = new OpenAI($config);
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('stream')
         ->once()
         ->andReturn($mockGenerator());
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($openai);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($openai, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $openai->setHttpClient($mockClient);
 
     // Create a request object
     $messages = new ChatHistory([
@@ -248,17 +236,14 @@ test('it streams completions', function (): void {
     // Create OpenAI instance
     $openai = new OpenAI($config);
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('stream')
         ->once()
         ->andReturn($mockGenerator());
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($openai);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($openai, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $openai->setHttpClient($mockClient);
 
     // Create a request object
     $request = new TextCompletionRequest('Test prompt', 'text-davinci-003');
@@ -308,17 +293,14 @@ test('it uses new request objects in legacy chat method', function (): void {
     // Create OpenAI instance
     $openai = new OpenAI($config);
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
         ->andReturn($mockResponse);
 
-    // Replace the client property with our mock
-    $reflection = new ReflectionClass($openai);
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($openai, $mockClient);
+    // Set the client using the setter method instead of reflection
+    $openai->setHttpClient($mockClient);
 
     // Test the legacy method
     $result = $openai->chat([
@@ -344,28 +326,21 @@ test('it accumulates chat content using request objects', function (): void {
     // Create OpenAI instance
     $openai = new OpenAI($config);
 
-    // Create a mock client
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('stream')
         ->once()
         ->andReturn($mockGenerator());
 
-    // Create a mock streaming handler
+    /** @var \Shelfwood\LMStudio\Http\StreamingResponseHandler|Mockery\MockInterface $mockStreamingHandler */
     $mockStreamingHandler = Mockery::mock(StreamingResponseHandler::class);
     $mockStreamingHandler->shouldReceive('accumulateContent')
         ->once()
         ->andReturn('chunk1chunk2');
 
-    // Replace the properties with our mocks
-    $reflection = new ReflectionClass($openai);
-
-    $clientProperty = $reflection->getProperty('client');
-    $clientProperty->setAccessible(true);
-    $clientProperty->setValue($openai, $mockClient);
-
-    $handlerProperty = $reflection->getProperty('streamingHandler');
-    $handlerProperty->setAccessible(true);
-    $handlerProperty->setValue($openai, $mockStreamingHandler);
+    // Set the properties with our mocks
+    $openai->setHttpClient($mockClient);
+    $openai->setStreamingHandler($mockStreamingHandler);
 
     // Create a request object
     $messages = new ChatHistory([

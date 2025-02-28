@@ -49,13 +49,32 @@ class Client
         $this->client = new GuzzleClient([
             'base_uri' => $config->getBaseUrl(),
             'timeout' => $config->getTimeout(),
-            'headers' => $config->getHeaders(),
+            'headers' => array_merge(
+                [
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ],
+                $config->getApiKey() ? ['Authorization' => 'Bearer '.$config->getApiKey()] : [],
+                $config->getHeaders()
+            ),
             'handler' => $stack,
         ]);
     }
 
     /**
+     * Set the Guzzle client instance.
+     */
+    public function setGuzzleClient(GuzzleClient $client): self
+    {
+        $this->client = $client;
+
+        return $this;
+    }
+
+    /**
      * Make a GET request.
+     *
+     * @param  array<string, mixed>  $query
      *
      * @throws LMStudioException
      */
