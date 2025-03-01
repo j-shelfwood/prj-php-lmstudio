@@ -4,7 +4,7 @@ A PHP package for integrating with LMStudio's local API. This library allows you
 
 - PHP 8.2+
 - Compatible with Laravel 10.x and 12.x
-- Version 1.2.0
+- Version 1.2.1
 
 ## Features
 

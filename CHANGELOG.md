@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - 2024-03-01
+## [1.2.1] - 2025-03-01
+
+### Fixed
+
+- Added explicit integer type casting to configuration values for improved type safety
+
+## [1.2.0] - 2025-03-01
 
 ### Added
 
@@ -23,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated dependencies to support both Laravel 10 and Laravel 12
 - Updated Symfony Console dependency to support both v6.4 and v7.0
 
-## [1.1.0] - 2024-03-01
+## [1.1.0] - 2025-03-01
 
 ### Added
 
@@ -61,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed potential memory leaks in streaming response handling
 - Improved handling of idle connections during streaming
 
-## [1.0.0] - 2024-02-22
+## [1.0.0] - 2025-02-22
 
 ### Added
 

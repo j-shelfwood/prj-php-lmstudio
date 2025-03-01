@@ -20,12 +20,12 @@ class LMStudioServiceProvider extends ServiceProvider
             return new LMStudioConfig(
                 baseUrl: $config['base_url'] ?? 'http://localhost:1234',
                 apiKey: $config['api_key'] ?? 'lm-studio',
-                timeout: $config['timeout'] ?? 30,
+                timeout: intval($config['timeout'] ?? 30),
                 headers: $config['headers'] ?? [],
                 defaultModel: $config['default_model'] ?? null,
-                connectTimeout: $config['connect_timeout'] ?? 10,
-                idleTimeout: $config['idle_timeout'] ?? 15,
-                maxRetries: $config['max_retries'] ?? 3,
+                connectTimeout: intval($config['connect_timeout'] ?? 10),
+                idleTimeout: intval($config['idle_timeout'] ?? 15),
+                maxRetries: intval($config['max_retries'] ?? 3),
                 healthCheckEnabled: $config['health_check']['enabled'] ?? true,
                 debugConfig: $config['debug'] ?? []
             );
