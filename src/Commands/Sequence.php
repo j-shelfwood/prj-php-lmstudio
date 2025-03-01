@@ -648,24 +648,24 @@ class Sequence extends BaseCommand
                 'properties' => [
                     'name' => [
                         'type' => 'string',
-                        'description' => 'The name of the recipe'
+                        'description' => 'The name of the recipe',
                     ],
                     'ingredients' => [
                         'type' => 'array',
                         'items' => [
-                            'type' => 'string'
+                            'type' => 'string',
                         ],
-                        'description' => 'List of ingredients needed'
+                        'description' => 'List of ingredients needed',
                     ],
                     'steps' => [
                         'type' => 'array',
                         'items' => [
-                            'type' => 'string'
+                            'type' => 'string',
                         ],
-                        'description' => 'Step by step instructions'
-                    ]
+                        'description' => 'Step by step instructions',
+                    ],
                 ],
-                'required' => ['name', 'ingredients', 'steps']
+                'required' => ['name', 'ingredients', 'steps'],
             ];
 
             // Create a request object based on the API type
@@ -688,6 +688,7 @@ class Sequence extends BaseCommand
 
             // Try to parse the JSON response
             $jsonData = json_decode($content, true);
+
             if (json_last_error() === JSON_ERROR_NONE) {
                 // Format the JSON for better readability
                 $formattedJson = json_encode($jsonData, JSON_PRETTY_PRINT);
@@ -701,6 +702,7 @@ class Sequence extends BaseCommand
                     if (isset($jsonData['ingredients']) && is_array($jsonData['ingredients'])) {
                         $io->newLine();
                         $io->writeln('🥣 <fg=yellow>Ingredients:</>');
+
                         foreach ($jsonData['ingredients'] as $ingredient) {
                             $io->writeln('  • '.$ingredient);
                         }
@@ -709,6 +711,7 @@ class Sequence extends BaseCommand
                     if (isset($jsonData['steps']) && is_array($jsonData['steps'])) {
                         $io->newLine();
                         $io->writeln('👨‍🍳 <fg=yellow>Instructions:</>');
+
                         foreach ($jsonData['steps'] as $index => $step) {
                             $io->writeln('  '.($index + 1).'. '.$step);
                         }

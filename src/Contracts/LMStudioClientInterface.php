@@ -18,7 +18,7 @@ interface LMStudioClientInterface extends ConfigAwareInterface
     /**
      * Retrieve information about a specific model.
      *
-     * @param string $modelId The ID of the model to retrieve
+     * @param  string  $modelId  The ID of the model to retrieve
      * @return mixed The model information (type varies by implementation)
      */
     public function model(string $modelId): mixed;

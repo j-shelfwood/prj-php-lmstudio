@@ -14,7 +14,7 @@ class Application extends SymfonyApplication
 {
     public function __construct()
     {
-        parent::__construct('LMStudio CLI', '1.0.0');
+        parent::__construct('LMStudio CLI', '1.1.0');
 
         // Load configuration from environment variables or use defaults
         $baseUrl = getenv('LMSTUDIO_BASE_URL') ?: 'http://localhost:1234';

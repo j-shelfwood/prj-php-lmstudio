@@ -42,7 +42,7 @@ class JsonSchema implements \JsonSerializable
     /**
      * Create a new JSON schema for an object.
      *
-     * @param  array<string, array>  $properties  The object properties
+     * @param  array<string, array<string, mixed>>  $properties  The object properties
      * @param  array<string>  $required  The required properties
      * @param  string|null  $name  Optional name for the schema
      * @param  bool|null  $strict  Whether to enforce strict schema validation

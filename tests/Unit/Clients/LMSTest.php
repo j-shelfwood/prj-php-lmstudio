@@ -104,7 +104,7 @@ test('it returns text completion dto', function (): void {
         'runtime' => ['some_runtime' => 'value'],
     ];
 
-        /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
+    /** @var \Shelfwood\LMStudio\Http\Client|Mockery\MockInterface $mockClient */
     $mockClient = Mockery::mock(Client::class);
     $mockClient->shouldReceive('post')
         ->once()
