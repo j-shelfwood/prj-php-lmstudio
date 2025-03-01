@@ -41,7 +41,8 @@ class StreamingResponseHandler
         $currentToolCall = null;
         $currentId = null;
         $currentName = null;
-        $currentArguments = '';
+        $argumentsBuffer = '';
+        $inToolCall = false;
 
         foreach ($stream as $chunk) {
             if (! isset($chunk['choices'][0]['delta'])) {
@@ -55,7 +56,21 @@ class StreamingResponseHandler
                 foreach ($delta['tool_calls'] as $toolCallDelta) {
                     // New tool call with ID
                     if (isset($toolCallDelta['id'])) {
+                        // If we were building a previous tool call, try to parse its arguments
+                        if ($currentId !== null && ! empty($argumentsBuffer)) {
+                            $parsed = json_decode($argumentsBuffer, true);
+
+                            if (json_last_error() === JSON_ERROR_NONE) {
+                                $toolCalls[$currentId]['function']['arguments_parsed'] = $parsed;
+                            } else {
+                                // Keep raw arguments if parsing fails
+                                $toolCalls[$currentId]['function']['arguments_raw'] = $argumentsBuffer;
+                            }
+                        }
+
                         $currentId = $toolCallDelta['id'];
+                        $argumentsBuffer = '';
+                        $inToolCall = true;
                         $currentToolCall = [
                             'id' => $currentId,
                             'type' => $toolCallDelta['type'] ?? 'function',
@@ -69,16 +84,36 @@ class StreamingResponseHandler
 
                     // Update function name
                     if (isset($toolCallDelta['function']['name'])) {
-                        $currentName = $toolCallDelta['function']['name'];
-                        $toolCalls[$currentId]['function']['name'] = $currentName;
+                        $toolCalls[$currentId]['function']['name'] = $toolCallDelta['function']['name'];
                     }
 
                     // Append to arguments
                     if (isset($toolCallDelta['function']['arguments'])) {
-                        $currentArguments .= $toolCallDelta['function']['arguments'];
-                        $toolCalls[$currentId]['function']['arguments'] = $currentArguments;
+                        $argumentsBuffer .= $toolCallDelta['function']['arguments'];
+                        $toolCalls[$currentId]['function']['arguments'] = $argumentsBuffer;
+
+                        // Try to parse JSON incrementally
+                        if (! empty($argumentsBuffer)) {
+                            $parsed = json_decode($argumentsBuffer, true);
+
+                            if (json_last_error() === JSON_ERROR_NONE) {
+                                $toolCalls[$currentId]['function']['arguments_parsed'] = $parsed;
+                            }
+                        }
                     }
                 }
+            }
+        }
+
+        // Final attempt to parse any remaining arguments
+        if ($currentId !== null && ! empty($argumentsBuffer)) {
+            $parsed = json_decode($argumentsBuffer, true);
+
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $toolCalls[$currentId]['function']['arguments_parsed'] = $parsed;
+            } else {
+                // Keep raw arguments if parsing fails
+                $toolCalls[$currentId]['function']['arguments_raw'] = $argumentsBuffer;
             }
         }
 

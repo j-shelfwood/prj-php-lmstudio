@@ -6,6 +6,7 @@ namespace Shelfwood\LMStudio;
 
 use Generator;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Contracts\ConfigAwareInterface;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
 use Shelfwood\LMStudio\Http\Client;
 use Shelfwood\LMStudio\Http\StreamingResponseHandler;
@@ -19,7 +20,7 @@ use Shelfwood\LMStudio\Responses\V1\TextCompletion;
 use Shelfwood\LMStudio\Traits\HandlesStreamingResponses;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 
-class OpenAI implements LMStudioClientInterface
+class OpenAI implements ConfigAwareInterface, LMStudioClientInterface
 {
     use HandlesStreamingResponses;
 

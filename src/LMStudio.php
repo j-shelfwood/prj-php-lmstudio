@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio;
 
 use Shelfwood\LMStudio\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Contracts\ConfigAwareInterface;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
 
-class LMStudio
+class LMStudio implements ConfigAwareInterface
 {
     private LMStudioConfig $config;
 
@@ -18,6 +19,14 @@ class LMStudio
     public function __construct(?LMStudioConfig $config = null)
     {
         $this->config = $config ?? new LMStudioConfig;
+    }
+
+    /**
+     * Get the client configuration.
+     */
+    public function getConfig(): LMStudioConfig
+    {
+        return $this->config;
     }
 
     /**

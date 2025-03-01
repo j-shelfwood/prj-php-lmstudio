@@ -34,4 +34,50 @@ return [
     */
 
     'default_model' => env('LMSTUDIO_DEFAULT_MODEL', 'granite-3.1-8b-instruct'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Connection Settings
+    |--------------------------------------------------------------------------
+    |
+    | Configure connection-specific settings like connect timeout and
+    | retry behavior for more reliable API interactions.
+    |
+    */
+
+    'connect_timeout' => env('LMSTUDIO_CONNECT_TIMEOUT', 10),
+
+    'idle_timeout' => env('LMSTUDIO_IDLE_TIMEOUT', 15),
+
+    'max_retries' => env('LMSTUDIO_MAX_RETRIES', 3),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Health Check Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure health check behavior to verify the LMStudio server
+    | is available before making requests.
+    |
+    */
+
+    'health_check' => [
+        'enabled' => env('LMSTUDIO_HEALTH_CHECK_ENABLED', true),
+        'interval' => env('LMSTUDIO_HEALTH_CHECK_INTERVAL', 5),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Debug Settings
+    |--------------------------------------------------------------------------
+    |
+    | Configure debug options for troubleshooting API interactions.
+    |
+    */
+
+    'debug' => [
+        'enabled' => env('LMSTUDIO_DEBUG', false),
+        'verbose' => env('LMSTUDIO_DEBUG_VERBOSE', false),
+        'log_file' => env('LMSTUDIO_DEBUG_LOG', storage_path('logs/lmstudio.log')),
+    ],
 ];
