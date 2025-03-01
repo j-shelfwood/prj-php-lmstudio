@@ -49,6 +49,51 @@ test('OpenAI client uses correct API version', function (): void {
     expect((string) $lastRequest->getUri()->getPath())->toBe('v1/models');
 });
 
+test('OpenAI client makes correct model request for specific model', function (): void {
+    $modelId = 'test-model-id';
+    $modelInfo = [
+        'id' => $modelId,
+        'object' => 'model',
+        'created' => 1677858242,
+        'owned_by' => 'organization-owner',
+        'permission' => [],
+        'root' => $modelId,
+        'parent' => null,
+    ];
+
+    $mock = new MockHandler([
+        new Response(200, [], json_encode($modelInfo)),
+    ]);
+
+    $handlerStack = HandlerStack::create($mock);
+    $guzzle = new GuzzleClient(['handler' => $handlerStack]);
+
+    $httpClient = new class($this->config, $guzzle) extends Client
+    {
+        public function __construct($config, $guzzle)
+        {
+            parent::__construct($config);
+            $this->client = $guzzle;
+        }
+    };
+
+    $openai = new class($this->config, $httpClient) extends OpenAI
+    {
+        public function __construct($config, $client)
+        {
+            parent::__construct($config);
+            $this->client = $client;
+        }
+    };
+
+    $response = $openai->model($modelId);
+    expect($response)->toBe($modelInfo);
+
+    // Verify that the request was made to the correct endpoint
+    $lastRequest = $mock->getLastRequest();
+    expect((string) $lastRequest->getUri()->getPath())->toBe('v1/models/'.$modelId);
+});
+
 test('it returns chat completion dto', function (): void {
     $mockResponse = [
         'id' => 'chatcmpl-123',

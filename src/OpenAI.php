@@ -73,6 +73,14 @@ class OpenAI implements LMStudioClientInterface
     }
 
     /**
+     * Retrieve information about a specific model.
+     */
+    public function model(string $modelId): array
+    {
+        return $this->client->get($this->apiVersion.'/models/'.$modelId);
+    }
+
+    /**
      * Create a chat completion using a request object.
      */
     public function chatCompletion(RequestInterface $request): ChatCompletion

@@ -16,6 +16,14 @@ interface LMStudioClientInterface extends ConfigAwareInterface
     public function models(): array;
 
     /**
+     * Retrieve information about a specific model.
+     *
+     * @param string $modelId The ID of the model to retrieve
+     * @return mixed The model information (type varies by implementation)
+     */
+    public function model(string $modelId): mixed;
+
+    /**
      * Create a chat completion.
      *
      * @param  RequestInterface  $request  The chat completion request

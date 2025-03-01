@@ -6,7 +6,9 @@ namespace Shelfwood\LMStudio\Requests\V0;
 
 use Shelfwood\LMStudio\Requests\Common\BaseRequest;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
+use Shelfwood\LMStudio\ValueObjects\JsonSchema;
 use Shelfwood\LMStudio\ValueObjects\Message;
+use Shelfwood\LMStudio\ValueObjects\ResponseFormat;
 use Shelfwood\LMStudio\ValueObjects\Tool;
 
 /**
@@ -28,6 +30,21 @@ class ChatCompletionRequest extends BaseRequest
      * @var string|array<string, mixed>|null The tool choice strategy
      */
     private string|array|null $toolChoice = null;
+
+    /**
+     * @var array<string, mixed>|null The response format configuration
+     */
+    private ?array $responseFormat = null;
+
+    /**
+     * @var int|null The time-to-live (TTL) in seconds for the model
+     */
+    private ?int $ttl = null;
+
+    /**
+     * @var bool|null The just-in-time (JIT) loading flag for the model
+     */
+    private ?bool $jit = null;
 
     /**
      * @var array<string, mixed> Additional options for the completion
@@ -112,6 +129,77 @@ class ChatCompletionRequest extends BaseRequest
     }
 
     /**
+     * Set the response format to enforce structured JSON output.
+     *
+     * This method configures the request to enforce a structured JSON response from the model
+     * according to the provided schema. The LM Studio API requires the schema to be nested
+     * under a 'schema' key within the 'json_schema' object.
+     *
+     * Example usage:
+     * ```php
+     * // Using an array
+     * $schema = [
+     *     'type' => 'object',
+     *     'properties' => [
+     *         'joke' => [
+     *             'type' => 'string',
+     *         ],
+     *     ],
+     *     'required' => ['joke'],
+     * ];
+     *
+     * $request = $request->withResponseFormat($schema, 'joke_response', true);
+     *
+     * // Using JsonSchema value object
+     * $schema = JsonSchema::keyValue('joke', 'string', 'A funny joke', 'joke_response', true);
+     * $request = $request->withResponseFormat($schema);
+     * ```
+     *
+     * @param  JsonSchema|array<string, mixed>  $schema  The JSON schema to enforce
+     * @param  string|null  $name  Optional name for the schema (ignored if $schema is a JsonSchema)
+     * @param  bool|null  $strict  Whether to enforce strict schema validation (ignored if $schema is a JsonSchema)
+     */
+    public function withResponseFormat($schema, ?string $name = null, ?bool $strict = null): self
+    {
+        $clone = clone $this;
+
+        if ($schema instanceof JsonSchema) {
+            $jsonSchema = $schema;
+        } else {
+            $jsonSchema = new JsonSchema($schema, $name, $strict);
+        }
+
+        $clone->responseFormat = ResponseFormat::jsonSchema($jsonSchema)->jsonSerialize();
+
+        return $clone;
+    }
+
+    /**
+     * Set the TTL (time-to-live) in seconds for the model.
+     * When the TTL expires, the model is automatically unloaded from memory.
+     */
+    public function withTtl(int $seconds): self
+    {
+        $clone = clone $this;
+        $clone->ttl = $seconds;
+
+        return $clone;
+    }
+
+    /**
+     * Set the JIT loading flag for the model.
+     *
+     * @param  bool  $enabled  Whether to load the model just-in-time when needed
+     */
+    public function withJit(bool $enabled = true): self
+    {
+        $clone = clone $this;
+        $clone->jit = $enabled;
+
+        return $clone;
+    }
+
+    /**
      * Convert the request to an array.
      */
     public function jsonSerialize(): array
@@ -147,6 +235,21 @@ class ChatCompletionRequest extends BaseRequest
         // Add tool choice if present
         if ($this->toolChoice !== null) {
             $data['tool_choice'] = $this->toolChoice;
+        }
+
+        // Add response format if present
+        if ($this->responseFormat !== null) {
+            $data['response_format'] = $this->responseFormat;
+        }
+
+        // Add TTL if present
+        if ($this->ttl !== null) {
+            $data['ttl'] = $this->ttl;
+        }
+
+        // Add JIT if present
+        if ($this->jit !== null) {
+            $data['jit'] = $this->jit;
         }
 
         return $data;

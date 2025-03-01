@@ -7,6 +7,7 @@ namespace Tests\Unit\Requests\V1;
 use Shelfwood\LMStudio\Enums\Role;
 use Shelfwood\LMStudio\Requests\V1\ChatCompletionRequest;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
+use Shelfwood\LMStudio\ValueObjects\JsonSchema;
 use Shelfwood\LMStudio\ValueObjects\Message;
 use Shelfwood\LMStudio\ValueObjects\Tool;
 
@@ -164,4 +165,80 @@ test('it can set tool choice to a specific function', function (): void {
     expect($data)->toHaveKey('tool_choice')
         ->and($data['tool_choice']['type'])->toBe('function')
         ->and($data['tool_choice']['function']['name'])->toBe('get_weather');
+});
+
+test('it can set response format with name and strict parameters', function (): void {
+    $schema = [
+        'type' => 'object',
+        'properties' => [
+            'joke' => [
+                'type' => 'string',
+            ],
+        ],
+        'required' => ['joke'],
+    ];
+
+    $request = new ChatCompletionRequest([], 'gpt-3.5-turbo');
+    $newRequest = $request->withResponseFormat($schema, 'joke_schema', true);
+
+    $data = $newRequest->toArray();
+    expect($data)->toHaveKey('response_format')
+        ->and($data['response_format']['type'])->toBe('json_schema')
+        ->and($data['response_format']['json_schema']['schema'])->toBe($schema)
+        ->and($data['response_format']['json_schema']['name'])->toBe('joke_schema')
+        ->and($data['response_format']['json_schema']['strict'])->toBeTrue();
+});
+
+test('it can set response format with JsonSchema value object', function (): void {
+    $jsonSchema = JsonSchema::keyValue('joke', 'string', 'A funny joke', 'joke_schema', true);
+    $request = new ChatCompletionRequest([], 'gpt-3.5-turbo');
+    $newRequest = $request->withResponseFormat($jsonSchema);
+
+    $data = $newRequest->toArray();
+    expect($data)->toHaveKey('response_format')
+        ->and($data['response_format']['type'])->toBe('json_schema')
+        ->and($data['response_format']['json_schema']['schema'])->toBe([
+            'type' => 'object',
+            'properties' => [
+                'joke' => [
+                    'type' => 'string',
+                    'description' => 'A funny joke',
+                ],
+            ],
+            'required' => ['joke'],
+        ])
+        ->and($data['response_format']['json_schema']['name'])->toBe('joke_schema')
+        ->and($data['response_format']['json_schema']['strict'])->toBeTrue();
+});
+
+test('it can set TTL for the model', function (): void {
+    $messages = [
+        new Message(Role::USER, 'Hello'),
+    ];
+    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $newRequest = $request->withTtl(300);
+
+    expect($newRequest)->not->toBe($request)
+        ->and($newRequest->toArray()['ttl'])->toBe(300);
+});
+
+test('it can set JIT loading for the model', function (): void {
+    $messages = [
+        ['role' => 'user', 'content' => 'Hello'],
+    ];
+    $request = new ChatCompletionRequest($messages, 'test-model');
+
+    $newRequest = $request->withJit(true);
+
+    // Ensure the original request is not modified
+    expect($newRequest)->not->toBe($request);
+
+    // Check that the JIT flag is set correctly in the serialized output
+    $serialized = $newRequest->jsonSerialize();
+    expect($serialized['jit'])->toBeTrue();
+
+    // Test with JIT disabled
+    $disabledRequest = $request->withJit(false);
+    $serialized = $disabledRequest->jsonSerialize();
+    expect($serialized['jit'])->toBeFalse();
 });
