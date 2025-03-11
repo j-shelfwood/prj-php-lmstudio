@@ -44,7 +44,8 @@ describe('FunctionCall', function (): void {
     it('returns empty array for invalid JSON arguments', function (): void {
         $functionCall = new FunctionCall(
             name: 'get_weather',
-            arguments: 'invalid json'
+            arguments: 'invalid json',
+            skipValidation: true
         );
 
         $args = $functionCall->getArgumentsAsArray();

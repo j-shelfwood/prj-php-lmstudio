@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Shelfwood\LMStudio\Enums\ToolType;
+use Shelfwood\LMStudio\Exceptions\InvalidToolDefinitionException;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\FunctionCall;
 use Shelfwood\LMStudio\ValueObjects\Tool;
@@ -47,6 +48,45 @@ test('it can register a tool', function (): void {
     expect($result)->toBeInstanceOf(ToolRegistry::class);
     expect($result)->toBe($this->registry); // Fluent interface returns $this
     expect($this->registry->count())->toBe(1);
+});
+
+test('it can register multiple tools at once', function (): void {
+    $tool1 = Tool::function('tool1', 'First test tool', []);
+    $tool2 = Tool::function('tool2', 'Second test tool', []);
+
+    $handler1 = fn () => 'Tool 1 result';
+    $handler2 = fn () => 'Tool 2 result';
+
+    $result = $this->registry->registerMany([
+        ['tool' => $tool1, 'handler' => $handler1],
+        ['tool' => $tool2, 'handler' => $handler2],
+    ]);
+
+    expect($result)->toBeInstanceOf(ToolRegistry::class);
+    expect($result)->toBe($this->registry); // Fluent interface returns $this
+    expect($this->registry->count())->toBe(2);
+    expect($this->registry->has('tool1'))->toBeTrue();
+    expect($this->registry->has('tool2'))->toBeTrue();
+});
+
+test('it throws an exception when registering invalid tools with registerMany', function (): void {
+    $tool = Tool::function('valid_tool', 'Valid tool', []);
+    $handler = fn () => 'Result';
+
+    // Missing handler
+    expect(fn () => $this->registry->registerMany([
+        ['tool' => $tool],
+    ]))->toThrow(InvalidToolDefinitionException::class, 'Each tool registration must include both "tool" and "handler" keys');
+
+    // Missing tool
+    expect(fn () => $this->registry->registerMany([
+        ['handler' => $handler],
+    ]))->toThrow(InvalidToolDefinitionException::class, 'Each tool registration must include both "tool" and "handler" keys');
+
+    // Empty array
+    expect(fn () => $this->registry->registerMany([
+        [],
+    ]))->toThrow(InvalidToolDefinitionException::class, 'Each tool registration must include both "tool" and "handler" keys');
 });
 
 test('it can get registered tools', function (): void {
@@ -132,5 +172,5 @@ test('it throws an exception when executing an unregistered tool', function (): 
     );
 
     expect(fn () => $this->registry->execute($toolCall))
-        ->toThrow(\InvalidArgumentException::class, 'Tool \'nonexistent_tool\' is not registered');
+        ->toThrow(\Shelfwood\LMStudio\Exceptions\ToolExecutionException::class, "Tool 'nonexistent_tool' is not registered");
 });

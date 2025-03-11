@@ -7,13 +7,33 @@ namespace Shelfwood\LMStudio;
 use Generator;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
 use Shelfwood\LMStudio\Contracts\AbstractLMStudioClient;
+use Shelfwood\LMStudio\Exceptions\ApiRequestException;
 use Shelfwood\LMStudio\Http\Requests\Common\RequestInterface;
 use Shelfwood\LMStudio\Http\Responses\V1\ChatCompletion;
 use Shelfwood\LMStudio\Http\Responses\V1\Embedding;
 use Shelfwood\LMStudio\Http\Responses\V1\TextCompletion;
 
+/**
+ * Client for the OpenAI compatibility API (v1).
+ *
+ * This class provides methods for interacting with the LM Studio API
+ * using the OpenAI compatibility endpoints, including chat completions,
+ * text completions, and embeddings.
+ *
+ * Example usage:
+ * ```php
+ * $config = new LMStudioConfig();
+ * $client = new OpenAI($config);
+ * $response = $client->chatCompletion($request);
+ * ```
+ */
 class OpenAI extends AbstractLMStudioClient
 {
+    /**
+     * Create a new OpenAI client instance.
+     *
+     * @param  LMStudioConfig  $config  The client configuration
+     */
     public function __construct(LMStudioConfig $config)
     {
         parent::__construct($config);
@@ -22,6 +42,11 @@ class OpenAI extends AbstractLMStudioClient
 
     /**
      * Create a chat completion using a request object.
+     *
+     * @param  RequestInterface  $request  The chat completion request
+     * @return ChatCompletion The chat completion response
+     *
+     * @throws ApiRequestException If the API request fails
      */
     public function chatCompletion(RequestInterface $request): ChatCompletion
     {
@@ -35,7 +60,10 @@ class OpenAI extends AbstractLMStudioClient
     /**
      * Create a streaming chat completion using a request object.
      *
-     * @return Generator<\Shelfwood\LMStudio\ValueObjects\StreamChunk>
+     * @param  RequestInterface  $request  The chat completion request
+     * @return Generator<\Shelfwood\LMStudio\ValueObjects\StreamChunk> A generator yielding stream chunks
+     *
+     * @throws ApiRequestException If the API request fails
      */
     public function streamChatCompletion(RequestInterface $request): Generator
     {
@@ -44,6 +72,11 @@ class OpenAI extends AbstractLMStudioClient
 
     /**
      * Create a text completion using a request object.
+     *
+     * @param  RequestInterface  $request  The text completion request
+     * @return TextCompletion The text completion response
+     *
+     * @throws ApiRequestException If the API request fails
      */
     public function textCompletion(RequestInterface $request): TextCompletion
     {
@@ -57,7 +90,10 @@ class OpenAI extends AbstractLMStudioClient
     /**
      * Create a streaming text completion using a request object.
      *
-     * @return Generator<\Shelfwood\LMStudio\ValueObjects\StreamChunk>
+     * @param  RequestInterface  $request  The text completion request
+     * @return Generator<\Shelfwood\LMStudio\ValueObjects\StreamChunk> A generator yielding stream chunks
+     *
+     * @throws ApiRequestException If the API request fails
      */
     public function streamTextCompletion(RequestInterface $request): Generator
     {
@@ -66,6 +102,11 @@ class OpenAI extends AbstractLMStudioClient
 
     /**
      * Create embeddings using a request object.
+     *
+     * @param  RequestInterface  $request  The embedding request
+     * @return Embedding The embedding response
+     *
+     * @throws ApiRequestException If the API request fails
      */
     public function createEmbeddings(RequestInterface $request): Embedding
     {

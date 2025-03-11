@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Config;
 
+use Shelfwood\LMStudio\Exceptions\InvalidConfigurationException;
 use Shelfwood\LMStudio\Logging\Logger;
 
 class LMStudioConfig
@@ -28,6 +29,8 @@ class LMStudioConfig
      * @param  int|null  $idleTimeout  Idle timeout for streaming in seconds
      * @param  int|null  $maxRetries  Maximum number of retry attempts
      * @param  bool|null  $healthCheckEnabled  Whether to perform health checks
+     * @param  int|null  $ttl  Time-To-Live for models in seconds (null means no TTL)
+     * @param  bool|null  $autoEvict  Whether to automatically evict models when loading new ones
      * @param  array<string, mixed>  $debugConfig  Debug configuration options
      */
     public function __construct(
@@ -40,8 +43,14 @@ class LMStudioConfig
         private ?int $idleTimeout = 15,
         private ?int $maxRetries = 3,
         private ?bool $healthCheckEnabled = true,
+        private ?int $ttl = null,
+        private ?bool $autoEvict = true,
         array $debugConfig = []
     ) {
+        if ($ttl !== null && $ttl < 0) {
+            throw new InvalidConfigurationException('TTL must be a non-negative integer');
+        }
+
         $this->debugConfig = array_merge([
             'enabled' => (bool) getenv('LMSTUDIO_DEBUG'),
             'verbose' => (bool) getenv('LMSTUDIO_DEBUG_VERBOSE'),
@@ -86,6 +95,8 @@ class LMStudioConfig
 
     /**
      * Get the headers.
+     *
+     * @return array<string, string> The headers
      */
     public function getHeaders(): array
     {
@@ -128,6 +139,22 @@ class LMStudioConfig
     }
 
     /**
+     * Get the Time-To-Live (TTL) for models in seconds.
+     */
+    public function getTtl(): ?int
+    {
+        return $this->ttl;
+    }
+
+    /**
+     * Check if auto-evict is enabled.
+     */
+    public function isAutoEvictEnabled(): ?bool
+    {
+        return $this->autoEvict;
+    }
+
+    /**
      * Get the debug configuration.
      *
      * @return array<string, mixed> The debug configuration
@@ -147,9 +174,18 @@ class LMStudioConfig
 
     /**
      * Create a new instance with a different base URL.
+     *
+     * @param  string  $baseUrl  The new base URL
+     * @return self A new instance with the updated configuration
+     *
+     * @throws InvalidConfigurationException If the URL is invalid
      */
     public function withBaseUrl(string $baseUrl): self
     {
+        if (empty($baseUrl)) {
+            throw new InvalidConfigurationException('Base URL cannot be empty');
+        }
+
         $clone = clone $this;
         $clone->baseUrl = $baseUrl;
 
@@ -158,9 +194,18 @@ class LMStudioConfig
 
     /**
      * Create a new instance with a different API key.
+     *
+     * @param  string  $apiKey  The new API key
+     * @return self A new instance with the updated configuration
+     *
+     * @throws InvalidConfigurationException If the API key is invalid
      */
     public function withApiKey(string $apiKey): self
     {
+        if (empty($apiKey)) {
+            throw new InvalidConfigurationException('API key cannot be empty');
+        }
+
         $clone = clone $this;
         $clone->apiKey = $apiKey;
 
@@ -170,7 +215,8 @@ class LMStudioConfig
     /**
      * Create a new instance with different headers.
      *
-     * @param  array<string, string>  $headers
+     * @param  array<string, string>  $headers  The new headers
+     * @return self A new instance with the updated configuration
      */
     public function withHeaders(array $headers): self
     {
@@ -182,9 +228,18 @@ class LMStudioConfig
 
     /**
      * Create a new instance with a different timeout.
+     *
+     * @param  int  $timeout  The new timeout in seconds
+     * @return self A new instance with the updated configuration
+     *
+     * @throws InvalidConfigurationException If the timeout is invalid
      */
     public function withTimeout(int $timeout): self
     {
+        if ($timeout <= 0) {
+            throw new InvalidConfigurationException('Timeout must be greater than zero');
+        }
+
         $clone = clone $this;
         $clone->timeout = $timeout;
 
@@ -193,6 +248,9 @@ class LMStudioConfig
 
     /**
      * Create a new instance with a different default model.
+     *
+     * @param  string|null  $defaultModel  The new default model
+     * @return self A new instance with the updated configuration
      */
     public function withDefaultModel(?string $defaultModel): self
     {
@@ -204,9 +262,18 @@ class LMStudioConfig
 
     /**
      * Create a new instance with the given connection timeout.
+     *
+     * @param  int|null  $connectTimeout  The new connection timeout in seconds
+     * @return self A new instance with the updated configuration
+     *
+     * @throws InvalidConfigurationException If the timeout is invalid
      */
     public function withConnectTimeout(?int $connectTimeout): self
     {
+        if ($connectTimeout !== null && $connectTimeout <= 0) {
+            throw new InvalidConfigurationException('Connection timeout must be greater than zero');
+        }
+
         $clone = clone $this;
         $clone->connectTimeout = $connectTimeout;
 
@@ -215,9 +282,18 @@ class LMStudioConfig
 
     /**
      * Create a new instance with the given idle timeout.
+     *
+     * @param  int|null  $idleTimeout  The new idle timeout in seconds
+     * @return self A new instance with the updated configuration
+     *
+     * @throws InvalidConfigurationException If the timeout is invalid
      */
     public function withIdleTimeout(?int $idleTimeout): self
     {
+        if ($idleTimeout !== null && $idleTimeout <= 0) {
+            throw new InvalidConfigurationException('Idle timeout must be greater than zero');
+        }
+
         $clone = clone $this;
         $clone->idleTimeout = $idleTimeout;
 
@@ -226,9 +302,18 @@ class LMStudioConfig
 
     /**
      * Create a new instance with the given max retries.
+     *
+     * @param  int|null  $maxRetries  The new maximum number of retry attempts
+     * @return self A new instance with the updated configuration
+     *
+     * @throws InvalidConfigurationException If the value is invalid
      */
     public function withMaxRetries(?int $maxRetries): self
     {
+        if ($maxRetries !== null && $maxRetries < 0) {
+            throw new InvalidConfigurationException('Max retries must be a non-negative integer');
+        }
+
         $clone = clone $this;
         $clone->maxRetries = $maxRetries;
 
@@ -237,6 +322,9 @@ class LMStudioConfig
 
     /**
      * Create a new instance with health check enabled/disabled.
+     *
+     * @param  bool|null  $enabled  Whether to enable health checks
+     * @return self A new instance with the updated configuration
      */
     public function withHealthCheckEnabled(?bool $enabled): self
     {
@@ -247,14 +335,50 @@ class LMStudioConfig
     }
 
     /**
+     * Create a new instance with a different TTL (Time-To-Live) for models.
+     *
+     * @param  int|null  $ttl  The TTL in seconds (null means no TTL)
+     * @return self A new instance with the updated configuration
+     *
+     * @throws InvalidConfigurationException If the TTL is invalid
+     */
+    public function withTtl(?int $ttl): self
+    {
+        if ($ttl !== null && $ttl < 0) {
+            throw new InvalidConfigurationException('TTL must be a non-negative integer');
+        }
+
+        $clone = clone $this;
+        $clone->ttl = $ttl;
+
+        return $clone;
+    }
+
+    /**
+     * Create a new instance with auto-evict enabled or disabled.
+     *
+     * @param  bool|null  $autoEvict  Whether to enable auto-evict
+     * @return self A new instance with the updated configuration
+     */
+    public function withAutoEvict(?bool $autoEvict): self
+    {
+        $clone = clone $this;
+        $clone->autoEvict = $autoEvict;
+
+        return $clone;
+    }
+
+    /**
      * Create a new instance with the given debug configuration.
      *
-     * @param  array<string, mixed>  $debugConfig  The debug configuration
+     * @param  array<string, mixed>  $debugConfig  The new debug configuration
+     * @return self A new instance with the updated configuration
      */
     public function withDebugConfig(array $debugConfig): self
     {
         $clone = clone $this;
         $clone->debugConfig = array_merge($this->debugConfig, $debugConfig);
+        $clone->logger = Logger::fromConfig($clone->debugConfig);
 
         return $clone;
     }
