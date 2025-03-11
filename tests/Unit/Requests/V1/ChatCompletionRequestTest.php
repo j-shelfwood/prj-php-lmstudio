@@ -15,7 +15,7 @@ test('it can be instantiated with messages array', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
 
     expect($request)->toBeInstanceOf(ChatCompletionRequest::class);
 
@@ -30,7 +30,7 @@ test('it can be instantiated with chat history', function (): void {
     $history = new ChatHistory([
         new Message(Role::USER, 'Hello'),
     ]);
-    $request = new ChatCompletionRequest($history, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($history, 'qwen2.5-7b-instruct-1m');
 
     expect($request)->toBeInstanceOf(ChatCompletionRequest::class);
 
@@ -45,7 +45,7 @@ test('it can be instantiated with message arrays', function (): void {
     $messages = [
         ['role' => 'user', 'content' => 'Hello'],
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
 
     expect($request)->toBeInstanceOf(ChatCompletionRequest::class);
 
@@ -60,7 +60,7 @@ test('it can set temperature', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withTemperature(0.5);
 
     expect($newRequest)->not->toBe($request)
@@ -71,7 +71,7 @@ test('it can set max tokens', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withMaxTokens(100);
 
     expect($newRequest)->not->toBe($request)
@@ -82,7 +82,7 @@ test('it can enable streaming', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withStreaming();
 
     expect($newRequest)->not->toBe($request)
@@ -93,7 +93,7 @@ test('it can add tools', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
 
     $tool = Tool::function(
         'get_weather',
@@ -131,7 +131,7 @@ test('it can set tool choice to auto', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withToolChoice('auto');
 
     expect($newRequest)->not->toBe($request)
@@ -142,7 +142,7 @@ test('it can set tool choice to none', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withToolChoice('none');
 
     expect($newRequest)->not->toBe($request)
@@ -153,7 +153,7 @@ test('it can set tool choice to a specific function', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withToolChoice([
         'type' => 'function',
         'function' => ['name' => 'get_weather'],
@@ -178,7 +178,7 @@ test('it can set response format with name and strict parameters', function (): 
         'required' => ['joke'],
     ];
 
-    $request = new ChatCompletionRequest([], 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest([], 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withResponseFormat($schema, 'joke_schema', true);
 
     $data = $newRequest->toArray();
@@ -191,7 +191,7 @@ test('it can set response format with name and strict parameters', function (): 
 
 test('it can set response format with JsonSchema value object', function (): void {
     $jsonSchema = JsonSchema::keyValue('joke', 'string', 'A funny joke', 'joke_schema', true);
-    $request = new ChatCompletionRequest([], 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest([], 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withResponseFormat($jsonSchema);
 
     $data = $newRequest->toArray();
@@ -215,7 +215,7 @@ test('it can set TTL for the model', function (): void {
     $messages = [
         new Message(Role::USER, 'Hello'),
     ];
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
     $newRequest = $request->withTtl(300);
 
     expect($newRequest)->not->toBe($request)

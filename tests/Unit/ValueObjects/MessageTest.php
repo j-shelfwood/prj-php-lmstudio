@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Shelfwood\LMStudio\Enums\Role;
+use Shelfwood\LMStudio\Enums\ToolType;
 use Shelfwood\LMStudio\ValueObjects\FunctionCall;
 use Shelfwood\LMStudio\ValueObjects\Message;
 use Shelfwood\LMStudio\ValueObjects\ToolCall;
@@ -28,7 +29,7 @@ describe('Message', function (): void {
     it('can be instantiated with tool calls', function (): void {
         $toolCall = new ToolCall(
             id: 'call_123',
-            type: 'function',
+            type: ToolType::FUNCTION,
             function: new FunctionCall(
                 name: 'get_weather',
                 arguments: '{"location":"San Francisco"}'
@@ -85,7 +86,7 @@ describe('Message', function (): void {
     it('can create an assistant message with tool calls', function (): void {
         $toolCall = new ToolCall(
             id: 'call_123',
-            type: 'function',
+            type: ToolType::FUNCTION,
             function: new FunctionCall(
                 name: 'get_weather',
                 arguments: '{"location":"San Francisco"}'
@@ -123,7 +124,7 @@ describe('Message', function (): void {
     it('serializes tool calls correctly', function (): void {
         $toolCall = new ToolCall(
             id: 'call_123',
-            type: 'function',
+            type: ToolType::FUNCTION,
             function: new FunctionCall(
                 name: 'get_weather',
                 arguments: '{"location":"San Francisco"}'

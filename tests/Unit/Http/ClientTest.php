@@ -59,11 +59,6 @@ test('client makes successful POST request', function (): void {
     expect($response)->toBe(['data' => 'test']);
 });
 
-test('client handles streaming responses', function (): void {
-    // Skip this test for now as it requires more complex mocking
-    $this->markTestSkipped('This test requires more complex mocking of streaming responses');
-});
-
 test('client throws exception on request error', function (): void {
     $mock = new MockHandler([
         new Response(500, [], json_encode(['error' => 'test'])),

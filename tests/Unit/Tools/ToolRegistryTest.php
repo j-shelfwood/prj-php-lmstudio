@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Shelfwood\LMStudio\Enums\ToolType;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\FunctionCall;
 use Shelfwood\LMStudio\ValueObjects\Tool;
@@ -108,7 +109,7 @@ test('it can execute a registered tool', function (): void {
 
     $toolCall = new ToolCall(
         id: 'call_123',
-        type: 'function',
+        type: ToolType::FUNCTION,
         function: new FunctionCall(
             name: 'test_tool',
             arguments: '{"param1":"test value","param2":42}'
@@ -123,7 +124,7 @@ test('it can execute a registered tool', function (): void {
 test('it throws an exception when executing an unregistered tool', function (): void {
     $toolCall = new ToolCall(
         id: 'call_123',
-        type: 'function',
+        type: ToolType::FUNCTION,
         function: new FunctionCall(
             name: 'nonexistent_tool',
             arguments: '{}'

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Shelfwood\LMStudio\Enums\Role;
+use Shelfwood\LMStudio\Enums\ToolType;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 use Shelfwood\LMStudio\ValueObjects\FunctionCall;
 use Shelfwood\LMStudio\ValueObjects\Message;
@@ -99,7 +100,7 @@ describe('ChatHistory', function (): void {
         $history = new ChatHistory;
         $toolCall = new ToolCall(
             id: 'call_123',
-            type: 'function',
+            type: ToolType::FUNCTION,
             function: new FunctionCall(
                 name: 'get_weather',
                 arguments: '{"location":"San Francisco"}'

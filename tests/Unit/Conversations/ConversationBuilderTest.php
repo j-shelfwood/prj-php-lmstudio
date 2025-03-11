@@ -87,12 +87,12 @@ it('can set model parameters', function (): void {
 
     $builder = new ConversationBuilder($client);
     $conversation = $builder
-        ->withModel('gpt-4')
+        ->withModel('qwen2.5-7b-instruct-1m')
         ->withTemperature(0.5)
         ->withMaxTokens(2000)
         ->build();
 
-    expect($conversation->getModel())->toBe('gpt-4');
+    expect($conversation->getModel())->toBe('qwen2.5-7b-instruct-1m');
     expect($conversation->getTemperature())->toBe(0.5);
     expect($conversation->getMaxTokens())->toBe(2000);
 });

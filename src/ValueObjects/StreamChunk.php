@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\ValueObjects;
 
 use Shelfwood\LMStudio\Enums\FinishReason;
+use Shelfwood\LMStudio\Enums\ToolType;
 
 /**
  * Represents a chunk from a streaming response.
@@ -12,9 +13,13 @@ use Shelfwood\LMStudio\Enums\FinishReason;
 class StreamChunk implements \JsonSerializable
 {
     private array $rawChunk;
+
     private ?string $content = null;
+
     private array $toolCalls = [];
+
     private ?FinishReason $finishReason = null;
+
     private ?string $error = null;
 
     /**
@@ -44,7 +49,9 @@ class StreamChunk implements \JsonSerializable
                 if ($id) {
                     $this->toolCalls[] = new ToolCall(
                         id: $id,
-                        type: $toolCallData['type'] ?? 'function',
+                        type: isset($toolCallData['type'])
+                            ? ToolType::from($toolCallData['type'])
+                            : ToolType::FUNCTION,
                         function: new FunctionCall(
                             name: $toolCallData['function']['name'] ?? '',
                             arguments: $toolCallData['function']['arguments'] ?? '{}'
@@ -86,7 +93,7 @@ class StreamChunk implements \JsonSerializable
      */
     public function hasToolCalls(): bool
     {
-        return !empty($this->toolCalls);
+        return ! empty($this->toolCalls);
     }
 
     /**

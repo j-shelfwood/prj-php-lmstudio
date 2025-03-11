@@ -6,6 +6,7 @@ namespace Shelfwood\LMStudio\Conversations;
 
 use Shelfwood\LMStudio\Builders\StreamBuilder;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
+use Shelfwood\LMStudio\Enums\ToolChoice;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\Utilities\ToolCallExtractor;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
@@ -55,10 +56,51 @@ class Conversation
         $this->id = $id ?? uniqid('conv_');
         $this->history = $history ?? new ChatHistory;
         $this->createdAt = new \DateTimeImmutable;
-        $this->model = $client->getConfig()->getDefaultModel() ?? 'gpt-3.5-turbo';
+        $this->model = $client->getConfig()->getDefaultModel() ?? 'qwen2.5-7b-instruct-1m';
 
         // Initialize serializer
         $this->serializer = new ConversationSerializer;
+    }
+
+    /**
+     * Create a new conversation with a system message.
+     *
+     * @param  LMStudioClientInterface  $client  The client to use for API calls
+     * @param  string  $systemMessage  The system message to set
+     * @param  string  $title  The title of the conversation
+     * @return self A new conversation instance
+     */
+    public static function withSystemMessage(
+        LMStudioClientInterface $client,
+        string $systemMessage,
+        string $title = 'New Conversation'
+    ): self {
+        $conversation = new self($client, $title);
+        $conversation->addSystemMessage($systemMessage);
+
+        return $conversation;
+    }
+
+    /**
+     * Create a new conversation with tools enabled.
+     *
+     * @param  LMStudioClientInterface  $client  The client to use for API calls
+     * @param  ToolRegistry  $toolRegistry  The tool registry to use
+     * @param  string  $systemMessage  The system message to set
+     * @param  string  $title  The title of the conversation
+     * @return self A new conversation instance
+     */
+    public static function withTools(
+        LMStudioClientInterface $client,
+        ToolRegistry $toolRegistry,
+        string $systemMessage = 'You are a helpful assistant.',
+        string $title = 'New Conversation'
+    ): self {
+        $conversation = new self($client, $title);
+        $conversation->addSystemMessage($systemMessage);
+        $conversation->setToolRegistry($toolRegistry);
+
+        return $conversation;
     }
 
     /**
@@ -270,6 +312,52 @@ class Conversation
     }
 
     /**
+     * Send a message and get a response.
+     *
+     * This is a convenience method that adds a user message and gets a response in one call.
+     *
+     * @param  string  $message  The message to send
+     * @param  bool  $stream  Whether to stream the response
+     * @param  callable|null  $streamCallback  Callback for streaming chunks (only used if $stream is true)
+     * @return string The response from the assistant
+     */
+    public function send(string $message, bool $stream = false, ?callable $streamCallback = null): string
+    {
+        // Add the user message
+        $this->addUserMessage($message);
+
+        // Get the response
+        if ($stream && $streamCallback !== null) {
+            $content = '';
+
+            // Stream the response with the provided callback
+            $this->streamResponse(function ($chunk) use ($streamCallback, &$content): void {
+                if ($chunk->hasContent()) {
+                    $content .= $chunk->getContent();
+                    $streamCallback($chunk);
+                }
+            });
+
+            return $content;
+        }
+
+        // Get a non-streaming response
+        return $this->getResponse();
+    }
+
+    /**
+     * Send a message and get a streaming response with a callback.
+     *
+     * @param  string  $message  The message to send
+     * @param  callable  $callback  Callback for streaming chunks
+     * @return string The complete response text
+     */
+    public function sendStreaming(string $message, callable $callback): string
+    {
+        return $this->send($message, true, $callback);
+    }
+
+    /**
      * Get a response from the AI assistant.
      */
     public function getResponse(): string
@@ -384,7 +472,7 @@ class Conversation
         // Add tools if available
         if ($this->hasTools()) {
             $request = $request->withTools($this->getToolsForRequest());
-            $request = $request->withToolChoice('auto');
+            $request = $request->withToolChoice(ToolChoice::AUTO->value);
         }
 
         return $request;

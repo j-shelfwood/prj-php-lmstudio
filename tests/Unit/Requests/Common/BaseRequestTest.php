@@ -38,7 +38,7 @@ describe('BaseRequest', function (): void {
     });
 
     it('toArray method returns same as jsonSerialize', function (): void {
-        $data = ['model' => 'gpt-4', 'temperature' => 0.7];
+        $data = ['model' => 'qwen2.5-7b-instruct-1m', 'temperature' => 0.7];
         $request = new ConcreteBaseRequest($data);
 
         expect($request->toArray())->toBe($request->jsonSerialize());

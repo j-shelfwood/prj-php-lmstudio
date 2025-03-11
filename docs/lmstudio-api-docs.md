@@ -121,8 +121,10 @@ Specify TTL when loading models in the server tab
 You can also set a TTL when loading a model in the server tab like so
 
     ```
+
 lms load <model> --ttl 3600
-```
+
+````
 
 Set a TTL value when loading a model in the server tab
 
@@ -212,7 +214,7 @@ curl http://{{hostname}}:{{port}}/v1/chat/completions \
     "max_tokens": 50,
     "stream": false
   }'
-```
+````
 
 All parameters recognized by /v1/chat/completions will be honored, and the JSON schema should be provided in the json_schema field of response_format.
 
@@ -292,8 +294,9 @@ Tool use enables LLMs to request calls to external functions and APIs through th
 🔔 Tool use requires LM Studio 0.3.6 or newer, get it here
 
 Quick Start
+
 1. Start LM Studio as a server
-To use LM Studio programmatically from your own code, run LM Studio as a local server.
+   To use LM Studio programmatically from your own code, run LM Studio as a local server.
 
 You can turn on the server from the "Developer" tab in LM Studio, or via the lms CLI:
 
@@ -303,17 +306,17 @@ Install lms by running npx lmstudio install-cli
 This will allow you to interact with LM Studio via an OpenAI-like REST API. For an intro to LM Studio's OpenAI-like API, see Running LM Studio as a server.
 
 2. Load a Model
-You can load a model from the "Chat" or "Developer" tabs in LM Studio, or via the lms CLI:
+   You can load a model from the "Chat" or "Developer" tabs in LM Studio, or via the lms CLI:
 
 lms load
 
 3. Copy, Paste, and Run an Example!
-Curl
-Single Turn Tool Call Request
-Python
-Single Turn Tool Call + Tool Use
-Multi-Turn Example
-Advanced Agent Example
+   Curl
+   Single Turn Tool Call Request
+   Python
+   Single Turn Tool Call + Tool Use
+   Multi-Turn Example
+   Advanced Agent Example
 
 Tool Use
 What really is "Tool Use"?
@@ -324,36 +327,36 @@ Your code executes those functions
 Your code feeds the results back to the LLM.
 High-level flow
 ┌──────────────────────────┐
-│ SETUP: LLM + Tool list   │
+│ SETUP: LLM + Tool list │
 └──────────┬───────────────┘
-           ▼
+▼
 ┌──────────────────────────┐
-│    Get user input        │◄────┐
-└──────────┬───────────────┘     │
-           ▼                     │
-┌──────────────────────────┐     │
-│ LLM prompted w/messages  │     │
-└──────────┬───────────────┘     │
-           ▼                     │
-     Needs tools?                │
-      │         │                │
-    Yes         No               │
-      │         │                │
-      ▼         └────────────┐   │
-┌─────────────┐              │   │
-│Tool Response│              │   │
-└──────┬──────┘              │   │
-       ▼                     │   │
-┌─────────────┐              │   │
-│Execute tools│              │   │
-└──────┬──────┘              │   │
-       ▼                     ▼   │
-┌─────────────┐          ┌───────────┐
-│Add results  │          │  Normal   │
-│to messages  │          │ response  │
-└──────┬──────┘          └─────┬─────┘
-       │                       ▲
-       └───────────────────────┘
+│ Get user input │◄────┐
+└──────────┬───────────────┘ │
+▼ │
+┌──────────────────────────┐ │
+│ LLM prompted w/messages │ │
+└──────────┬───────────────┘ │
+▼ │
+Needs tools? │
+│ │ │
+Yes No │
+│ │ │
+▼ └────────────┐ │
+┌─────────────┐ │ │
+│Tool Response│ │ │
+└──────┬──────┘ │ │
+▼ │ │
+┌─────────────┐ │ │
+│Execute tools│ │ │
+└──────┬──────┘ │ │
+▼ ▼ │
+┌─────────────┐ ┌───────────┐
+│Add results │ │ Normal │
+│to messages │ │ response │
+└──────┬──────┘ └─────┬─────┘
+│ ▲
+└───────────────────────┘
 
 In-depth flow
 LM Studio supports tool use through the /v1/chat/completions endpoint when given function definitions in the tools parameter of the request body. Tools are specified as an array of function definitions that describe their parameters and usage, like:
@@ -366,22 +369,22 @@ You provide a list of tools to an LLM. These are the tools that the model can re
 
 // the list of tools is model-agnostic
 [
-  {
-    "type": "function",
-    "function": {
-      "name": "get_delivery_date",
-      "description": "Get the delivery date for a customer's order",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "order_id": {
-            "type": "string"
-          }
-        },
-        "required": ["order_id"]
-      }
-    }
-  }
+{
+"type": "function",
+"function": {
+"name": "get_delivery_date",
+"description": "Get the delivery date for a customer's order",
+"parameters": {
+"type": "object",
+"properties": {
+"order_id": {
+"type": "string"
+}
+},
+"required": ["order_id"]
+}
+}
+}
 ]
 
 This list will be injected into the system prompt of the model depending on the model's chat template. For Qwen2.5-Instruct, this looks like:
@@ -435,11 +438,11 @@ The result of the tool call
 To the messages array to send back to the model
 
 # pseudocode, see examples for copy-paste snippets
+
 if response.has_tool_calls:
-    for each tool_call:
-        # Extract function name & args
-        function_to_call = tool_call.name     # e.g. "get_delivery_date"
-        args = tool_call.arguments            # e.g. {"order_id": "123"}
+for each tool_call: # Extract function name & args
+function_to_call = tool_call.name # e.g. "get_delivery_date"
+args = tool_call.arguments # e.g. {"order_id": "123"}
 
         # Execute the function
         result = execute_function(function_to_call, args)
@@ -449,26 +452,28 @@ if response.has_tool_calls:
             ASSISTANT_TOOL_CALL_MESSAGE,      # The request to use the tool
             TOOL_RESULT_MESSAGE               # The tool's response
         ])
-else:
-    # Normal response without tools
-    add_to_messages(response.content)
+
+else: # Normal response without tools
+add_to_messages(response.content)
 
 The LLM is then prompted again with the updated messages array, but without access to tools. This is because:
 
 The LLM already has the tool results in the conversation history
 We want the LLM to provide a final response to the user, not call more tools
+
 # Example messages
+
 messages = [
-    {"role": "user", "content": "When will order 123 be delivered?"},
-    {"role": "assistant", "function_call": {
-        "name": "get_delivery_date",
-        "arguments": {"order_id": "123"}
-    }},
-    {"role": "tool", "content": "2024-03-15"},
+{"role": "user", "content": "When will order 123 be delivered?"},
+{"role": "assistant", "function_call": {
+"name": "get_delivery_date",
+"arguments": {"order_id": "123"}
+}},
+{"role": "tool", "content": "2024-03-15"},
 ]
 response = client.chat.completions.create(
-    model="lmstudio-community/qwen2.5-7b-instruct",
-    messages=messages
+model="lmstudio-community/qwen2.5-7b-instruct",
+messages=messages
 )
 
 The response.choices[0].message.content field after this call may be something like:
@@ -478,7 +483,6 @@ Your order #123 will be delivered on March 15th, 2024
 The loop continues back at step 2 of the flow
 
 Note: This is the pedantic flow for tool use. However, you can certainly experiment with this flow to best fit your use case.
-
 
 Supported Models
 Through LM Studio, all models support at least some degree of tool use.
@@ -523,47 +527,46 @@ You can see the default format by running lms log stream in your terminal, then 
 Expand to see example of default tool use format
 All models that don't have native tool use support will have default tool use support.
 
-
 Example using curl
 This example demonstrates a model requesting a tool call using the curl utility.
 
 To run this example on Mac or Linux, use any terminal. On Windows, use Git Bash.
 
 curl http://localhost:1234/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "lmstudio-community/qwen2.5-7b-instruct",
-    "messages": [{"role": "user", "content": "What dell products do you have under $50 in electronics?"}],
-    "tools": [
-      {
-        "type": "function",
-        "function": {
-          "name": "search_products",
-          "description": "Search the product catalog by various criteria. Use this whenever a customer asks about product availability, pricing, or specifications.",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "query": {
-                "type": "string",
-                "description": "Search terms or product name"
-              },
-              "category": {
-                "type": "string",
-                "description": "Product category to filter by",
-                "enum": ["electronics", "clothing", "home", "outdoor"]
-              },
-              "max_price": {
-                "type": "number",
-                "description": "Maximum price in dollars"
-              }
-            },
-            "required": ["query"],
-            "additionalProperties": false
-          }
-        }
-      }
-    ]
-  }'
+ -H "Content-Type: application/json" \
+ -d '{
+"model": "lmstudio-community/qwen2.5-7b-instruct",
+"messages": [{"role": "user", "content": "What dell products do you have under $50 in electronics?"}],
+"tools": [
+{
+"type": "function",
+"function": {
+"name": "search_products",
+"description": "Search the product catalog by various criteria. Use this whenever a customer asks about product availability, pricing, or specifications.",
+"parameters": {
+"type": "object",
+"properties": {
+"query": {
+"type": "string",
+"description": "Search terms or product name"
+},
+"category": {
+"type": "string",
+"description": "Product category to filter by",
+"enum": ["electronics", "clothing", "home", "outdoor"]
+},
+"max_price": {
+"type": "number",
+"description": "Maximum price in dollars"
+}
+},
+"required": ["query"],
+"additionalProperties": false
+}
+}
+}
+]
+}'
 
 All parameters recognized by /v1/chat/completions will be honored, and the array of available tools should be provided in the tools field.
 
@@ -618,7 +621,6 @@ In plain english, the above response can be thought of as the model saying:
 and give me back the results"
 
 The tool_calls field will need to be parsed to call actual functions/APIs. The below examples demonstrate how.
-
 
 Examples using python
 Tool use shines when paired with program languages like python, where you can implement the functions specified in the tools field to programmatically call them when the model requests.
@@ -676,6 +678,7 @@ say_hello(name) # Prints: Hello, Bob the Builder!
 ```
 
 Running this script from the console should yield results like:
+
 ```bash
 -> % python single-turn-example.py
 Hello, Bob the Builder!
@@ -697,6 +700,7 @@ Enable the model to call a get_delivery_date function
 Hand the result of calling that function back to the model, so that it can fulfill the user's request in plain text
 multi-turn-example.py (click to expand)
 Running this script from the console should yield results like:
+
 ```bash
 -> % python multi-turn-example.py
 
@@ -773,12 +777,14 @@ ChoiceDeltaToolCall(index=0, id=None, function=ChoiceDeltaToolCallFunction(argum
 ChoiceDeltaToolCall(index=0, id=None, function=ChoiceDeltaToolCallFunction(arguments='San Francisco', name=None), type=None)
 ChoiceDeltaToolCall(index=0, id=None, function=ChoiceDeltaToolCallFunction(arguments='"}', name=None), type=None)
 ```
+
 These chunks must be accumulated throughout the stream to form the complete function signature for execution.
 
 The below example shows how to create a simple tool-enhanced chatbot through the /v1/chat/completions streaming endpoint (stream=true).
 
 tool-streaming-chatbot.py (click to expand)
 You can chat with the bot by running this script from the console:
+
 ```bash
 -> % python tool-streaming-chatbot.py
 Assistant: Hi! I am an AI agent empowered with the ability to tell the current time (Type 'quit' to exit)
@@ -808,7 +814,7 @@ LM Studio accepts requests on several OpenAI endpoints and returns OpenAI-like r
 
 Supported endpoints
 
-- GET  /v1/models
+- GET /v1/models
 - POST /v1/chat/completions
 - POST /v1/embeddings
 - POST /v1/completions
@@ -821,6 +827,7 @@ You can reuse existing OpenAI clients (in Python, JS, C#, etc) by switching up t
 Switching up the base url to point to LM Studio
 Note: The following examples assume the server port is 1234
 Python
+
 ```python
 from openai import OpenAI
 
@@ -844,7 +851,7 @@ cURL
 + curl http://localhost:1234/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
--     "model": "gpt-4o-mini",
+-     "model": "qwen2.5-7b-instruct-1m",
 +     "model": "use the model identifier from LM Studio here",
      "messages": [{"role": "user", "content": "Say this is a test!"}],
      "temperature": 0.7
@@ -859,6 +866,7 @@ GET request
 Lists the currently loaded models.
 
 cURL example
+
 ```bash
 curl http://localhost:1234/v1/models
 ```
@@ -872,7 +880,9 @@ You can provide inference parameters such as temperature in the payload. See sup
 See OpenAI's documentation for more information
 As always, keep a terminal window open with lms log stream to see what input the model receives
 Python example
+
 # Example: reuse your existing OpenAI setup
+
 ```python
 from openai import OpenAI
 
@@ -897,6 +907,7 @@ POST request
 Send a string or array of strings and get an array of text embeddings (integer token IDs)
 See OpenAI's documentation for more information
 Python example
+
 ```python
 # Make sure to `pip install openai` first
 from openai import OpenAI
@@ -1221,4 +1232,3 @@ Example response
 ```
 
 Please report bugs by opening an issue on Github.
-

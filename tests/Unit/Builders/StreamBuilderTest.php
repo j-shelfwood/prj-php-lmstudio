@@ -121,7 +121,7 @@ test('it can set error callback', function (): void {
 test('it executes streaming request and processes stream', function (): void {
     $contentReceived = '';
     $mockConfig = Mockery::mock(LMStudioConfig::class);
-    $mockConfig->shouldReceive('getDefaultModel')->andReturn('gpt-3.5-turbo');
+    $mockConfig->shouldReceive('getDefaultModel')->andReturn('qwen2.5-7b-instruct-1m');
     $mockConfig->shouldReceive('getLogger')->andReturn(null);
 
     $this->client->shouldReceive('getConfig')
@@ -146,7 +146,7 @@ test('it executes streaming request and processes stream', function (): void {
     // Configure the stream builder
     $this->streamBuilder
         ->withHistory($this->history)
-        ->withModel('gpt-3.5-turbo')
+        ->withModel('qwen2.5-7b-instruct-1m')
         ->withTemperature(0.7)
         ->withMaxTokens(150)
         ->stream(function ($chunk) use (&$contentReceived): void {
@@ -163,14 +163,9 @@ test('it executes streaming request and processes stream', function (): void {
     expect($contentReceived)->toBe('Hello world');
 });
 
-test('it handles tool calls during streaming', function (): void {
-    // Skip this test for now as it requires more complex mocking
-    $this->markTestSkipped('This test requires more complex mocking');
-});
-
 test('it handles errors during streaming', function (): void {
     $mockConfig = Mockery::mock(LMStudioConfig::class);
-    $mockConfig->shouldReceive('getDefaultModel')->andReturn('gpt-3.5-turbo');
+    $mockConfig->shouldReceive('getDefaultModel')->andReturn('qwen2.5-7b-instruct-1m');
     $mockConfig->shouldReceive('getLogger')->andReturn(null);
 
     $this->client->shouldReceive('getConfig')

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Shelfwood\LMStudio\Enums\ToolType;
 use Shelfwood\LMStudio\ValueObjects\FunctionCall;
 use Shelfwood\LMStudio\ValueObjects\ToolCall;
 
@@ -14,12 +15,12 @@ describe('ToolCall', function (): void {
 
         $toolCall = new ToolCall(
             id: 'call_123',
-            type: 'function',
+            type: ToolType::FUNCTION,
             function: $functionCall
         );
 
         expect($toolCall->id)->toBe('call_123');
-        expect($toolCall->type)->toBe('function');
+        expect($toolCall->type)->toBe(ToolType::FUNCTION);
         expect($toolCall->function)->toBe($functionCall);
     });
 
@@ -32,7 +33,7 @@ describe('ToolCall', function (): void {
 
         expect($toolCall)->toBeInstanceOf(ToolCall::class);
         expect($toolCall->id)->toBe('call_456');
-        expect($toolCall->type)->toBe('function');
+        expect($toolCall->type)->toBe(ToolType::FUNCTION);
         expect($toolCall->function)->toBeInstanceOf(FunctionCall::class);
         expect($toolCall->function->name)->toBe('get_weather');
         expect($toolCall->function->arguments)->toBe('{"location":"San Francisco"}');
@@ -56,7 +57,7 @@ describe('ToolCall', function (): void {
 
         $toolCall = new ToolCall(
             id: 'call_123',
-            type: 'function',
+            type: ToolType::FUNCTION,
             function: $functionCall
         );
 

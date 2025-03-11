@@ -6,6 +6,7 @@ namespace Shelfwood\LMStudio\Builders;
 
 use Generator;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
+use Shelfwood\LMStudio\Enums\ToolChoice;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 use Shelfwood\LMStudio\ValueObjects\Tool;
@@ -21,7 +22,7 @@ class StreamBuilder
 
     private array $tools = [];
 
-    private string $toolUseMode = 'auto';
+    private string $toolUseMode = ToolChoice::AUTO->value;
 
     private float $temperature = 0.7;
 
@@ -48,6 +49,14 @@ class StreamBuilder
     {
         $this->client = $client;
         $this->history = new ChatHistory;
+    }
+
+    /**
+     * Create a new stream builder with a fluent interface.
+     */
+    public static function create(LMStudioClientInterface $client): self
+    {
+        return new self($client);
     }
 
     /**
@@ -94,41 +103,34 @@ class StreamBuilder
     }
 
     /**
-     * Set the tool use mode.
+     * Register all callbacks at once.
+     *
+     * @param  callable|null  $onContent  Callback for content chunks
+     * @param  callable|null  $onToolCall  Callback for tool calls
+     * @param  callable|null  $onComplete  Callback for completion
+     * @param  callable|null  $onError  Callback for errors
      */
-    public function withToolUseMode(string $mode): self
-    {
-        $this->toolUseMode = $mode;
+    public function withCallbacks(
+        ?callable $onContent = null,
+        ?callable $onToolCall = null,
+        ?callable $onComplete = null,
+        ?callable $onError = null
+    ): self {
+        if ($onContent !== null) {
+            $this->contentCallback = $onContent;
+        }
 
-        return $this;
-    }
+        if ($onToolCall !== null) {
+            $this->toolCallCallback = $onToolCall;
+        }
 
-    /**
-     * Set the temperature.
-     */
-    public function withTemperature(float $temperature): self
-    {
-        $this->temperature = $temperature;
+        if ($onComplete !== null) {
+            $this->completeCallback = $onComplete;
+        }
 
-        return $this;
-    }
-
-    /**
-     * Set the maximum number of tokens.
-     */
-    public function withMaxTokens(int $maxTokens): self
-    {
-        $this->maxTokens = $maxTokens;
-
-        return $this;
-    }
-
-    /**
-     * Enable or disable debug mode.
-     */
-    public function withDebug(bool $debug): self
-    {
-        $this->debug = $debug;
+        if ($onError !== null) {
+            $this->errorCallback = $onError;
+        }
 
         return $this;
     }
@@ -174,6 +176,83 @@ class StreamBuilder
     }
 
     /**
+     * Set the tool use mode.
+     *
+     * @param  ToolChoice|string  $mode  The tool use mode
+     */
+    public function withToolUseMode(ToolChoice|string $mode): self
+    {
+        $this->toolUseMode = $mode instanceof ToolChoice ? $mode->value : $mode;
+
+        return $this;
+    }
+
+    /**
+     * Set the tool use mode to auto.
+     */
+    public function withAutoToolUseMode(): self
+    {
+        return $this->withToolUseMode(ToolChoice::AUTO);
+    }
+
+    /**
+     * Set the tool use mode to none.
+     */
+    public function withNoToolUseMode(): self
+    {
+        return $this->withToolUseMode(ToolChoice::NONE);
+    }
+
+    /**
+     * Set the tool use mode to any.
+     */
+    public function withAnyToolUseMode(): self
+    {
+        return $this->withToolUseMode(ToolChoice::ANY);
+    }
+
+    /**
+     * Set the tool use mode to a specific function.
+     */
+    public function withSpecificToolFunction(string $functionName): self
+    {
+        // For specific functions, we need to use an array structure instead of a string
+        $this->toolUseMode = json_encode(ToolChoice::function($functionName));
+
+        return $this;
+    }
+
+    /**
+     * Set the temperature.
+     */
+    public function withTemperature(float $temperature): self
+    {
+        $this->temperature = $temperature;
+
+        return $this;
+    }
+
+    /**
+     * Set the maximum number of tokens.
+     */
+    public function withMaxTokens(int $maxTokens): self
+    {
+        $this->maxTokens = $maxTokens;
+
+        return $this;
+    }
+
+    /**
+     * Enable or disable debug mode.
+     */
+    public function withDebug(bool $debug): self
+    {
+        $this->debug = $debug;
+
+        return $this;
+    }
+
+    /**
      * Execute the streaming request.
      */
     public function execute(): void
@@ -189,7 +268,7 @@ class StreamBuilder
         // Create the request with required parameters
         $request = new $requestClass(
             $this->history->jsonSerialize(),
-            $this->model ?? $this->client->getConfig()->getDefaultModel() ?? 'gpt-3.5-turbo'
+            $this->model ?? $this->client->getConfig()->getDefaultModel() ?? 'qwen2.5-7b-instruct-1m'
         );
 
         // Set additional parameters

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Shelfwood\LMStudio\Enums\FinishReason;
+use Shelfwood\LMStudio\Enums\ToolType;
 use Shelfwood\LMStudio\ValueObjects\StreamChunk;
 use Shelfwood\LMStudio\ValueObjects\ToolCall;
 
@@ -54,7 +55,7 @@ test('it can detect tool calls in chunk', function (): void {
     $toolCall = $toolCalls[0];
     expect($toolCall)->toBeInstanceOf(ToolCall::class);
     expect($toolCall->id)->toBe('call_123');
-    expect($toolCall->type)->toBe('function');
+    expect($toolCall->type)->toBe(ToolType::FUNCTION);
     expect($toolCall->function->name)->toBe('test_tool');
     expect($toolCall->function->arguments)->toBe('{"param":"test"}');
 });

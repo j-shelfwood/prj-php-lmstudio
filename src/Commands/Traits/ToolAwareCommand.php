@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Commands\Traits;
 
+use Shelfwood\LMStudio\Enums\ToolType;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\Utilities\ToolCallExtractor;
 use Shelfwood\LMStudio\ValueObjects\FunctionCall;
@@ -152,7 +153,7 @@ trait ToolAwareCommand
             ? ($toolCallData['id'] ?? '')
             : ($toolCallData->id ?? '');
 
-        $type = is_array($toolCallData)
+        $typeStr = is_array($toolCallData)
             ? ($toolCallData['type'] ?? 'function')
             : ($toolCallData->type ?? 'function');
 
@@ -165,7 +166,7 @@ trait ToolAwareCommand
                 // Create a ToolCall object
                 $toolCall = new ToolCall(
                     $id,
-                    $type,
+                    ToolType::from($typeStr),
                     new FunctionCall(
                         $name,
                         $arguments

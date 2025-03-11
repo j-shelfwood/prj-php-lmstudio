@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\ValueObjects;
 
+use Shelfwood\LMStudio\Enums\ToolType;
+
 /**
  * Represents a tool call in a chat conversation.
  */
@@ -11,12 +13,12 @@ class ToolCall implements \JsonSerializable
 {
     /**
      * @param  string  $id  The ID of the tool call
-     * @param  string  $type  The type of the tool call (e.g., 'function')
+     * @param  ToolType  $type  The type of the tool call
      * @param  FunctionCall  $function  The function to call
      */
     public function __construct(
         public readonly string $id,
-        public readonly string $type,
+        public readonly ToolType $type,
         public readonly FunctionCall $function,
     ) {}
 
@@ -27,7 +29,7 @@ class ToolCall implements \JsonSerializable
     {
         return new self(
             id: $id ?? uniqid('call_'),
-            type: 'function',
+            type: ToolType::FUNCTION,
             function: new FunctionCall($name, $arguments),
         );
     }
@@ -39,7 +41,7 @@ class ToolCall implements \JsonSerializable
     {
         return [
             'id' => $this->id,
-            'type' => $this->type,
+            'type' => $this->type->value,
             'function' => $this->function->jsonSerialize(),
         ];
     }

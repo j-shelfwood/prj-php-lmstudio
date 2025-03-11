@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
 use Shelfwood\LMStudio\Conversations\Conversation;
 use Shelfwood\LMStudio\Enums\Role;
+use Shelfwood\LMStudio\Enums\ToolType;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 use Shelfwood\LMStudio\ValueObjects\FunctionCall;
@@ -104,7 +105,7 @@ test('it can add assistant messages with tool calls', function (): void {
     $toolCalls = [
         new ToolCall(
             id: 'call_123',
-            type: 'function',
+            type: ToolType::FUNCTION,
             function: new FunctionCall(
                 name: 'test_tool',
                 arguments: '{"param":"test"}'
@@ -272,16 +273,6 @@ test('it can get a response with tool calls', function (): void {
     expect($messages[3]->role)->toBe(Role::TOOL);
     expect($messages[4]->role)->toBe(Role::ASSISTANT);
     expect($messages[4]->content)->toBe('The result of 2+2 is 4.');
-});
-
-test('it can stream a response', function (): void {
-    // Skip this test for now as it requires more complex mocking
-    $this->markTestSkipped('This test requires more complex mocking');
-});
-
-test('it can stream a response with tool calls', function (): void {
-    // Skip this test for now as it requires more complex mocking
-    $this->markTestSkipped('This test requires more complex mocking');
 });
 
 test('it can be serialized to JSON', function (): void {

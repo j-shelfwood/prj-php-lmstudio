@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Utilities;
 
+use Shelfwood\LMStudio\Enums\ToolType;
 use Shelfwood\LMStudio\ValueObjects\FunctionCall;
 use Shelfwood\LMStudio\ValueObjects\ToolCall;
 
@@ -47,19 +48,19 @@ class ToolCallExtractor
                 // Handle both array and object data
                 if (is_array($data)) {
                     $id = $data['id'] ?? '';
-                    $type = $data['type'] ?? 'function';
+                    $typeStr = $data['type'] ?? 'function';
                     $name = $data['function']['name'] ?? '';
                     $arguments = $data['function']['arguments'] ?? '{}';
                 } else {
                     $id = $data->id ?? '';
-                    $type = $data->type ?? 'function';
+                    $typeStr = $data->type ?? 'function';
                     $name = $data->function->name ?? '';
                     $arguments = $data->function->arguments ?? '{}';
                 }
 
                 $toolCalls[] = new ToolCall(
                     id: $id,
-                    type: $type,
+                    type: ToolType::from($typeStr),
                     function: new FunctionCall(
                         name: $name,
                         arguments: $arguments

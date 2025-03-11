@@ -20,7 +20,7 @@ test('it returns chat completion dto', function (): void {
         'id' => 'chatcmpl-123',
         'object' => 'chat.completion',
         'created' => 1677858242,
-        'model' => 'gpt-3.5-turbo-0613',
+        'model' => 'qwen2.5-7b-instruct-1m-0613',
         'choices' => [
             [
                 'message' => [
@@ -62,7 +62,7 @@ test('it returns chat completion dto', function (): void {
     $messages = new ChatHistory([
         new Message(role: Role::USER, content: 'Hello'),
     ]);
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo-0613');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m-0613');
 
     // Test the new method
     $result = $openai->chatCompletion($request);
@@ -71,7 +71,7 @@ test('it returns chat completion dto', function (): void {
         ->and($result->id)->toBe('chatcmpl-123')
         ->and($result->object)->toBe('chat.completion')
         ->and($result->created)->toBe(1677858242)
-        ->and($result->model)->toBe('gpt-3.5-turbo-0613')
+        ->and($result->model)->toBe('qwen2.5-7b-instruct-1m-0613')
         ->and($result->choices)->toHaveCount(1)
         ->and($result->choices[0]->message->content)->toBe('This is a test response');
 });
@@ -216,7 +216,7 @@ test('it streams chat completions', function (): void {
     $messages = new ChatHistory([
         new Message(role: Role::USER, content: 'Hello'),
     ]);
-    $request = new ChatCompletionRequest($messages, 'gpt-3.5-turbo');
+    $request = new ChatCompletionRequest($messages, 'qwen2.5-7b-instruct-1m');
     $request = $request->withStreaming(true);
 
     // Test the streaming method
@@ -276,14 +276,4 @@ test('it streams completions', function (): void {
         ->and($chunks[0])->toBe(['choices' => [['text' => 'Hello']]])
         ->and($chunks[1])->toBe(['choices' => [['text' => ' world']]])
         ->and($chunks[2])->toBe(['choices' => [['finish_reason' => 'stop']]]);
-});
-
-test('it uses new request objects in legacy chat method', function (): void {
-    // This test is no longer relevant after our refactoring
-    $this->markTestSkipped('Legacy methods are deprecated and will be removed in a future version.');
-});
-
-test('it accumulates chat content using request objects', function (): void {
-    // This test is no longer relevant after our refactoring
-    $this->markTestSkipped('Legacy methods are deprecated and will be removed in a future version.');
 });

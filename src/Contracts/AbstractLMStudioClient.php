@@ -113,7 +113,7 @@ abstract class AbstractLMStudioClient implements ConfigAwareInterface, LMStudioC
     public function chat(array $messages, array $options = []): mixed
     {
         // Get the model from options or use default
-        $model = $options['model'] ?? $this->config->getDefaultModel() ?? 'gpt-3.5-turbo';
+        $model = $options['model'] ?? $this->config->getDefaultModel() ?? 'qwen2.5-7b-instruct-1m';
 
         // Create a request object from the messages and options
         $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$this->getApiVersionNamespace()}\\ChatCompletionRequest";
@@ -144,7 +144,7 @@ abstract class AbstractLMStudioClient implements ConfigAwareInterface, LMStudioC
     public function streamChat(array $messages, array $options = []): Generator
     {
         // Get the model from options or use default
-        $model = $options['model'] ?? $this->config->getDefaultModel() ?? 'gpt-3.5-turbo';
+        $model = $options['model'] ?? $this->config->getDefaultModel() ?? 'qwen2.5-7b-instruct-1m';
 
         // Create a request object from the messages and options
         $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$this->getApiVersionNamespace()}\\ChatCompletionRequest";
@@ -174,7 +174,7 @@ abstract class AbstractLMStudioClient implements ConfigAwareInterface, LMStudioC
     public function completion(string $prompt, array $options = []): mixed
     {
         // Get the model from options or use default
-        $model = $options['model'] ?? $this->config->getDefaultModel() ?? 'gpt-3.5-turbo-instruct';
+        $model = $options['model'] ?? $this->config->getDefaultModel() ?? 'qwen2.5-7b-instruct-1m-instruct';
 
         // Create a request object from the prompt and options
         $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$this->getApiVersionNamespace()}\\TextCompletionRequest";
@@ -205,7 +205,7 @@ abstract class AbstractLMStudioClient implements ConfigAwareInterface, LMStudioC
     public function streamCompletion(string $prompt, array $options = []): Generator
     {
         // Get the model from options or use default
-        $model = $options['model'] ?? $this->config->getDefaultModel() ?? 'gpt-3.5-turbo-instruct';
+        $model = $options['model'] ?? $this->config->getDefaultModel() ?? 'qwen2.5-7b-instruct-1m-instruct';
 
         // Create a request object from the prompt and options
         $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$this->getApiVersionNamespace()}\\TextCompletionRequest";
