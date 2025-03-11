@@ -484,33 +484,6 @@ $toolHandler->processToolCalls($response, function ($result, $toolCallId) {
 });
 ```
 
-### ConversationStreamHandler
-
-The `ConversationStreamHandler` manages streaming functionality:
-
-```php
-// Create a stream handler
-$streamHandler = new ConversationStreamHandler(
-    $client,
-    $history,
-    $model,
-    $temperature,
-    $maxTokens,
-    $toolHandler
-);
-
-// Stream a response
-$streamHandler->streamResponse(
-    function ($chunk) {
-        // Handle content chunk
-        echo $chunk->getContent();
-    },
-    function ($result, $toolCallId) {
-        // Handle tool message
-    }
-);
-```
-
 ## Custom Configuration
 
 You can customize the client configuration:

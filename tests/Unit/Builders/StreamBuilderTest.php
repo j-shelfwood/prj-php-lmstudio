@@ -3,27 +3,24 @@
 declare(strict_types=1);
 
 use Shelfwood\LMStudio\Builders\StreamBuilder;
+use Shelfwood\LMStudio\Config\LMStudioConfig;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 use Shelfwood\LMStudio\ValueObjects\Message;
+use Shelfwood\LMStudio\ValueObjects\StreamChunk;
 use Shelfwood\LMStudio\ValueObjects\Tool;
 
 beforeEach(function (): void {
     $this->client = Mockery::mock(LMStudioClientInterface::class);
-    $this->client->shouldReceive('getConfig->getDefaultModel')->andReturn('test-model');
+    $this->client->shouldReceive('getApiVersionNamespace')->andReturn('V1');
 
-    // Mock the logger
-    $mockLogger = Mockery::mock(\Shelfwood\LMStudio\Logging\Logger::class);
-    $mockLogger->shouldReceive('log')->andReturn(null);
-    $mockLogger->shouldReceive('logStreamChunk')->andReturn(null);
-    $this->client->shouldReceive('getConfig->getLogger')->andReturn($mockLogger);
-
-    $this->streamBuilder = new StreamBuilder($this->client);
     $this->history = new ChatHistory([
         Message::system('You are a helpful assistant.'),
         Message::user('Hello, how are you?'),
     ]);
+
+    $this->streamBuilder = new StreamBuilder($this->client);
 });
 
 test('it can be instantiated', function (): void {
@@ -122,31 +119,41 @@ test('it can set error callback', function (): void {
 });
 
 test('it executes streaming request and processes stream', function (): void {
-    // Mock the stream response
-    $mockStream = function () {
-        yield ['choices' => [['delta' => ['content' => 'Hello']]]];
+    $contentReceived = '';
+    $mockConfig = Mockery::mock(LMStudioConfig::class);
+    $mockConfig->shouldReceive('getDefaultModel')->andReturn('gpt-3.5-turbo');
+    $mockConfig->shouldReceive('getLogger')->andReturn(null);
 
-        yield ['choices' => [['delta' => ['content' => ' world']]]];
+    $this->client->shouldReceive('getConfig')
+        ->andReturn($mockConfig);
 
-        yield ['choices' => [['finish_reason' => 'stop']]];
+    $this->client->shouldReceive('getApiVersionNamespace')
+        ->andReturn('Shelfwood\\LMStudio\\Http\\Requests\\V1');
+
+    // Create a generator that yields the chunks
+    $mockGenerator = function () {
+        yield new StreamChunk(['choices' => [['delta' => ['content' => 'Hello ']]]]);
+
+        yield new StreamChunk(['choices' => [['delta' => ['content' => 'world']]]]);
+
+        yield new StreamChunk(['choices' => [['finish_reason' => 'stop']]]);
     };
 
-    $this->client->shouldReceive('streamChat')
+    $this->client->shouldReceive('streamChatCompletion')
         ->once()
-        ->andReturn($mockStream());
+        ->andReturn($mockGenerator());
 
-    // Set up callbacks
-    $contentReceived = '';
+    // Configure the stream builder
     $this->streamBuilder
         ->withHistory($this->history)
+        ->withModel('gpt-3.5-turbo')
+        ->withTemperature(0.7)
+        ->withMaxTokens(150)
         ->stream(function ($chunk) use (&$contentReceived): void {
-            if ($chunk->hasContent()) {
-                $contentReceived .= $chunk->getContent();
-            }
+            $contentReceived .= $chunk->getContent();
         })
-        ->onComplete(function ($content, $toolCalls): void {
+        ->onComplete(function ($content, $toolCalls) use (&$contentReceived): void {
             expect($content)->toBe('Hello world');
-            expect($toolCalls)->toBeArray();
             expect($toolCalls)->toBeEmpty();
         });
 
@@ -162,7 +169,17 @@ test('it handles tool calls during streaming', function (): void {
 });
 
 test('it handles errors during streaming', function (): void {
-    $this->client->shouldReceive('streamChat')
+    $mockConfig = Mockery::mock(LMStudioConfig::class);
+    $mockConfig->shouldReceive('getDefaultModel')->andReturn('gpt-3.5-turbo');
+    $mockConfig->shouldReceive('getLogger')->andReturn(null);
+
+    $this->client->shouldReceive('getConfig')
+        ->andReturn($mockConfig);
+
+    $this->client->shouldReceive('getApiVersionNamespace')
+        ->andReturn('Shelfwood\\LMStudio\\Http\\Requests\\V1');
+
+    $this->client->shouldReceive('streamChatCompletion')
         ->once()
         ->andThrow(new \Exception('Test error'));
 
@@ -170,14 +187,13 @@ test('it handles errors during streaming', function (): void {
     $this->streamBuilder
         ->withHistory($this->history)
         ->stream(function ($chunk): void {
-            // Empty content callback to satisfy the requirement
+            // Empty content callback
         })
-        ->onError(function (\Exception $e) use (&$errorReceived): void {
+        ->onError(function ($error) use (&$errorReceived): void {
             $errorReceived = true;
-            expect($e->getMessage())->toBe('Test error');
+            expect($error->getMessage())->toBe('Test error');
         });
 
-    // Execute the stream
     $this->streamBuilder->execute();
 
     expect($errorReceived)->toBeTrue();

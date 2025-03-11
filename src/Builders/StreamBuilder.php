@@ -8,9 +8,7 @@ use Generator;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
-use Shelfwood\LMStudio\ValueObjects\StreamChunk;
 use Shelfwood\LMStudio\ValueObjects\Tool;
-use Shelfwood\LMStudio\ValueObjects\ToolCall;
 
 /**
  * Builder for streaming chat completions.
@@ -184,40 +182,74 @@ class StreamBuilder
             throw new \InvalidArgumentException('Content callback must be set using stream() method');
         }
 
-        $options = [
-            'model' => $this->model,
-            'temperature' => $this->temperature,
-            'max_tokens' => $this->maxTokens,
-            'stream' => true,
-        ];
+        // Create a request object
+        $apiVersion = $this->client->getApiVersionNamespace();
+        $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$apiVersion}\\ChatCompletionRequest";
+
+        // Create the request with required parameters
+        $request = new $requestClass(
+            $this->history->jsonSerialize(),
+            $this->model ?? $this->client->getConfig()->getDefaultModel() ?? 'gpt-3.5-turbo'
+        );
+
+        // Set additional parameters
+        $request = $request->withTemperature($this->temperature);
+        $request = $request->withMaxTokens($this->maxTokens);
+        $request = $request->withStreaming(true);
 
         // Add tools if available
         if (! empty($this->tools)) {
-            // Convert Tool objects to arrays and ensure it's an array, not an object
+            // Convert Tool objects to arrays
             $toolsArray = array_values(array_map(function ($tool) {
                 return $tool instanceof Tool ? $tool->jsonSerialize() : $tool;
             }, $this->tools));
 
-            $options['tools'] = $toolsArray;
-            $options['tool_choice'] = $this->toolUseMode;
+            $request = $request->withTools($toolsArray);
+            $request = $request->withToolChoice($this->toolUseMode);
 
             // Log the tools being used
-            $logger = $this->client->getConfig()->getLogger();
-            $logger->log('StreamBuilder executing with tools', [
-                'tool_count' => count($this->tools),
-                'tool_names' => array_map(function ($tool) {
-                    if ($tool instanceof Tool) {
-                        return $tool->jsonSerialize()['function']['name'] ?? 'unknown';
-                    }
+            if ($this->debug) {
+                $logger = $this->client->getConfig()->getLogger();
 
-                    return $tool['function']['name'] ?? 'unknown';
-                }, $this->tools),
-                'tool_use_mode' => $this->toolUseMode,
-            ]);
+                if ($logger) {
+                    $logger->log('StreamBuilder using tools', [
+                        'tools' => $toolsArray,
+                        'tool_use_mode' => $this->toolUseMode,
+                    ]);
+                }
+            }
         }
 
         try {
-            $stream = $this->client->streamChat($this->history->jsonSerialize(), $options);
+            $stream = $this->client->streamChatCompletion($request);
+            $this->processStream($stream);
+        } catch (\Exception $e) {
+            if ($this->errorCallback !== null) {
+                ($this->errorCallback)($e);
+            } else {
+                throw $e;
+            }
+        }
+    }
+
+    /**
+     * Execute the streaming request with a pre-configured request object.
+     *
+     * @param  object  $request  The request object to use for streaming
+     */
+    public function executeWithRequest(object $request): void
+    {
+        if ($this->contentCallback === null) {
+            throw new \InvalidArgumentException('Content callback must be set using stream() method');
+        }
+
+        // Ensure the request is set to stream
+        if (method_exists($request, 'setStream')) {
+            $request->setStream(true);
+        }
+
+        try {
+            $stream = $this->client->streamChatCompletion($request);
             $this->processStream($stream);
         } catch (\Exception $e) {
             if ($this->errorCallback !== null) {
@@ -230,102 +262,59 @@ class StreamBuilder
 
     /**
      * Process the streaming response.
+     *
+     * @param  Generator<\Shelfwood\LMStudio\ValueObjects\StreamChunk>  $stream
      */
     private function processStream(Generator $stream): void
     {
         $content = '';
         $toolCalls = [];
-        $currentToolCall = null;
-        $logger = $this->client->getConfig()->getLogger();
 
-        foreach ($stream as $rawChunk) {
+        // Try to get the logger, but don't fail if it's not available
+        try {
+            $logger = $this->client->getConfig()->getLogger();
+        } catch (\Throwable $e) {
+            $logger = null;
+        }
+
+        foreach ($stream as $chunk) {
             try {
-                $chunk = new StreamChunk($rawChunk);
-
                 // Log the chunk if it has tool calls
-                if ($chunk->hasToolCalls()) {
-                    $logger->log('StreamBuilder received tool call chunk', [
+                if ($chunk->hasToolCalls() && $logger) {
+                    $logger->log('Stream chunk contains tool calls', [
                         'tool_calls' => $chunk->getToolCalls(),
                     ]);
                 }
 
-                // Handle content
+                // Process content
                 if ($chunk->hasContent()) {
-                    $newContent = $chunk->getContent();
-                    $content .= $newContent;
+                    $content .= $chunk->getContent();
                     ($this->contentCallback)($chunk);
                 }
 
-                // Handle tool calls
+                // Process tool calls
                 if ($chunk->hasToolCalls() && $this->toolCallCallback !== null) {
-                    foreach ($chunk->getToolCalls() as $toolCallData) {
-                        // Check if this is a new tool call or continuation
-                        $id = $toolCallData['id'] ?? null;
-
-                        if ($id && ! isset($toolCalls[$id])) {
-                            // New tool call
-                            $toolCalls[$id] = $toolCallData;
-
-                            // Create a ToolCall object
-                            $toolCall = new ToolCall(
-                                $id,
-                                $toolCallData['type'] ?? 'function',
-                                new \Shelfwood\LMStudio\ValueObjects\FunctionCall(
-                                    $toolCallData['function']['name'] ?? '',
-                                    $toolCallData['function']['arguments'] ?? '{}'
-                                )
-                            );
-
-                            // Log the tool call
-                            $logger->log('StreamBuilder executing tool call', [
-                                'tool_id' => $id,
-                                'tool_name' => $toolCallData['function']['name'] ?? 'unknown',
-                                'arguments' => $toolCallData['function']['arguments'] ?? '{}',
-                            ]);
-
-                            // Execute the tool call
-                            $result = ($this->toolCallCallback)($toolCall);
-
-                            // Log the tool call result
-                            $logger->log('StreamBuilder tool call result', [
-                                'tool_id' => $id,
-                                'result' => $result,
-                            ]);
-                        }
-                    }
+                    $newToolCalls = $chunk->getToolCalls();
+                    $toolCalls = array_merge($toolCalls, $newToolCalls);
+                    ($this->toolCallCallback)($newToolCalls);
                 }
 
-                // Handle completion
+                // Process completion
                 if ($chunk->isComplete() && $this->completeCallback !== null) {
-                    $logger->log('StreamBuilder stream completed', [
-                        'content_length' => strlen($content),
-                        'tool_call_count' => count($toolCalls),
-                    ]);
-
-                    ($this->completeCallback)($content, array_values($toolCalls));
+                    ($this->completeCallback)($content, $toolCalls);
                 }
             } catch (\Exception $e) {
-                $logger->logError('StreamBuilder chunk processing error', $e, [
-                    'raw_chunk' => $rawChunk,
-                ]);
+                if ($logger) {
+                    $logger->log('Error processing stream chunk', [
+                        'error' => $e->getMessage(),
+                        'chunk' => $chunk->getRawChunk(),
+                    ]);
+                }
 
                 if ($this->errorCallback !== null) {
                     ($this->errorCallback)($e);
-                } else {
-                    throw $e;
                 }
             }
-        }
-
-        // If we didn't get a completion signal but we're done with the stream,
-        // call the completion callback anyway
-        if (! empty($content) && $this->completeCallback !== null) {
-            $logger->log('StreamBuilder stream ended without completion signal', [
-                'content_length' => strlen($content),
-                'tool_call_count' => count($toolCalls),
-            ]);
-
-            ($this->completeCallback)($content, array_values($toolCalls));
         }
     }
 }

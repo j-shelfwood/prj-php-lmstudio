@@ -14,6 +14,7 @@ use Shelfwood\LMStudio\ValueObjects\ToolCall;
 beforeEach(function (): void {
     $this->client = Mockery::mock(LMStudioClientInterface::class);
     $this->client->shouldReceive('getConfig->getDefaultModel')->andReturn('test-model');
+    $this->client->shouldReceive('getApiVersionNamespace')->andReturn('V1');
 
     $this->conversation = new Conversation($this->client, 'Test Conversation');
 });
@@ -163,14 +164,15 @@ test('it can get a response', function (): void {
     $this->conversation->addSystemMessage('You are a helpful assistant.');
     $this->conversation->addUserMessage('Hello, how are you?');
 
-    $this->client->shouldReceive('chat')
+    // Mock the chatCompletion method
+    $this->client->shouldReceive('chatCompletion')
         ->once()
-        ->with(Mockery::type('array'), Mockery::type('array'))
-        ->andReturn([
+        ->with(Mockery::type('object'))
+        ->andReturn((object) [
             'choices' => [
-                [
-                    'message' => [
-                        'content' => 'I am doing well, thank you!',
+                (object) [
+                    'message' => (object) [
+                        'content' => 'I am doing well, thank you for asking!',
                         'role' => 'assistant',
                     ],
                 ],
@@ -179,20 +181,18 @@ test('it can get a response', function (): void {
 
     $response = $this->conversation->getResponse();
 
-    expect($response)->toBeString();
-    expect($response)->toBe('I am doing well, thank you!');
+    expect($response)->toBe('I am doing well, thank you for asking!');
 
-    // Check that the assistant message was added to the history
-    expect($this->conversation->getMessages())->toHaveCount(3);
-    expect($this->conversation->getMessages()[2]->role)->toBe(Role::ASSISTANT);
-    expect($this->conversation->getMessages()[2]->content)->toBe('I am doing well, thank you!');
+    // Check that the assistant's response was added to the conversation
+    $messages = $this->conversation->getMessages();
+    expect($messages)->toHaveCount(3);
+    expect($messages[2]->role)->toBe(Role::ASSISTANT);
+    expect($messages[2]->content)->toBe('I am doing well, thank you for asking!');
 });
 
 test('it can get a response with tool calls', function (): void {
-    // Create a conversation with our mocked client
-    $conversation = new Conversation($this->client, 'Test Conversation');
-    $conversation->addSystemMessage('You are a helpful assistant.');
-    $conversation->addUserMessage('What is 2 + 2?');
+    $this->conversation->addSystemMessage('You are a helpful assistant with tools.');
+    $this->conversation->addUserMessage('What is 2+2?');
 
     // Create a tool registry with a calculator tool
     $toolRegistry = new ToolRegistry;
@@ -212,23 +212,23 @@ test('it can get a response with tool calls', function (): void {
         }
     );
 
-    $conversation->setToolRegistry($toolRegistry);
+    $this->conversation->setToolRegistry($toolRegistry);
 
     // First response with tool calls
-    $this->client->shouldReceive('chat')
+    $this->client->shouldReceive('chatCompletion')
         ->once()
-        ->with(Mockery::type('array'), Mockery::type('array'))
-        ->andReturn([
+        ->with(Mockery::type('object'))
+        ->andReturn((object) [
             'choices' => [
-                [
-                    'message' => [
+                (object) [
+                    'message' => (object) [
                         'content' => 'I need to calculate this.',
                         'role' => 'assistant',
                         'tool_calls' => [
-                            [
+                            (object) [
                                 'id' => 'call_123',
                                 'type' => 'function',
-                                'function' => [
+                                'function' => (object) [
                                     'name' => 'calculator',
                                     'arguments' => '{"expression":"2+2"}',
                                 ],
@@ -240,13 +240,13 @@ test('it can get a response with tool calls', function (): void {
         ]);
 
     // Second response after tool execution (no more tool calls)
-    $this->client->shouldReceive('chat')
+    $this->client->shouldReceive('chatCompletion')
         ->once()
-        ->with(Mockery::type('array'), Mockery::type('array'))
-        ->andReturn([
+        ->with(Mockery::type('object'))
+        ->andReturn((object) [
             'choices' => [
-                [
-                    'message' => [
+                (object) [
+                    'message' => (object) [
                         'content' => 'The result of 2+2 is 4.',
                         'role' => 'assistant',
                     ],
@@ -254,14 +254,14 @@ test('it can get a response with tool calls', function (): void {
             ],
         ]);
 
-    // Call getResponse to trigger the client's chat method
-    $response = $conversation->getResponse();
+    // Call getResponse to trigger the client's chatCompletion method
+    $response = $this->conversation->getResponse();
 
     // The final response should be from the second call
     expect($response)->toBe('The result of 2+2 is 4.');
 
     // Check that the conversation history contains all messages
-    $messages = $conversation->getMessages();
+    $messages = $this->conversation->getMessages();
     expect($messages)->toHaveCount(5);
 
     // Check the sequence of messages

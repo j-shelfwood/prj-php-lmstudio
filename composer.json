@@ -34,7 +34,10 @@
     "pestphp/pest": "^2.0",
     "pestphp/pest-plugin-laravel": "^2.0",
     "phpstan/phpstan": "^2.1",
-    "phpstan/phpstan-deprecation-rules": "^2.0"
+    "phpstan/phpstan-deprecation-rules": "^2.0",
+    "qossmic/deptrac-shim": "^1.0",
+    "sebastian/phpdcd": "^1.0",
+    "vimeo/psalm": "^6.8"
   },
   "config": {
     "sort-packages": true,

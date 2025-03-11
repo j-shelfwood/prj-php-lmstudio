@@ -274,44 +274,23 @@ class Conversation
      */
     public function getResponse(): string
     {
-        $options = [
-            'model' => $this->model,
-            'temperature' => $this->temperature,
-            'max_tokens' => $this->maxTokens,
-        ];
+        // Create a request object
+        $request = $this->createRequest();
 
-        // Add tools if available
-        if ($this->hasTools()) {
-            $options['tools'] = $this->getToolsForRequest();
-            $options['tool_choice'] = 'auto';
-        }
-
-        $response = $this->client->chat($this->history->jsonSerialize(), $options);
+        $response = $this->client->chatCompletion($request);
 
         // Extract content from the response
-        if (is_array($response)) {
-            $content = $response['choices'][0]['message']['content'] ?? '';
-        } else {
-            $content = $response->choices[0]->message->content ?? '';
-        }
+        $content = $response->choices[0]->message->content ?? '';
 
         // Add the assistant's response to the history
         $this->addAssistantMessage($content);
 
         // Process tool calls if present
         $toolCalls = ToolCallExtractor::extract($response);
-        $processedToolCalls = [];
 
         // Only process tool calls if we have tools registered
         if ($this->hasTools() && ! empty($toolCalls)) {
-            foreach ($toolCalls as $toolCall) {
-                $result = $this->executeToolCall($toolCall);
-
-                if ($result !== null) {
-                    $this->addToolMessage($result, $toolCall->id);
-                    $processedToolCalls[] = $toolCall;
-                }
-            }
+            $processedToolCalls = $this->processToolCalls($toolCalls);
 
             // If we processed tool calls, get a follow-up response
             if (! empty($processedToolCalls)) {
@@ -323,22 +302,38 @@ class Conversation
     }
 
     /**
+     * Process tool calls and add results to conversation history.
+     *
+     * @param  array  $toolCalls  The tool calls to process
+     * @return array The processed tool calls
+     */
+    private function processToolCalls(array $toolCalls): array
+    {
+        $processedToolCalls = [];
+
+        foreach ($toolCalls as $toolCall) {
+            $result = $this->executeToolCall($toolCall);
+
+            if ($result !== null) {
+                $this->addToolMessage($result, $toolCall->id);
+                $processedToolCalls[] = $toolCall;
+            }
+        }
+
+        return $processedToolCalls;
+    }
+
+    /**
      * Stream a response with a callback for each chunk.
      */
     public function streamResponse(callable $callback): void
     {
+        // Get the request object
+        $request = $this->createRequest();
+        $request->setStream(true);
+
         // Create a stream builder
         $streamBuilder = new StreamBuilder($this->client);
-        $streamBuilder
-            ->withHistory($this->history)
-            ->withModel($this->model)
-            ->withTemperature($this->temperature)
-            ->withMaxTokens($this->maxTokens);
-
-        // Add tools if available
-        if ($this->hasTools()) {
-            $streamBuilder->withToolRegistry($this->toolRegistry);
-        }
 
         // Content callback
         $streamBuilder->stream(function ($chunk) use ($callback): void {
@@ -363,8 +358,36 @@ class Conversation
             });
         }
 
-        // Execute the stream
-        $streamBuilder->execute();
+        // Execute the stream with the request
+        $streamBuilder->executeWithRequest($request);
+    }
+
+    /**
+     * Create a request object for the conversation.
+     */
+    private function createRequest(): mixed
+    {
+        // Create a request object
+        $apiVersion = $this->client->getApiVersionNamespace();
+        $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$apiVersion}\\ChatCompletionRequest";
+
+        // Create the request with required parameters
+        $request = new $requestClass(
+            $this->history->jsonSerialize(),
+            $this->model
+        );
+
+        // Set additional parameters
+        $request = $request->withTemperature($this->temperature);
+        $request = $request->withMaxTokens($this->maxTokens);
+
+        // Add tools if available
+        if ($this->hasTools()) {
+            $request = $request->withTools($this->getToolsForRequest());
+            $request = $request->withToolChoice('auto');
+        }
+
+        return $request;
     }
 
     /**
@@ -448,43 +471,5 @@ class Conversation
             fn ($tool) => $tool->jsonSerialize(),
             $this->toolRegistry->getTools()
         );
-    }
-
-    /**
-     * Process tool calls from a response.
-     *
-     * @param  array|object  $response  The API response
-     * @param  callable  $toolMessageCallback  Callback to add tool messages to the conversation
-     * @return array The processed tool calls
-     */
-    private function processToolCalls($response, callable $toolMessageCallback): array
-    {
-        if (! $this->hasTools()) {
-            return [];
-        }
-
-        $toolCalls = ToolCallExtractor::extract($response);
-        $processedToolCalls = [];
-
-        foreach ($toolCalls as $toolCall) {
-            $result = $this->executeToolCall($toolCall);
-
-            if ($result !== null) {
-                $toolMessageCallback($result, $toolCall->id);
-                $processedToolCalls[] = $toolCall;
-            }
-        }
-
-        return $processedToolCalls;
-    }
-
-    /**
-     * Extract tool calls from a response.
-     *
-     * @deprecated Use ToolCallExtractor::extract() instead
-     */
-    private function extractToolCalls($response): array
-    {
-        return ToolCallExtractor::extract($response);
     }
 }

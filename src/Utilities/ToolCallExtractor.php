@@ -44,15 +44,26 @@ class ToolCallExtractor
             if ($data instanceof ToolCall) {
                 $toolCalls[] = $data;
             } else {
-                $id = $data['id'] ?? '';
-                $type = $data['type'] ?? 'function';
-                $name = $data['function']['name'] ?? '';
-                $arguments = $data['function']['arguments'] ?? '{}';
+                // Handle both array and object data
+                if (is_array($data)) {
+                    $id = $data['id'] ?? '';
+                    $type = $data['type'] ?? 'function';
+                    $name = $data['function']['name'] ?? '';
+                    $arguments = $data['function']['arguments'] ?? '{}';
+                } else {
+                    $id = $data->id ?? '';
+                    $type = $data->type ?? 'function';
+                    $name = $data->function->name ?? '';
+                    $arguments = $data->function->arguments ?? '{}';
+                }
 
                 $toolCalls[] = new ToolCall(
-                    $id,
-                    $type,
-                    new FunctionCall($name, $arguments)
+                    id: $id,
+                    type: $type,
+                    function: new FunctionCall(
+                        name: $name,
+                        arguments: $arguments
+                    )
                 );
             }
         }

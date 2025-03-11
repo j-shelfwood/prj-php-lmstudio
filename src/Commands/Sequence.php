@@ -189,52 +189,45 @@ class Sequence extends BaseCommand
             // Display the prompt
             $io->writeln('🧑‍💻 <fg=blue>User:</> Say hello and introduce yourself briefly.');
 
-            $response = $client->chat($messages, [
-                'model' => $model,
-                'temperature' => 0.7,
-                'max_tokens' => 150,
-            ]);
+            // Create a request object
+            $apiVersion = $client->getApiVersionNamespace();
+            $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$apiVersion}\\ChatCompletionRequest";
+            $request = new $requestClass;
+            $request->setMessages($messages);
+            $request->setModel($model);
+            $request->setTemperature(0.7);
+            $request->setMaxTokens(150);
+
+            $response = $client->chatCompletion($request);
 
             // Check if the response contains an error
             if (is_array($response) && isset($response['error'])) {
                 throw new \Exception($response['error']);
             }
 
-            // Always show the response content
-            if (is_object($response) && isset($response->choices[0]->message->content)) {
-                $content = $response->choices[0]->message->content;
-                $io->writeln('🤖 <fg=green>Assistant:</> '.$content);
-            } elseif (is_array($response) && isset($response['choices'][0]['message']['content'])) {
-                $content = $response['choices'][0]['message']['content'];
-                $io->writeln('🤖 <fg=green>Assistant:</> '.$content);
+            // Extract the response content
+            $content = '';
+
+            if (is_array($response)) {
+                $content = $response['choices'][0]['message']['content'] ?? '';
+            } else {
+                $content = $response->choices[0]->message->content ?? '';
             }
 
+            // Display the response
+            $io->writeln('🤖 <fg=green>Assistant:</> '.$content);
+
+            // Display detailed information if requested
             if ($detailed) {
-                $io->writeln('<info>Detailed Response:</info>');
-
-                if (is_object($response) && method_exists($response, 'jsonSerialize')) {
-                    $responseData = $response->jsonSerialize();
-                    $encoded = json_encode($responseData, JSON_PRETTY_PRINT);
-                    $io->writeln($encoded !== false ? $encoded : 'Error encoding response');
-                } else {
-                    $encoded = json_encode($response, JSON_PRETTY_PRINT);
-                    $io->writeln($encoded !== false ? $encoded : 'Error encoding response');
-                }
+                $io->writeln('');
+                $io->writeln('<fg=yellow>Response Details:</>');
+                $io->writeln(json_encode($response, JSON_PRETTY_PRINT));
             }
 
-            $this->results['Chat Completion'] = [
-                'status' => 'Success',
-                'message' => 'Successfully received chat completion response',
-            ];
-
-            $io->success('Successfully completed chat completion');
+            $this->results['chat_completion'] = true;
         } catch (\Exception $e) {
-            $this->results['Chat Completion'] = [
-                'status' => 'Failed',
-                'message' => $e->getMessage(),
-            ];
-
-            $io->error('Failed chat completion: '.$e->getMessage());
+            $this->results['chat_completion'] = false;
+            $io->error('Error: '.$e->getMessage());
         }
     }
 
@@ -251,52 +244,45 @@ class Sequence extends BaseCommand
             // Display the prompt
             $io->writeln('🧑‍💻 <fg=blue>Prompt:</> '.$prompt);
 
-            $response = $client->completion($prompt, [
-                'model' => $model,
-                'temperature' => 0.7,
-                'max_tokens' => 150,
-            ]);
+            // Create a request object
+            $apiVersion = $client->getApiVersionNamespace();
+            $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$apiVersion}\\TextCompletionRequest";
+            $request = new $requestClass;
+            $request->setPrompt($prompt);
+            $request->setModel($model);
+            $request->setTemperature(0.7);
+            $request->setMaxTokens(150);
+
+            $response = $client->textCompletion($request);
 
             // Check if the response contains an error
             if (is_array($response) && isset($response['error'])) {
                 throw new \Exception($response['error']);
             }
 
-            // Always show the response content
-            if (is_object($response) && isset($response->choices[0]->text)) {
-                $content = $response->choices[0]->text;
-                $io->writeln('🤖 <fg=green>Response:</> '.$content);
-            } elseif (is_array($response) && isset($response['choices'][0]['text'])) {
-                $content = $response['choices'][0]['text'];
-                $io->writeln('🤖 <fg=green>Response:</> '.$content);
+            // Extract the response content
+            $content = '';
+
+            if (is_array($response)) {
+                $content = $response['choices'][0]['text'] ?? '';
+            } else {
+                $content = $response->choices[0]->text ?? '';
             }
 
+            // Display the response
+            $io->writeln('🤖 <fg=green>Completion:</> '.$content);
+
+            // Display detailed information if requested
             if ($detailed) {
-                $io->writeln('<info>Detailed Response:</info>');
-
-                if (is_object($response) && method_exists($response, 'jsonSerialize')) {
-                    $responseData = $response->jsonSerialize();
-                    $encoded = json_encode($responseData, JSON_PRETTY_PRINT);
-                    $io->writeln($encoded !== false ? $encoded : 'Error encoding response');
-                } else {
-                    $encoded = json_encode($response, JSON_PRETTY_PRINT);
-                    $io->writeln($encoded !== false ? $encoded : 'Error encoding response');
-                }
+                $io->writeln('');
+                $io->writeln('<fg=yellow>Response Details:</>');
+                $io->writeln(json_encode($response, JSON_PRETTY_PRINT));
             }
 
-            $this->results['Text Completion'] = [
-                'status' => 'Success',
-                'message' => 'Successfully received text completion response',
-            ];
-
-            $io->success('Successfully completed text completion');
+            $this->results['text_completion'] = true;
         } catch (\Exception $e) {
-            $this->results['Text Completion'] = [
-                'status' => 'Failed',
-                'message' => $e->getMessage(),
-            ];
-
-            $io->error('Failed text completion: '.$e->getMessage());
+            $this->results['text_completion'] = false;
+            $io->error('Error: '.$e->getMessage());
         }
     }
 
@@ -308,55 +294,51 @@ class Sequence extends BaseCommand
         $io->section('Testing: Embeddings');
 
         try {
-            $text = 'This is a test text for embeddings.';
+            $text = 'This is a sample text to create embeddings for.';
 
-            // Use a specific embedding model instead of the default model
+            // Display the text
+            $io->writeln('🧑‍💻 <fg=blue>Text:</> '.$text);
+
+            // Use a specific embedding model
             $embeddingModel = 'text-embedding-nomic-embed-text-v1.5';
             $io->note("Using embedding model: {$embeddingModel} instead of {$model}");
 
-            $response = $client->embeddings($text, [
-                'model' => $embeddingModel,
-            ]);
+            // Create a request object
+            $apiVersion = $client->getApiVersionNamespace();
+            $requestClass = "\\Shelfwood\\LMStudio\\Http\\Requests\\{$apiVersion}\\EmbeddingRequest";
+            $request = new $requestClass;
+            $request->setInput($text);
+            $request->setModel($embeddingModel);
+
+            $response = $client->createEmbeddings($request);
 
             // Check if the response contains an error
             if (is_array($response) && isset($response['error'])) {
                 throw new \Exception($response['error']);
             }
 
-            if ($detailed) {
-                $io->writeln('<info>Response:</info>');
+            // Extract embedding dimensions
+            $dimensions = 0;
 
-                // Get embedding dimensions
-                $dimensions = 0;
-
-                if (is_object($response) && method_exists($response, 'jsonSerialize')) {
-                    $responseData = $response->jsonSerialize();
-
-                    if (isset($responseData['data'][0]['embedding'])) {
-                        $dimensions = count($responseData['data'][0]['embedding']);
-                    } elseif (isset($response->data) && is_array($response->data) && ! empty($response->data)) {
-                        $dimensions = count($response->data[0]->embedding ?? []);
-                    }
-                } elseif (is_array($response) && isset($response['data'][0]['embedding'])) {
-                    $dimensions = count($response['data'][0]['embedding']);
-                }
-
-                $io->writeln("Embedding dimensions: {$dimensions}");
+            if (is_array($response) && isset($response['data'][0]['embedding'])) {
+                $dimensions = count($response['data'][0]['embedding']);
+            } elseif (is_object($response) && isset($response->data[0]->embedding)) {
+                $dimensions = count($response->data[0]->embedding);
             }
 
-            $this->results['Embeddings'] = [
-                'status' => 'Success',
-                'message' => 'Successfully received embeddings response',
-            ];
+            $io->writeln('🤖 <fg=green>Embedding:</> Created embedding with '.$dimensions.' dimensions');
 
-            $io->success('Successfully completed embeddings request');
+            // Display detailed information if requested
+            if ($detailed) {
+                $io->writeln('');
+                $io->writeln('<fg=yellow>Response Details:</>');
+                $io->writeln(json_encode($response, JSON_PRETTY_PRINT));
+            }
+
+            $this->results['embeddings'] = true;
         } catch (\Exception $e) {
-            $this->results['Embeddings'] = [
-                'status' => 'Failed',
-                'message' => $e->getMessage(),
-            ];
-
-            $io->error('Failed embeddings request: '.$e->getMessage());
+            $this->results['embeddings'] = false;
+            $io->error('Error: '.$e->getMessage());
         }
     }
 

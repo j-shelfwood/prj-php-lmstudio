@@ -137,4 +137,11 @@ interface LMStudioClientInterface extends ConfigAwareInterface
      * @param  array  $options  Additional options for the completion
      */
     public function accumulateCompletionContent(string $prompt, array $options = []): string;
+
+    /**
+     * Get the API version namespace for request/response classes.
+     *
+     * @return string The API version namespace (V0 or V1)
+     */
+    public function getApiVersionNamespace(): string;
 }

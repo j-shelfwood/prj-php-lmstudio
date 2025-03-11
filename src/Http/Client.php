@@ -117,7 +117,7 @@ class Client
      *
      * @param  string  $uri  The URI to send the request to
      * @param  array  $data  The data to send with the request
-     * @return \Generator A generator yielding decoded chunks
+     * @return \Generator A generator yielding StreamChunk objects
      *
      * @throws StreamingException If the request fails
      */
@@ -159,24 +159,17 @@ class Client
                 ]);
 
                 $handler = new StreamingResponseHandler($response->getBody());
-                $chunks = 0;
-                $lastChunk = null;
+                $streamTime = microtime(true);
 
-                foreach ($handler->stream() as $chunk) {
-                    $chunks++;
-                    $lastChunk = $chunk;
+                // Use the handler to process the stream and yield StreamChunk objects
+                foreach ($handler->stream() as $rawChunk) {
+                    $chunk = new \Shelfwood\LMStudio\ValueObjects\StreamChunk($rawChunk);
 
-                    // Log the chunk if it contains tool calls
-                    $hasToolCall = false;
-
-                    if (is_array($chunk) && isset($chunk['choices'][0]['delta']['tool_calls'])) {
-                        $hasToolCall = true;
-                    } elseif (is_object($chunk) && isset($chunk->choices[0]->delta->tool_calls)) {
-                        $hasToolCall = true;
-                    }
-
-                    if ($hasToolCall) {
-                        $this->logger->logStreamChunk($chunk, false, true);
+                    // Log tool calls if present
+                    if ($chunk->hasToolCalls()) {
+                        $this->logger->log('Stream chunk contains tool calls', [
+                            'tool_calls' => $chunk->getToolCalls(),
+                        ]);
                     }
 
                     yield $chunk;
@@ -184,8 +177,8 @@ class Client
 
                 // Log successful completion
                 $this->logger->log('Stream completed successfully', [
-                    'chunks_received' => $chunks,
-                    'time' => microtime(true) - $startTime,
+                    'time' => microtime(true) - $streamTime,
+                    'total_time' => microtime(true) - $startTime,
                 ]);
 
                 return;

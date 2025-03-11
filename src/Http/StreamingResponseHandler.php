@@ -69,15 +69,15 @@ class StreamingResponseHandler
     /**
      * Accumulate content from streaming chunks.
      *
-     * @param  Generator  $stream  The stream of chunks
+     * @param  Generator<\Shelfwood\LMStudio\ValueObjects\StreamChunk>  $stream  The stream of chunks
      */
     public function accumulateContent(Generator $stream): string
     {
         $content = '';
 
         foreach ($stream as $chunk) {
-            if (isset($chunk['choices'][0]['delta']['content'])) {
-                $content .= $chunk['choices'][0]['delta']['content'];
+            if ($chunk->hasContent()) {
+                $content .= $chunk->getContent();
             }
         }
 
@@ -87,88 +87,52 @@ class StreamingResponseHandler
     /**
      * Accumulate tool calls from streaming chunks.
      *
-     * @param  Generator  $stream  The stream of chunks
+     * @param  Generator<\Shelfwood\LMStudio\ValueObjects\StreamChunk>  $stream  The stream of chunks
      * @return array The accumulated tool calls
      */
     public function accumulateToolCalls(Generator $stream): array
     {
         $toolCalls = [];
-        $currentToolCall = null;
         $currentId = null;
-        $currentName = null;
         $argumentsBuffer = '';
-        $inToolCall = false;
 
         foreach ($stream as $chunk) {
-            if (! isset($chunk['choices'][0]['delta'])) {
-                continue;
-            }
+            if ($chunk->hasToolCalls()) {
+                foreach ($chunk->getToolCalls() as $toolCall) {
+                    $id = $toolCall->id;
 
-            $delta = $chunk['choices'][0]['delta'];
-
-            // Handle tool call initialization
-            if (isset($delta['tool_calls'])) {
-                foreach ($delta['tool_calls'] as $toolCallDelta) {
-                    // New tool call with ID
-                    if (isset($toolCallDelta['id'])) {
-                        // If we were building a previous tool call, try to parse its arguments
-                        if ($currentId !== null && ! empty($argumentsBuffer)) {
-                            $parsed = json_decode($argumentsBuffer, true);
-
-                            if (json_last_error() === JSON_ERROR_NONE) {
-                                $toolCalls[$currentId]['function']['arguments_parsed'] = $parsed;
-                            } else {
-                                // Keep raw arguments if parsing fails
-                                $toolCalls[$currentId]['function']['arguments_raw'] = $argumentsBuffer;
-                            }
-                        }
-
-                        $currentId = $toolCallDelta['id'];
-                        $argumentsBuffer = '';
-                        $inToolCall = true;
-                        $currentToolCall = [
-                            'id' => $currentId,
-                            'type' => $toolCallDelta['type'] ?? 'function',
+                    // Initialize tool call if new
+                    if (! isset($toolCalls[$id])) {
+                        $toolCalls[$id] = [
+                            'id' => $id,
+                            'type' => $toolCall->type,
                             'function' => [
-                                'name' => '',
+                                'name' => $toolCall->function->name,
                                 'arguments' => '',
                             ],
                         ];
-                        $toolCalls[$currentId] = $currentToolCall;
+                        $currentId = $id;
+                        $argumentsBuffer = '';
                     }
 
-                    // Update function name
-                    if (isset($toolCallDelta['function']['name'])) {
-                        $toolCalls[$currentId]['function']['name'] = $toolCallDelta['function']['name'];
+                    // Update function name if provided
+                    if (! empty($toolCall->function->name)) {
+                        $toolCalls[$id]['function']['name'] = $toolCall->function->name;
                     }
 
-                    // Append to arguments
-                    if (isset($toolCallDelta['function']['arguments'])) {
-                        $argumentsBuffer .= $toolCallDelta['function']['arguments'];
-                        $toolCalls[$currentId]['function']['arguments'] = $argumentsBuffer;
+                    // Append arguments if provided
+                    if (! empty($toolCall->function->arguments)) {
+                        $argumentsBuffer .= $toolCall->function->arguments;
+                        $toolCalls[$id]['function']['arguments'] = $argumentsBuffer;
 
-                        // Try to parse JSON incrementally
-                        if (! empty($argumentsBuffer)) {
-                            $parsed = json_decode($argumentsBuffer, true);
+                        // Try to parse JSON
+                        $parsed = json_decode($argumentsBuffer, true);
 
-                            if (json_last_error() === JSON_ERROR_NONE) {
-                                $toolCalls[$currentId]['function']['arguments_parsed'] = $parsed;
-                            }
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $toolCalls[$id]['function']['arguments_parsed'] = $parsed;
                         }
                     }
                 }
-            }
-        }
-
-        // Final attempt to parse any remaining arguments
-        if ($currentId !== null && ! empty($argumentsBuffer)) {
-            $parsed = json_decode($argumentsBuffer, true);
-
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $toolCalls[$currentId]['function']['arguments_parsed'] = $parsed;
-            } else {
-                // Keep raw arguments if parsing fails
-                $toolCalls[$currentId]['function']['arguments_raw'] = $argumentsBuffer;
             }
         }
 
@@ -178,8 +142,8 @@ class StreamingResponseHandler
     /**
      * Handle a streaming response by calling a callback for each chunk.
      *
-     * @param  Generator  $stream  The stream of chunks
-     * @param  callable(array<string, mixed>): void  $callback  The callback to handle each chunk
+     * @param  Generator<\Shelfwood\LMStudio\ValueObjects\StreamChunk>  $stream  The stream of chunks
+     * @param  callable(\Shelfwood\LMStudio\ValueObjects\StreamChunk): void  $callback  The callback to handle each chunk
      */
     public function handle(Generator $stream, callable $callback): void
     {
