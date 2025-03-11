@@ -6,79 +6,21 @@ namespace Shelfwood\LMStudio;
 
 use Generator;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Contracts\ConfigAwareInterface;
-use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
-use Shelfwood\LMStudio\Http\Client;
-use Shelfwood\LMStudio\Http\StreamingResponseHandler;
-use Shelfwood\LMStudio\Requests\Common\RequestInterface;
-use Shelfwood\LMStudio\Requests\V0\ChatCompletionRequest;
-use Shelfwood\LMStudio\Requests\V0\EmbeddingRequest;
-use Shelfwood\LMStudio\Requests\V0\TextCompletionRequest;
-use Shelfwood\LMStudio\Responses\V0\ChatCompletion;
-use Shelfwood\LMStudio\Responses\V0\Embedding;
-use Shelfwood\LMStudio\Responses\V0\TextCompletion;
-use Shelfwood\LMStudio\Traits\HandlesStreamingResponses;
-use Shelfwood\LMStudio\ValueObjects\ChatHistory;
+use Shelfwood\LMStudio\Contracts\AbstractLMStudioClient;
+use Shelfwood\LMStudio\Http\Requests\Common\RequestInterface;
+use Shelfwood\LMStudio\Http\Requests\V0\ChatCompletionRequest;
+use Shelfwood\LMStudio\Http\Requests\V0\EmbeddingRequest;
+use Shelfwood\LMStudio\Http\Requests\V0\TextCompletionRequest;
+use Shelfwood\LMStudio\Http\Responses\V0\ChatCompletion;
+use Shelfwood\LMStudio\Http\Responses\V0\Embedding;
+use Shelfwood\LMStudio\Http\Responses\V0\TextCompletion;
 
-class LMS implements ConfigAwareInterface, LMStudioClientInterface
+class LMS extends AbstractLMStudioClient
 {
-    use HandlesStreamingResponses;
-
-    protected Client $client;
-
-    protected StreamingResponseHandler $streamingHandler;
-
-    private string $apiVersion = 'api/v0';
-
-    private LMStudioConfig $config;
-
     public function __construct(LMStudioConfig $config)
     {
-        $this->config = $config;
-        // Use the base URL as is, but ensure paths include api/v0
-        $this->client = new Client($config);
-        $this->streamingHandler = new StreamingResponseHandler;
-    }
-
-    /**
-     * Set the HTTP client instance.
-     */
-    public function setHttpClient(Client $client): self
-    {
-        $this->client = $client;
-
-        return $this;
-    }
-
-    /**
-     * Set the streaming response handler instance.
-     */
-    public function setStreamingHandler(StreamingResponseHandler $handler): self
-    {
-        $this->streamingHandler = $handler;
-
-        return $this;
-    }
-
-    /**
-     * Get the client configuration.
-     */
-    public function getConfig(): LMStudioConfig
-    {
-        return $this->config;
-    }
-
-    public function models(): array
-    {
-        return $this->client->get($this->apiVersion.'/models');
-    }
-
-    /**
-     * Retrieve information about a specific model.
-     */
-    public function model(string $modelId): array
-    {
-        return $this->client->get($this->apiVersion.'/models/'.$modelId);
+        parent::__construct($config);
+        $this->apiVersion = 'api/v0';
     }
 
     /**
@@ -225,43 +167,5 @@ class LMS implements ConfigAwareInterface, LMStudioClientInterface
         $request = new EmbeddingRequest($input, $model, $options);
 
         return $this->createEmbeddings($request);
-    }
-
-    /**
-     * Accumulate content from a streaming chat completion.
-     */
-    public function accumulateChatContent(array|ChatHistory $messages, array $options = []): string
-    {
-        if ($messages instanceof ChatHistory) {
-            $messages = $messages->getMessages();
-        }
-
-        return $this->streamingHandler->accumulateContent(
-            $this->streamChat($messages, $options)
-        );
-    }
-
-    /**
-     * Accumulate tool calls from a streaming chat completion.
-     */
-    public function accumulateChatToolCalls(array|ChatHistory $messages, array $options = []): array
-    {
-        if ($messages instanceof ChatHistory) {
-            $messages = $messages->getMessages();
-        }
-
-        return $this->streamingHandler->accumulateToolCalls(
-            $this->streamChat($messages, $options)
-        );
-    }
-
-    /**
-     * Accumulate content from a streaming text completion.
-     */
-    public function accumulateCompletionContent(string $prompt, array $options = []): string
-    {
-        return $this->streamingHandler->accumulateContent(
-            $this->streamCompletion($prompt, $options)
-        );
     }
 }

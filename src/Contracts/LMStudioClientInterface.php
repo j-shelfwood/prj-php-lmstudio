@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Contracts;
 
 use Generator;
-use Shelfwood\LMStudio\Requests\Common\RequestInterface;
+use Shelfwood\LMStudio\Http\Requests\Common\RequestInterface;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 
 interface LMStudioClientInterface extends ConfigAwareInterface

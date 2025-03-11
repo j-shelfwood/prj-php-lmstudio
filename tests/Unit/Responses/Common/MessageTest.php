@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use Shelfwood\LMStudio\Enums\Role;
-use Shelfwood\LMStudio\Responses\Common\Function_;
-use Shelfwood\LMStudio\Responses\Common\Message;
-use Shelfwood\LMStudio\Responses\Common\ToolCall;
+use Shelfwood\LMStudio\Http\Responses\Common\Function_;
+use Shelfwood\LMStudio\Http\Responses\Common\Message;
+use Shelfwood\LMStudio\Http\Responses\Common\ToolCall;
 
 describe('Message', function (): void {
     it('can be instantiated with role and content', function (): void {

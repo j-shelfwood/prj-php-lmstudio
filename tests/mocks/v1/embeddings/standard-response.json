@@ -1,6 +1,6 @@
 {
   "error": {
-    "message": "Failed to load model \"granite-3.1-8b-instruct\". Error: Model loading aborted due to insufficient system resources. Overloading the system will likely cause it to freeze. If you believe this is a mistake, you can try to change the model loading guardrails in the settings.",
+    "message": "Failed to load model \"qwen2.5-7b-instruct-1m\". Error: Model loading aborted due to insufficient system resources. Overloading the system will likely cause it to freeze. If you believe this is a mistake, you can try to change the model loading guardrails in the settings.",
     "type": "invalid_request_error",
     "param": "model",
     "code": "model_not_found"

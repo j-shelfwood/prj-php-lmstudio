@@ -2,7 +2,7 @@
   "id": "cmpl-alf7432tf1p79rka5etaap",
   "object": "text_completion",
   "created": 1740598370,
-  "model": "granite-3.1-8b-instruct",
+  "model": "qwen2.5-7b-instruct-1m",
   "choices": [
     {
       "index": 0,

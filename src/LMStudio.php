@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio;
 
+use Shelfwood\LMStudio\Builders\StreamBuilder;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
 use Shelfwood\LMStudio\Contracts\ConfigAwareInterface;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
+use Shelfwood\LMStudio\Conversations\Conversation;
+use Shelfwood\LMStudio\Conversations\ConversationManager;
+use Shelfwood\LMStudio\Tools\ToolRegistry;
 
 class LMStudio implements ConfigAwareInterface
 {
@@ -15,6 +19,8 @@ class LMStudio implements ConfigAwareInterface
     private ?LMS $lms = null;
 
     private ?OpenAI $openai = null;
+
+    private ?ConversationManager $conversationManager = null;
 
     public function __construct(?LMStudioConfig $config = null)
     {
@@ -47,6 +53,7 @@ class LMStudio implements ConfigAwareInterface
     public function setLmsClient(LMS $client): self
     {
         $this->lms = $client;
+        $this->conversationManager = null; // Reset conversation manager if client changes
 
         return $this;
     }
@@ -69,6 +76,7 @@ class LMStudio implements ConfigAwareInterface
     public function setOpenAiClient(OpenAI $client): self
     {
         $this->openai = $client;
+        $this->conversationManager = null; // Reset conversation manager if client changes
 
         return $this;
     }
@@ -82,6 +90,7 @@ class LMStudio implements ConfigAwareInterface
         $clone->config = $this->config->withBaseUrl($baseUrl);
         $clone->lms = null;
         $clone->openai = null;
+        $clone->conversationManager = null;
 
         return $clone;
     }
@@ -95,6 +104,7 @@ class LMStudio implements ConfigAwareInterface
         $clone->config = $this->config->withApiKey($apiKey);
         $clone->lms = null;
         $clone->openai = null;
+        $clone->conversationManager = null;
 
         return $clone;
     }
@@ -110,6 +120,7 @@ class LMStudio implements ConfigAwareInterface
         $clone->config = $this->config->withHeaders($headers);
         $clone->lms = null;
         $clone->openai = null;
+        $clone->conversationManager = null;
 
         return $clone;
     }
@@ -123,7 +134,63 @@ class LMStudio implements ConfigAwareInterface
         $clone->config = $this->config->withTimeout($timeout);
         $clone->lms = null;
         $clone->openai = null;
+        $clone->conversationManager = null;
 
         return $clone;
+    }
+
+    /**
+     * Create a new chat builder for streaming.
+     */
+    public function chat(): StreamBuilder
+    {
+        return new StreamBuilder($this->lms());
+    }
+
+    /**
+     * Get the conversation manager.
+     */
+    public function conversations(): ConversationManager
+    {
+        if ($this->conversationManager === null) {
+            $this->conversationManager = new ConversationManager($this->lms());
+        }
+
+        return $this->conversationManager;
+    }
+
+    /**
+     * Create a new conversation.
+     */
+    public function createConversation(string $title = 'New Conversation'): Conversation
+    {
+        return $this->conversations()->createConversation($title);
+    }
+
+    /**
+     * Create a new conversation with a system message.
+     */
+    public function createConversationWithSystem(string $systemMessage, string $title = 'New Conversation'): Conversation
+    {
+        return $this->conversations()->createConversationWithSystem($systemMessage, $title);
+    }
+
+    /**
+     * Create a new conversation with tools.
+     */
+    public function createConversationWithTools(
+        ToolRegistry $toolRegistry,
+        string $title = 'New Conversation',
+        ?string $systemMessage = null
+    ): Conversation {
+        return $this->conversations()->createConversationWithTools($toolRegistry, $title, $systemMessage);
+    }
+
+    /**
+     * Create a new tool registry.
+     */
+    public function createToolRegistry(): ToolRegistry
+    {
+        return new ToolRegistry;
     }
 }

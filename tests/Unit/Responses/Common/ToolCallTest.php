@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Responses\Common\Function_;
-use Shelfwood\LMStudio\Responses\Common\ToolCall;
+use Shelfwood\LMStudio\Http\Responses\Common\Function_;
+use Shelfwood\LMStudio\Http\Responses\Common\ToolCall;
 
 describe('ToolCall', function (): void {
     it('can be instantiated with id, type, and function', function (): void {

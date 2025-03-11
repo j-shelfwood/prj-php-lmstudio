@@ -2,7 +2,7 @@
   "id": "chatcmpl-mfyr96tm8s7j7vr358yb",
   "object": "chat.completion",
   "created": 1740598366,
-  "model": "granite-3.1-8b-instruct",
+  "model": "qwen2.5-7b-instruct-1m",
   "choices": [
     {
       "index": 0,
@@ -29,5 +29,5 @@
     "total_tokens": 536
   },
   "stats": {},
-  "system_fingerprint": "granite-3.1-8b-instruct"
+  "system_fingerprint": "qwen2.5-7b-instruct-1m"
 }

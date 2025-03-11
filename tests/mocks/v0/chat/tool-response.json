@@ -2,7 +2,7 @@
   "id": "chatcmpl-bnxt7kcizqs5l79zojom4q",
   "object": "chat.completion",
   "created": 1740598354,
-  "model": "granite-3.1-8b-instruct",
+  "model": "qwen2.5-7b-instruct-1m",
   "choices": [
     {
       "index": 0,
@@ -43,8 +43,6 @@
   "runtime": {
     "name": "llama.cpp-mac-arm64-apple-metal-advsimd",
     "version": "1.17.1",
-    "supported_formats": [
-      "gguf"
-    ]
+    "supported_formats": ["gguf"]
   }
 }

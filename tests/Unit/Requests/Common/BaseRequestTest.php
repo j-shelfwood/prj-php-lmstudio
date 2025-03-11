@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Requests\Common\BaseRequest;
+use Shelfwood\LMStudio\Http\Requests\Common\BaseRequest;
 
 // Create a concrete implementation of the abstract BaseRequest for testing
 class ConcreteBaseRequest extends BaseRequest
@@ -24,7 +24,7 @@ describe('BaseRequest', function (): void {
     it('implements RequestInterface', function (): void {
         $request = new ConcreteBaseRequest;
 
-        expect($request)->toBeInstanceOf(\Shelfwood\LMStudio\Requests\Common\RequestInterface::class);
+        expect($request)->toBeInstanceOf(\Shelfwood\LMStudio\Http\Requests\Common\RequestInterface::class);
         expect($request)->toBeInstanceOf(\JsonSerializable::class);
     });
 

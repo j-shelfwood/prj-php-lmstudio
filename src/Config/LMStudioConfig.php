@@ -4,12 +4,19 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Config;
 
+use Shelfwood\LMStudio\Logging\Logger;
+
 class LMStudioConfig
 {
     /**
      * @var array<string, mixed> Debug configuration
      */
     private array $debugConfig;
+
+    /**
+     * @var Logger The logger instance
+     */
+    private Logger $logger;
 
     /**
      * @param  string  $baseUrl  The base URL for the LMStudio API
@@ -40,6 +47,9 @@ class LMStudioConfig
             'verbose' => (bool) getenv('LMSTUDIO_DEBUG_VERBOSE'),
             'log_file' => getenv('LMSTUDIO_DEBUG_LOG') ?: null,
         ], $debugConfig);
+
+        // Initialize logger
+        $this->logger = Logger::fromConfig($this->debugConfig);
     }
 
     /**
@@ -125,6 +135,14 @@ class LMStudioConfig
     public function getDebugConfig(): array
     {
         return $this->debugConfig;
+    }
+
+    /**
+     * Get the logger instance.
+     */
+    public function getLogger(): Logger
+    {
+        return $this->logger;
     }
 
     /**

@@ -28,12 +28,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | This is the default model that will be used when no model is specified.
-    | For LM Studio, common models include 'granite-3.1-8b-instruct' or others
+    | For LM Studio, common models include 'qwen2.5-7b-instruct-1m' or others
     | available in your LM Studio installation.
     |
     */
 
-    'default_model' => env('LMSTUDIO_DEFAULT_MODEL', 'granite-3.1-8b-instruct'),
+    'default_model' => env('LMSTUDIO_DEFAULT_MODEL', 'qwen2.5-7b-instruct-1m'),
 
     /*
     |--------------------------------------------------------------------------

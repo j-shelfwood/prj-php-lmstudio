@@ -14,30 +14,25 @@ use Psr\Log\LoggerInterface;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
 use Shelfwood\LMStudio\Exceptions\LMStudioException;
 use Shelfwood\LMStudio\Exceptions\StreamingException;
+use Shelfwood\LMStudio\Logging\Logger;
 
 class Client
 {
     protected GuzzleClient $client;
 
-    protected DebugLogger $logger;
+    protected Logger $logger;
 
     public function __construct(
         private LMStudioConfig $config,
-        ?LoggerInterface $logger = null
+        ?LoggerInterface $psr3Logger = null
     ) {
         // Create a handler stack with logging middleware if debug is enabled
         $stack = HandlerStack::create();
 
-        // Initialize the debug logger
-        $debugConfig = $config->getDebugConfig();
-        $this->logger = new DebugLogger(
-            $debugConfig['enabled'] ?? (bool) getenv('LMSTUDIO_DEBUG'),
-            $debugConfig['verbose'] ?? false,
-            $debugConfig['log_file'] ?? null,
-            $logger
-        );
+        // Get the logger from config
+        $this->logger = $config->getLogger();
 
-        if ($this->logger->isEnabled()) {
+        if ($this->logger) {
             // Add request logging
             $stack->push(Middleware::mapRequest(function (RequestInterface $request) {
                 $this->logger->logRequest(
@@ -52,8 +47,8 @@ class Client
             // Add response logging
             $stack->push(Middleware::mapResponse(function (ResponseInterface $response) {
                 $this->logger->logResponse(
-                    $response->getStatusCode(),
-                    ['headers' => $response->getHeaders()]
+                    (string) $response->getBody(),
+                    $response
                 );
 
                 return $response;
@@ -86,9 +81,9 @@ class Client
     }
 
     /**
-     * Set the debug logger instance.
+     * Set the logger instance.
      */
-    public function setLogger(DebugLogger $logger): self
+    public function setLogger(Logger $logger): self
     {
         $this->logger = $logger;
 
@@ -128,140 +123,100 @@ class Client
      */
     public function stream(string $uri, array $data = []): \Generator
     {
-        $attempts = 0;
-        $maxAttempts = $this->config->getMaxRetries() ?? 3;
-        $backoffStrategy = [1, 2, 5]; // seconds
-        $startTime = microtime(true);
-        $chunkCount = 0;
-        $lastChunk = null;
+        $options = [
+            'json' => $data,
+            'stream' => true,
+            'connect_timeout' => $this->config->getConnectTimeout(),
+            'read_timeout' => $this->config->getIdleTimeout(),
+        ];
 
-        while ($attempts < $maxAttempts) {
+        $maxRetries = $this->config->getMaxRetries() ?? 3;
+        $attempt = 0;
+        $lastException = null;
+
+        while ($attempt < $maxRetries) {
+            $attempt++;
+
             try {
-                $this->logger->logRequest('POST', $uri, $data);
-                $this->logger->log('Streaming request (attempt '.($attempts + 1).')', [
-                    'uri' => $uri,
-                    'max_attempts' => $maxAttempts,
+                // Log the streaming request
+                $this->logger->logRequest('POST', $uri, [
+                    'attempt' => $attempt,
+                    'max_retries' => $maxRetries,
+                    'data' => $data,
                 ]);
 
-                $response = $this->client->post($uri, [
-                    'json' => $data,
+                $startTime = microtime(true);
+                $response = $this->client->request('POST', $uri, array_merge($options, [
                     'stream' => true,
-                    'timeout' => $this->config->getTimeout(),
-                    'connect_timeout' => $this->config->getConnectTimeout() ?? 10,
+                ]));
+                $endTime = microtime(true);
+
+                // Log successful connection
+                $this->logger->log("Stream connected successfully (attempt {$attempt}/{$maxRetries})", [
+                    'status' => $response->getStatusCode(),
+                    'headers' => $response->getHeaders(),
+                    'time' => $endTime - $startTime,
                 ]);
 
-                $this->logger->logResponse($response->getStatusCode(), []);
+                $handler = new StreamingResponseHandler($response->getBody());
+                $chunks = 0;
+                $lastChunk = null;
 
-                $buffer = '';
-                $stream = $response->getBody();
-                $lastActivityTime = microtime(true);
-                $idleTimeout = $this->config->getIdleTimeout() ?? 15; // seconds
+                foreach ($handler->stream() as $chunk) {
+                    $chunks++;
+                    $lastChunk = $chunk;
 
-                while (! $stream->eof()) {
-                    $chunk = $stream->read(1024);
+                    // Log the chunk if it contains tool calls
+                    $hasToolCall = false;
 
-                    if (! empty($chunk)) {
-                        $lastActivityTime = microtime(true);
-                        $buffer .= $chunk;
-
-                        // Process complete SSE messages
-                        while (($pos = strpos($buffer, "\n\n")) !== false) {
-                            $message = substr($buffer, 0, $pos);
-                            $buffer = substr($buffer, $pos + 2);
-
-                            foreach (explode("\n", $message) as $line) {
-                                if (str_starts_with($line, 'data: ')) {
-                                    $data = substr($line, 6);
-
-                                    if ($data === '[DONE]') {
-                                        $duration = round(microtime(true) - $startTime, 2);
-                                        $this->logger->log('Streaming completed with [DONE]', [
-                                            'duration' => $duration,
-                                            'chunks' => $chunkCount,
-                                        ]);
-
-                                        return;
-                                    }
-
-                                    $decoded = json_decode($data, true);
-
-                                    if ($decoded !== null) {
-                                        $chunkCount++;
-                                        $lastChunk = $decoded;
-
-                                        // Log every 10th chunk to avoid excessive logging
-                                        if ($chunkCount % 10 === 0) {
-                                            $this->logger->log('Received chunks', [
-                                                'count' => $chunkCount,
-                                            ]);
-                                        }
-
-                                        $this->logger->logStreamingChunk($decoded, $chunkCount);
-
-                                        yield $decoded;
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // Check for idle timeout
-                        if (microtime(true) - $lastActivityTime > $idleTimeout) {
-                            $this->logger->log('Stream idle timeout reached', [
-                                'idle_timeout' => $idleTimeout,
-                            ]);
-
-                            break;
-                        }
-
-                        // Small sleep to prevent CPU spinning
-                        usleep(50000); // 50ms
+                    if (is_array($chunk) && isset($chunk['choices'][0]['delta']['tool_calls'])) {
+                        $hasToolCall = true;
+                    } elseif (is_object($chunk) && isset($chunk->choices[0]->delta->tool_calls)) {
+                        $hasToolCall = true;
                     }
 
-                    // Check for overall timeout
-                    if (microtime(true) - $startTime > $this->config->getTimeout()) {
-                        $this->logger->log('Stream overall timeout reached', [
-                            'timeout' => $this->config->getTimeout(),
-                        ]);
-
-                        break;
+                    if ($hasToolCall) {
+                        $this->logger->logStreamChunk($chunk, false, true);
                     }
+
+                    yield $chunk;
                 }
 
-                // If we got here without an exception, we're done
+                // Log successful completion
+                $this->logger->log('Stream completed successfully', [
+                    'chunks_received' => $chunks,
+                    'time' => microtime(true) - $startTime,
+                ]);
+
                 return;
-            } catch (\Exception $e) {
-                $attempts++;
-                $elapsedTime = microtime(true) - $startTime;
+            } catch (GuzzleException $e) {
+                $lastException = $e;
 
-                $this->logger->logError('Streaming error', $e);
-                $this->logger->log('Streaming error details', [
-                    'elapsed_time' => $elapsedTime,
-                    'chunks_received' => $chunkCount,
-                    'attempt' => $attempts,
+                // Log the error with detailed information
+                $this->logger->logError($uri, $e, [
+                    'attempt' => $attempt,
+                    'max_retries' => $maxRetries,
+                    'data' => $data,
+                    'options' => $options,
                 ]);
 
-                if ($attempts >= $maxAttempts) {
-                    throw new StreamingException(
-                        "Streaming failed after {$attempts} attempts: ".$e->getMessage(),
-                        $e->getCode(),
-                        $e,
-                        $lastChunk !== null ? (string) json_encode($lastChunk) : null,
-                        $chunkCount,
-                        $elapsedTime
-                    );
+                if ($attempt < $maxRetries) {
+                    // Wait before retrying (exponential backoff)
+                    $sleepTime = min(pow(2, $attempt - 1) * 0.5, 5);
+                    $this->logger->log("Retrying in {$sleepTime} seconds (attempt {$attempt}/{$maxRetries})");
+                    sleep((int) $sleepTime);
                 }
-
-                $backoffTime = $backoffStrategy[min($attempts - 1, count($backoffStrategy) - 1)];
-
-                $this->logger->log('Retrying streaming request', [
-                    'backoff_time' => $backoffTime,
-                    'attempt' => $attempts,
-                    'max_attempts' => $maxAttempts,
-                ]);
-
-                sleep($backoffTime);
             }
         }
+
+        // If we get here, all retries failed
+        $message = "Streaming failed after {$maxRetries} attempts";
+
+        if ($lastException) {
+            $message .= ': '.$lastException->getMessage();
+        }
+
+        throw new StreamingException($message, 0, $lastException);
     }
 
     /**
@@ -272,18 +227,25 @@ class Client
     private function request(string $method, string $uri, array $options = []): array
     {
         try {
-            $this->logger->logRequest($method, $uri, $options);
-
+            $startTime = microtime(true);
             $response = $this->client->request($method, $uri, $options);
-            $contents = $response->getBody()->getContents();
+            $duration = microtime(true) - $startTime;
 
-            $this->logger->logResponse($response->getStatusCode(), $contents);
+            $contents = (string) $response->getBody();
+            $decoded = json_decode($contents, true);
 
-            return json_decode($contents, true);
+            // Log the successful response
+            $this->logger->logResponse($uri, $decoded, $duration);
+
+            return $decoded;
         } catch (GuzzleException $e) {
-            $this->logger->logError('Request error', $e);
+            // Log the error with detailed information
+            $this->logger->logError($uri, $e, [
+                'method' => $method,
+                'options' => $options,
+            ]);
 
-            throw new LMStudioException($e->getMessage(), $e->getCode(), $e);
+            throw new LMStudioException('API request failed: '.$e->getMessage(), 0, $e);
         }
     }
 

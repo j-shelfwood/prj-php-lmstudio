@@ -1,5 +1,5 @@
-data: {"id":"chatcmpl-i8kf2h8b3zghg2u7qlx9c","object":"chat.completion.chunk","created":1740598357,"model":"granite-3.1-8b-instruct","system_fingerprint":"granite-3.1-8b-instruct","choices":[{"index":0,"delta":{"role":"assistant","content":"Let me check the weather for you."},"logprobs":null,"finish_reason":null}]}
+data: {"id":"chatcmpl-i8kf2h8b3zghg2u7qlx9c","object":"chat.completion.chunk","created":1740598357,"model":"qwen2.5-7b-instruct-1m","system_fingerprint":"qwen2.5-7b-instruct-1m","choices":[{"index":0,"delta":{"role":"assistant","content":"Let me check the weather for you."},"logprobs":null,"finish_reason":null}]}
 
-data: {"id":"chatcmpl-i8kf2h8b3zghg2u7qlx9c","object":"chat.completion.chunk","created":1740598357,"model":"granite-3.1-8b-instruct","system_fingerprint":"granite-3.1-8b-instruct","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_123","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"London\"}"}}]},"logprobs":null,"finish_reason":"tool_calls"}]}
+data: {"id":"chatcmpl-i8kf2h8b3zghg2u7qlx9c","object":"chat.completion.chunk","created":1740598357,"model":"qwen2.5-7b-instruct-1m","system_fingerprint":"qwen2.5-7b-instruct-1m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_123","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"London\"}"}}]},"logprobs":null,"finish_reason":"tool_calls"}]}
 
 data: [DONE]

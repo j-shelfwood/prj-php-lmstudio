@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Requests\V1;
 
 use Shelfwood\LMStudio\Enums\Role;
-use Shelfwood\LMStudio\Requests\V1\ChatCompletionRequest;
+use Shelfwood\LMStudio\Http\Requests\V1\ChatCompletionRequest;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 use Shelfwood\LMStudio\ValueObjects\JsonSchema;
 use Shelfwood\LMStudio\ValueObjects\Message;

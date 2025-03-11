@@ -20,7 +20,7 @@ class Application extends SymfonyApplication
         $baseUrl = getenv('LMSTUDIO_BASE_URL') ?: 'http://localhost:1234';
         $apiKey = getenv('LMSTUDIO_API_KEY') ?: 'lm-studio';
         $timeout = (int) (getenv('LMSTUDIO_TIMEOUT') ?: 30);
-        $defaultModel = getenv('LMSTUDIO_DEFAULT_MODEL') ?: 'granite-3.1-8b-instruct';
+        $defaultModel = getenv('LMSTUDIO_DEFAULT_MODEL') ?: 'qwen2.5-7b-instruct-1m';
 
         // Create config with explicit values
         $config = new LMStudioConfig(

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Commands;
 
+use Shelfwood\LMStudio\Commands\Traits\ToolAwareCommand;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
-use Shelfwood\LMStudio\Requests\V0\ChatCompletionRequest as V0ChatCompletionRequest;
-use Shelfwood\LMStudio\Requests\V1\ChatCompletionRequest as V1ChatCompletionRequest;
-use Shelfwood\LMStudio\ValueObjects\ChatHistory;
+use Shelfwood\LMStudio\Conversations\Conversation;
+use Shelfwood\LMStudio\Conversations\ConversationManager;
+use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\Message;
+use Shelfwood\LMStudio\ValueObjects\Tool;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -22,9 +24,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class Chat extends BaseCommand
 {
-    protected ChatHistory $history;
+    use ToolAwareCommand;
 
-    protected string $requestClass;
+    protected Conversation $conversation;
 
     /**
      * Configures the command
@@ -49,10 +51,17 @@ class Chat extends BaseCommand
                 '0.7'
             )
             ->addOption(
-                'stream',
+                'max-tokens',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Maximum number of tokens to generate',
+                '4000'
+            )
+            ->addOption(
+                'tools',
                 null,
                 InputOption::VALUE_NONE,
-                'Stream the response as it\'s generated'
+                'Enable example tools (calculator and weather)'
             );
     }
 
@@ -65,7 +74,8 @@ class Chat extends BaseCommand
         $systemMessage = $input->getOption('system');
         $api = $input->getOption('api');
         $temperature = (float) $input->getOption('temperature');
-        $stream = $input->getOption('stream');
+        $maxTokens = (int) $input->getOption('max-tokens');
+        $enableTools = $input->getOption('tools');
 
         // Get the client
         $client = $this->getClient($input, $io);
@@ -81,24 +91,59 @@ class Chat extends BaseCommand
             return Command::FAILURE;
         }
 
-        // Set the request class based on the API
-        $this->requestClass = $api === 'openai'
-            ? V1ChatCompletionRequest::class
-            : V0ChatCompletionRequest::class;
+        // Initialize tools if enabled
+        $toolRegistry = null;
 
-        // Initialize chat history
-        $this->history = new ChatHistory;
-        $this->history->addMessage(Message::system($systemMessage));
+        if ($enableTools) {
+            $toolRegistry = $this->createToolRegistry();
+            $this->registerCommonTools($toolRegistry);
+            $io->note('Tools enabled: calculator, weather, date');
+        }
 
-        $io->title('LMStudio Interactive Chat');
+        // Create a conversation manager
+        $conversationManager = new ConversationManager($client);
 
-        // Display client info
-        $this->displayClientInfo($io, $client, $model, $api);
-        $io->section("System: {$systemMessage}");
-        $io->newLine();
+        // Initialize conversation
+        if ($toolRegistry !== null) {
+            $this->conversation = $conversationManager->createConversationWithTools(
+                $toolRegistry,
+                'CLI Chat',
+                $systemMessage
+            );
+        } else {
+            $this->conversation = $conversationManager->createConversationWithSystem(
+                $systemMessage,
+                'CLI Chat'
+            );
+        }
+
+        // Set model, temperature, and max tokens
+        $this->conversation->setModel($model);
+        $this->conversation->setTemperature($temperature);
+        $this->conversation->setMaxTokens($maxTokens);
+
+        // Store metadata
+        $this->conversation->setMetadata([
+            'api' => $api,
+            'model' => $model,
+            'temperature' => $temperature,
+            'max_tokens' => $maxTokens,
+            'tools_enabled' => $enableTools,
+        ]);
+
+        $this->toolRegistry = $toolRegistry;
+
+        // Display welcome message
+        $io->title('LMStudio CLI Chat');
+        $io->text([
+            "Model: {$model}",
+            "API: {$api}",
+            "System message: {$systemMessage}",
+            'Type your message and press Enter. Type /exit to quit, /help for more commands.',
+        ]);
 
         // Start the chat loop
-        $this->startChatLoop($io, $input, $output, $client, $model, $temperature, $stream);
+        $this->startChatLoop($io, $input, $output, $client, $model, $temperature, $maxTokens);
 
         return Command::SUCCESS;
     }
@@ -113,17 +158,31 @@ class Chat extends BaseCommand
         LMStudioClientInterface $client,
         string $model,
         float $temperature,
-        bool $stream
+        int $maxTokens
     ): void {
         $exitCommands = ['/exit', '/quit', '/q'];
         $clearCommand = '/clear';
         $helpCommand = '/help';
+        $disableToolsCommand = '/no-tools';
+        $enableToolsCommand = '/tools';
+        $saveCommand = '/save';
+        $loadCommand = '/load';
+        $streamingOnCommand = '/streaming on';
+        $streamingOffCommand = '/streaming off';
 
         $io->writeln('<info>Type your message and press Enter to chat with the model.</info>');
         $io->writeln('<info>Type /exit, /quit, or /q to end the chat.</info>');
         $io->writeln('<info>Type /clear to clear the chat history.</info>');
+        $io->writeln('<info>Type /tools to enable tools (if disabled).</info>');
+        $io->writeln('<info>Type /no-tools to disable tools.</info>');
+        $io->writeln('<info>Type /save <filename> to save the conversation.</info>');
+        $io->writeln('<info>Type /load <filename> to load a conversation.</info>');
+        $io->writeln('<info>Type /streaming on|off to toggle streaming mode.</info>');
         $io->writeln('<info>Type /help to see available commands.</info>');
         $io->newLine();
+
+        $useTools = $this->toolRegistry !== null;
+        $useStreaming = true;
 
         while (true) {
             $userInput = $io->ask('🧑‍💻 <fg=blue>You:</> ');
@@ -137,8 +196,27 @@ class Chat extends BaseCommand
 
             // Check for clear command
             if ($userInput === $clearCommand) {
-                $this->history = new ChatHistory;
-                $this->history->addMessage(Message::system($input->getOption('system')));
+                // Create a new conversation with the builder
+                $conversationManager = new ConversationManager($client);
+
+                if ($useTools && $this->toolRegistry) {
+                    $this->conversation = $conversationManager->createConversationWithTools(
+                        $this->toolRegistry,
+                        'CLI Chat',
+                        $input->getOption('system')
+                    );
+                } else {
+                    $this->conversation = $conversationManager->createConversationWithSystem(
+                        $input->getOption('system'),
+                        'CLI Chat'
+                    );
+                }
+
+                // Set model, temperature, and max tokens
+                $this->conversation->setModel($model);
+                $this->conversation->setTemperature($temperature);
+                $this->conversation->setMaxTokens($maxTokens);
+
                 $io->writeln('<info>Chat history cleared. Only the system message remains.</info>');
 
                 continue;
@@ -151,68 +229,152 @@ class Chat extends BaseCommand
                 continue;
             }
 
-            // Add user message to history
-            $this->history->addMessage(Message::user($userInput));
+            // Check for disable tools command
+            if ($userInput === $disableToolsCommand) {
+                $useTools = false;
+                $this->conversation->setToolRegistry(new ToolRegistry);
+                $io->writeln('<info>Tools disabled for this session.</info>');
 
-            // Create request
-            $requestClass = $this->requestClass;
-            /** @var V0ChatCompletionRequest|V1ChatCompletionRequest $request */
-            $request = new $requestClass($this->history, $model);
+                continue;
+            }
 
-            // Apply temperature setting
-            $request = $request->withTemperature($temperature);
+            // Check for enable tools command
+            if ($userInput === $enableToolsCommand) {
+                if ($this->toolRegistry === null) {
+                    try {
+                        $this->toolRegistry = $this->createToolRegistry();
+                        $useTools = true;
+                        $this->conversation->setToolRegistry($this->toolRegistry);
+                        $io->writeln('<info>Tools enabled for this session.</info>');
+                    } catch (\Exception $e) {
+                        $io->error('Failed to initialize tools: '.$e->getMessage());
+                    }
+                } else {
+                    $useTools = true;
+                    $this->conversation->setToolRegistry($this->toolRegistry);
+                    $io->writeln('<info>Tools enabled for this session.</info>');
+                }
+
+                continue;
+            }
+
+            // Check for streaming on command
+            if ($userInput === $streamingOnCommand) {
+                $useStreaming = true;
+                $io->writeln('<info>Streaming mode enabled.</info>');
+
+                continue;
+            }
+
+            // Check for streaming off command
+            if ($userInput === $streamingOffCommand) {
+                $useStreaming = false;
+                $io->writeln('<info>Streaming mode disabled.</info>');
+
+                continue;
+            }
+
+            // Check for save command
+            if (strpos($userInput, $saveCommand) === 0) {
+                $parts = explode(' ', $userInput, 2);
+                $filename = $parts[1] ?? 'conversation_'.time().'.json';
+
+                try {
+                    $json = $this->conversation->toJson();
+                    file_put_contents($filename, $json);
+                    $io->writeln("<info>Conversation saved to {$filename}</info>");
+                } catch (\Exception $e) {
+                    $io->error('Failed to save conversation: '.$e->getMessage());
+                }
+
+                continue;
+            }
+
+            // Check for load command
+            if (strpos($userInput, $loadCommand) === 0) {
+                $parts = explode(' ', $userInput, 2);
+                $filename = $parts[1] ?? null;
+
+                if (! $filename) {
+                    $io->error('Please specify a filename: /load <filename>');
+
+                    continue;
+                }
+
+                if (! file_exists($filename)) {
+                    $io->error("File not found: {$filename}");
+
+                    continue;
+                }
+
+                try {
+                    $json = file_get_contents($filename);
+                    $conversationManager = new ConversationManager($client);
+                    $this->conversation = $conversationManager->loadConversation($json);
+                    $io->writeln("<info>Conversation loaded from {$filename}</info>");
+
+                    // Display the loaded conversation
+                    $io->section('Loaded Conversation:');
+
+                    foreach ($this->conversation->getHistory()->getMessages() as $message) {
+                        if ($message->role === 'system') {
+                            $io->writeln('🔧 <fg=yellow>System:</> '.$message->content);
+                        } elseif ($message->role === 'user') {
+                            $io->writeln('🧑‍💻 <fg=blue>User:</> '.$message->content);
+                        } elseif ($message->role === 'assistant') {
+                            $io->writeln('🤖 <fg=green>Assistant:</> '.$message->content);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $io->error('Failed to load conversation: '.$e->getMessage());
+                }
+
+                continue;
+            }
+
+            // Add user message to conversation
+            $this->conversation->addUserMessage($userInput);
 
             $io->write('🤖 <fg=green>Assistant:</> ');
 
             try {
-                if ($stream) {
-                    // Handle streaming response
-                    $response = $client->streamChatCompletion($request);
-                    $fullResponse = '';
-
-                    foreach ($response as $chunk) {
-                        // Check for error in the chunk
-                        if (is_array($chunk) && isset($chunk['error'])) {
-                            throw new \Exception($chunk['error']);
+                if ($useStreaming) {
+                    // Stream the response
+                    $this->conversation->streamResponse(function ($chunk) use ($io): void {
+                        if ($chunk->hasContent()) {
+                            $io->write($chunk->getContent());
                         }
-
-                        if (is_array($chunk) && isset($chunk['choices'][0]['delta']['content'])) {
-                            $content = $chunk['choices'][0]['delta']['content'];
-                            $fullResponse .= $content;
-                            $io->write($content);
-                        }
-                    }
-
-                    // Add assistant's response to history
-                    $this->history->addMessage(Message::assistant($fullResponse));
+                    });
                 } else {
-                    // Handle non-streaming response
-                    $response = $client->chatCompletion($request);
-
-                    // Check if the response contains an error
-                    if (is_array($response) && isset($response['error'])) {
-                        throw new \Exception($response['error']);
-                    }
-
-                    $content = '';
-
-                    if (is_object($response) && isset($response->choices[0]->message->content)) {
-                        $content = $response->choices[0]->message->content;
-                    } elseif (is_array($response) && isset($response['choices'][0]['message']['content'])) {
-                        $content = $response['choices'][0]['message']['content'];
-                    }
-
-                    $io->writeln($content);
-
-                    // Add assistant's response to history
-                    $this->history->addMessage(Message::assistant($content));
+                    // Get a non-streaming response
+                    $response = $this->conversation->getResponse();
+                    $io->write($response);
                 }
             } catch (\Exception $e) {
+                $io->newLine();
                 $io->error('Error: '.$e->getMessage());
+
+                // If we get an error and tools are enabled, try disabling them
+                if ($useTools && $this->toolRegistry) {
+                    $useTools = false;
+                    $this->conversation->setToolRegistry(new ToolRegistry);
+                    $io->warning('Disabling tools due to API error. You can re-enable them with /tools');
+                }
             }
 
             $io->newLine();
         }
+    }
+
+    /**
+     * Creates a tool registry with example tools
+     */
+    private function createToolRegistry(): ToolRegistry
+    {
+        $registry = new ToolRegistry;
+        $this->registerCommonTools($registry);
+
+        return $registry;
     }
 
     /**
@@ -223,7 +385,12 @@ class Chat extends BaseCommand
         $io->section('Available Commands');
         $io->listing([
             '/exit, /quit, /q - End the chat session',
-            '/clear - Clear the chat history (keeps the system message)',
+            '/clear - Clear the chat history',
+            '/tools - Enable tools',
+            '/no-tools - Disable tools',
+            '/streaming on|off - Enable or disable streaming mode',
+            '/save <filename> - Save the conversation to a file',
+            '/load <filename> - Load a conversation from a file',
             '/help - Display this help message',
         ]);
     }

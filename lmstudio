@@ -1,0 +1,46 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Check if this file is being run from the project root
+if (! file_exists(__DIR__.'/vendor/autoload.php')) {
+    echo "Please run this command from the project root.\n";
+    exit(1);
+}
+
+// Load the autoloader
+require __DIR__.'/vendor/autoload.php';
+
+use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\Commands\BaseCommand;
+use Shelfwood\LMStudio\Commands\Chat;
+use Shelfwood\LMStudio\Commands\Sequence;
+use Shelfwood\LMStudio\Commands\ToolTest;
+use Shelfwood\LMStudio\Config\LMStudioConfig;
+use Symfony\Component\Console\Application;
+
+// Create the application
+$application = new Application('LMStudio CLI', '1.0.0');
+
+// Create the LMStudio instance
+$config = new LMStudioConfig(
+    baseUrl: getenv('LMSTUDIO_API_URL') ?: 'http://localhost:1234',
+    apiKey: getenv('LMSTUDIO_API_KEY') ?: 'lm-studio',
+    defaultModel: getenv('LMSTUDIO_DEFAULT_MODEL') ?: 'qwen2.5-7b-instruct-1m',
+    debugConfig: [
+        'enabled' => (bool) getenv('LMSTUDIO_DEBUG'),
+        'verbose' => (bool) getenv('LMSTUDIO_DEBUG_VERBOSE'),
+        'log_file' => getenv('LMSTUDIO_DEBUG_LOG') ?: null,
+    ]
+);
+
+$lmstudio = new LMStudio($config);
+
+// Register commands
+$application->add(new Chat($lmstudio));
+$application->add(new Sequence($lmstudio));
+$application->add(new ToolTest($lmstudio));
+
+// Run the application
+$application->run();

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Commands;
 
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
-use Shelfwood\LMStudio\Requests\V0\ChatCompletionRequest as V0ChatCompletionRequest;
-use Shelfwood\LMStudio\Requests\V1\ChatCompletionRequest as V1ChatCompletionRequest;
+use Shelfwood\LMStudio\Http\Requests\V0\ChatCompletionRequest as V0ChatCompletionRequest;
+use Shelfwood\LMStudio\Http\Requests\V1\ChatCompletionRequest as V1ChatCompletionRequest;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 use Shelfwood\LMStudio\ValueObjects\Message;
 use Shelfwood\LMStudio\ValueObjects\Tool;
@@ -109,6 +109,12 @@ class Sequence extends BaseCommand
 
         // Test 10: Model Information
         $this->testModelInfo($io, $client, $model, $detailed);
+
+        // Test 11: Conversation Class
+        $this->testConversationClass($io, $client, $model, $detailed);
+
+        // Test 12: StreamBuilder
+        $this->testStreamBuilder($io, $client, $model, $detailed);
 
         // Display summary table
         $this->displaySummary($io);
@@ -897,6 +903,139 @@ class Sequence extends BaseCommand
             ];
 
             $io->error('Failed model information test: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Tests the Conversation class
+     */
+    private function testConversationClass(SymfonyStyle $io, LMStudioClientInterface $client, string $model, bool $detailed): void
+    {
+        $io->section('Testing: Conversation Class');
+
+        try {
+            // Create a conversation manager
+            $conversationManager = new \Shelfwood\LMStudio\Conversations\ConversationManager($client);
+
+            // Create a conversation with a system message
+            $conversation = $conversationManager->createConversationWithSystem(
+                'You are a helpful assistant that responds in a concise manner.',
+                'Test Conversation'
+            );
+
+            // Set the model
+            $conversation->setModel($model);
+
+            // Add a user message
+            $conversation->addUserMessage('Hello, can you tell me what day it is today?');
+
+            // Get a response
+            $response = $conversation->getResponse();
+
+            // Display the response
+            $io->writeln('🧑‍💻 <fg=blue>User:</> Hello, can you tell me what day it is today?');
+            $io->writeln('🤖 <fg=green>Assistant:</> '.$response);
+
+            // Add another user message
+            $conversation->addUserMessage('Thank you. Can you also tell me what LM Studio is?');
+
+            // Get another response
+            $response = $conversation->getResponse();
+
+            // Display the response
+            $io->writeln('🧑‍💻 <fg=blue>User:</> Thank you. Can you also tell me what LM Studio is?');
+            $io->writeln('🤖 <fg=green>Assistant:</> '.$response);
+
+            // Test serialization
+            $json = $conversation->toJson();
+            $loadedConversation = $conversationManager->loadConversation($json);
+
+            // Verify the loaded conversation
+            $io->writeln('Conversation serialization and deserialization: '.
+                ($loadedConversation->getTitle() === 'Test Conversation' ? 'Success' : 'Failed'));
+
+            $this->results['Conversation Class'] = [
+                'status' => 'Success',
+                'message' => 'Successfully created and used a conversation',
+            ];
+
+            $io->success('Successfully tested conversation class');
+        } catch (\Exception $e) {
+            $this->results['Conversation Class'] = [
+                'status' => 'Failed',
+                'message' => $e->getMessage(),
+            ];
+
+            $io->error('Failed to test conversation class: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Tests the StreamBuilder class
+     */
+    private function testStreamBuilder(SymfonyStyle $io, LMStudioClientInterface $client, string $model, bool $detailed): void
+    {
+        $io->section('Testing: StreamBuilder');
+
+        try {
+            // Create a conversation manager
+            $conversationManager = new \Shelfwood\LMStudio\Conversations\ConversationManager($client);
+
+            // Create a conversation with a system message
+            $conversation = $conversationManager->createConversationWithSystem(
+                'You are a helpful assistant that responds in a concise manner.',
+                'Stream Test'
+            );
+
+            // Set the model
+            $conversation->setModel($model);
+
+            // Add a user message
+            $conversation->addUserMessage('Write a short poem about artificial intelligence.');
+
+            // Create a stream builder
+            $streamBuilder = new \Shelfwood\LMStudio\Builders\StreamBuilder($client);
+            $streamBuilder
+                ->withHistory($conversation->getHistory())
+                ->withModel($model)
+                ->withTemperature(0.7)
+                ->withMaxTokens(150);
+
+            // Collect the response
+            $fullResponse = '';
+            $io->writeln('🧑‍💻 <fg=blue>User:</> Write a short poem about artificial intelligence.');
+            $io->write('🤖 <fg=green>Assistant:</> ');
+
+            // Stream the response
+            $streamBuilder->stream(function ($chunk) use ($io, &$fullResponse): void {
+                if ($chunk->hasContent()) {
+                    $content = $chunk->getContent();
+                    $fullResponse .= $content;
+                    $io->write($content);
+                }
+            });
+
+            // Execute the stream
+            $streamBuilder->execute();
+            $io->newLine(2);
+
+            if ($detailed) {
+                $io->writeln('Full response length: '.strlen($fullResponse).' characters');
+            }
+
+            $this->results['StreamBuilder'] = [
+                'status' => 'Success',
+                'message' => 'Successfully used StreamBuilder',
+            ];
+
+            $io->success('Successfully tested StreamBuilder');
+        } catch (\Exception $e) {
+            $this->results['StreamBuilder'] = [
+                'status' => 'Failed',
+                'message' => $e->getMessage(),
+            ];
+
+            $io->error('Failed to test StreamBuilder: '.$e->getMessage());
         }
     }
 

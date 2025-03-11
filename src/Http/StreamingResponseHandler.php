@@ -5,12 +5,67 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Http;
 
 use Generator;
+use Psr\Http\Message\StreamInterface;
 
 /**
  * Handles streaming responses from the LMStudio API.
  */
 class StreamingResponseHandler
 {
+    /**
+     * @var StreamInterface The PSR-7 stream
+     */
+    private StreamInterface $stream;
+
+    /**
+     * Create a new StreamingResponseHandler instance
+     */
+    public function __construct(StreamInterface $stream)
+    {
+        $this->stream = $stream;
+    }
+
+    /**
+     * Process the stream and yield JSON decoded chunks
+     */
+    public function stream(): Generator
+    {
+        $buffer = '';
+
+        while (! $this->stream->eof()) {
+            $chunk = $this->stream->read(1024);
+
+            if (! empty($chunk)) {
+                $buffer .= $chunk;
+
+                // Process complete SSE messages
+                while (($pos = strpos($buffer, "\n\n")) !== false) {
+                    $message = substr($buffer, 0, $pos);
+                    $buffer = substr($buffer, $pos + 2);
+
+                    foreach (explode("\n", $message) as $line) {
+                        if (str_starts_with($line, 'data: ')) {
+                            $data = substr($line, 6);
+
+                            if ($data === '[DONE]') {
+                                return;
+                            }
+
+                            $decoded = json_decode($data, true);
+
+                            if ($decoded !== null) {
+                                yield $decoded;
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Small sleep to prevent CPU spinning
+                usleep(50000); // 50ms
+            }
+        }
+    }
+
     /**
      * Accumulate content from streaming chunks.
      *

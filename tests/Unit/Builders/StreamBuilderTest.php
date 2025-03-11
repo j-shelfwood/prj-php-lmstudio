@@ -1,0 +1,184 @@
+<?php
+
+declare(strict_types=1);
+
+use Shelfwood\LMStudio\Builders\StreamBuilder;
+use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
+use Shelfwood\LMStudio\Tools\ToolRegistry;
+use Shelfwood\LMStudio\ValueObjects\ChatHistory;
+use Shelfwood\LMStudio\ValueObjects\Message;
+use Shelfwood\LMStudio\ValueObjects\Tool;
+
+beforeEach(function (): void {
+    $this->client = Mockery::mock(LMStudioClientInterface::class);
+    $this->client->shouldReceive('getConfig->getDefaultModel')->andReturn('test-model');
+
+    // Mock the logger
+    $mockLogger = Mockery::mock(\Shelfwood\LMStudio\Logging\Logger::class);
+    $mockLogger->shouldReceive('log')->andReturn(null);
+    $mockLogger->shouldReceive('logStreamChunk')->andReturn(null);
+    $this->client->shouldReceive('getConfig->getLogger')->andReturn($mockLogger);
+
+    $this->streamBuilder = new StreamBuilder($this->client);
+    $this->history = new ChatHistory([
+        Message::system('You are a helpful assistant.'),
+        Message::user('Hello, how are you?'),
+    ]);
+});
+
+test('it can be instantiated', function (): void {
+    expect($this->streamBuilder)->toBeInstanceOf(StreamBuilder::class);
+});
+
+test('it can set chat history', function (): void {
+    $result = $this->streamBuilder->withHistory($this->history);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder); // Fluent interface returns $this
+});
+
+test('it can set model', function (): void {
+    $result = $this->streamBuilder->withModel('test-model-2');
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set tools', function (): void {
+    $tools = [
+        Tool::function('test_tool', 'Test tool', []),
+    ];
+
+    $result = $this->streamBuilder->withTools($tools);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set tool registry', function (): void {
+    $toolRegistry = new ToolRegistry;
+    $toolRegistry->register(Tool::function('test_tool', 'Test tool', []), fn ($toolCall) => 'test');
+
+    $result = $this->streamBuilder->withToolRegistry($toolRegistry);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set tool use mode', function (): void {
+    $result = $this->streamBuilder->withToolUseMode('none');
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set temperature', function (): void {
+    $result = $this->streamBuilder->withTemperature(0.5);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set max tokens', function (): void {
+    $result = $this->streamBuilder->withMaxTokens(100);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set debug mode', function (): void {
+    $result = $this->streamBuilder->withDebug(true);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set content callback', function (): void {
+    $result = $this->streamBuilder->stream(fn () => null);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set tool call callback', function (): void {
+    $result = $this->streamBuilder->onToolCall(fn () => null);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set complete callback', function (): void {
+    $result = $this->streamBuilder->onComplete(fn () => null);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it can set error callback', function (): void {
+    $result = $this->streamBuilder->onError(fn () => null);
+
+    expect($result)->toBeInstanceOf(StreamBuilder::class);
+    expect($result)->toBe($this->streamBuilder);
+});
+
+test('it executes streaming request and processes stream', function (): void {
+    // Mock the stream response
+    $mockStream = function () {
+        yield ['choices' => [['delta' => ['content' => 'Hello']]]];
+
+        yield ['choices' => [['delta' => ['content' => ' world']]]];
+
+        yield ['choices' => [['finish_reason' => 'stop']]];
+    };
+
+    $this->client->shouldReceive('streamChat')
+        ->once()
+        ->andReturn($mockStream());
+
+    // Set up callbacks
+    $contentReceived = '';
+    $this->streamBuilder
+        ->withHistory($this->history)
+        ->stream(function ($chunk) use (&$contentReceived): void {
+            if ($chunk->hasContent()) {
+                $contentReceived .= $chunk->getContent();
+            }
+        })
+        ->onComplete(function ($content, $toolCalls): void {
+            expect($content)->toBe('Hello world');
+            expect($toolCalls)->toBeArray();
+            expect($toolCalls)->toBeEmpty();
+        });
+
+    // Execute the stream
+    $this->streamBuilder->execute();
+
+    expect($contentReceived)->toBe('Hello world');
+});
+
+test('it handles tool calls during streaming', function (): void {
+    // Skip this test for now as it requires more complex mocking
+    $this->markTestSkipped('This test requires more complex mocking');
+});
+
+test('it handles errors during streaming', function (): void {
+    $this->client->shouldReceive('streamChat')
+        ->once()
+        ->andThrow(new \Exception('Test error'));
+
+    $errorReceived = false;
+    $this->streamBuilder
+        ->withHistory($this->history)
+        ->stream(function ($chunk): void {
+            // Empty content callback to satisfy the requirement
+        })
+        ->onError(function (\Exception $e) use (&$errorReceived): void {
+            $errorReceived = true;
+            expect($e->getMessage())->toBe('Test error');
+        });
+
+    // Execute the stream
+    $this->streamBuilder->execute();
+
+    expect($errorReceived)->toBeTrue();
+});
