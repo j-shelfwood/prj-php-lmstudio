@@ -6,29 +6,77 @@ namespace Shelfwood\LMStudio\ValueObjects;
 
 use Shelfwood\LMStudio\Enums\FinishReason;
 use Shelfwood\LMStudio\Enums\ToolType;
+use Shelfwood\LMStudio\Streaming\StreamState;
+use Shelfwood\LMStudio\Tools\ToolResponse;
+use Shelfwood\LMStudio\ValueObjects\ToolCall;
 
 /**
  * Represents a chunk from a streaming response.
  */
 class StreamChunk implements \JsonSerializable
 {
-    private array $rawChunk;
-
+    private array $rawChunk = [];
     private ?string $content = null;
-
     private array $toolCalls = [];
-
     private ?FinishReason $finishReason = null;
-
     private ?string $error = null;
+    private ?StreamState $state = null;
 
     /**
      * Create a new stream chunk.
      */
-    public function __construct(array $rawChunk)
+    public function __construct(
+        mixed $contentOrRawChunk = null,
+        array $toolCalls = [],
+        ?string $finishReason = null,
+        ?string $error = null,
+        ?StreamState $state = null
+    ) {
+        // Handle the case where the first parameter is an array (raw chunk)
+        if (is_array($contentOrRawChunk)) {
+            $this->rawChunk = $contentOrRawChunk;
+            $this->parseChunk();
+        } else {
+            $this->content = $contentOrRawChunk;
+            $this->toolCalls = $toolCalls;
+            $this->finishReason = $finishReason ? FinishReason::tryFrom($finishReason) : null;
+            $this->error = $error;
+            $this->state = $state;
+        }
+    }
+
+    /**
+     * Create an error chunk.
+     */
+    public static function error(string $message): self
     {
-        $this->rawChunk = $rawChunk;
-        $this->parseChunk();
+        return new self(
+            error: $message,
+            finishReason: 'error',
+            state: StreamState::ERROR
+        );
+    }
+
+    /**
+     * Create a tool result chunk.
+     */
+    public static function toolResult(ToolResponse $toolResponse): self
+    {
+        return new self(
+            toolCalls: [$toolResponse],
+            state: StreamState::PROCESSING_TOOL_CALLS
+        );
+    }
+
+    /**
+     * Create a completion chunk.
+     */
+    public static function completion(string $finishReason = 'stop'): self
+    {
+        return new self(
+            finishReason: $finishReason,
+            state: StreamState::COMPLETED
+        );
     }
 
     /**
@@ -43,11 +91,12 @@ class StreamChunk implements \JsonSerializable
 
         // Extract tool calls
         if (isset($this->rawChunk['choices'][0]['delta']['tool_calls'])) {
+            $toolCalls = [];
             foreach ($this->rawChunk['choices'][0]['delta']['tool_calls'] as $toolCallData) {
                 $id = $toolCallData['id'] ?? null;
 
                 if ($id) {
-                    $this->toolCalls[] = new ToolCall(
+                    $toolCalls[] = new ToolCall(
                         id: $id,
                         type: isset($toolCallData['type'])
                             ? ToolType::from($toolCallData['type'])
@@ -59,6 +108,7 @@ class StreamChunk implements \JsonSerializable
                     );
                 }
             }
+            $this->toolCalls = $toolCalls;
         }
 
         // Extract finish reason
@@ -151,6 +201,31 @@ class StreamChunk implements \JsonSerializable
      */
     public function jsonSerialize(): array
     {
-        return $this->rawChunk;
+        $data = [
+            'content' => $this->content,
+            'tool_calls' => [],
+            'finish_reason' => $this->finishReason?->value,
+            'error' => $this->error,
+            'state' => $this->state?->value,
+        ];
+
+        // Format tool calls based on their type
+        foreach ($this->toolCalls as $toolCall) {
+            if ($toolCall instanceof ToolCall) {
+                $data['tool_calls'][] = [
+                    'id' => $toolCall->id,
+                    'type' => $toolCall->type->value,
+                    'function' => [
+                        'name' => $toolCall->function->name,
+                        'arguments' => $toolCall->function->arguments,
+                    ],
+                ];
+            } elseif ($toolCall instanceof ToolResponse) {
+                $data['tool_results'][] = $toolCall->jsonSerialize();
+            }
+        }
+
+        // Remove null values
+        return array_filter($data, fn ($value) => $value !== null && (!is_array($value) || !empty($value)));
     }
 }

@@ -42,12 +42,17 @@ use Shelfwood\LMStudio\ValueObjects\ToolCall;
  * $result = $registry->execute($toolCall);
  * ```
  */
-class ToolRegistry implements \Countable
+class ToolRegistry implements \Countable, ToolRegistryInterface
 {
     /**
      * @var array<string, array{tool: Tool, handler: callable}>
      */
     private array $tools = [];
+
+    /**
+     * @var array<string, callable|null>
+     */
+    private array $progressCallbacks = [];
 
     /**
      * Register a tool with its execution handler.
@@ -132,14 +137,48 @@ class ToolRegistry implements \Countable
     }
 
     /**
+     * Set a progress callback for a tool.
+     */
+    public function setProgressCallback(string $toolName, ?callable $callback): self
+    {
+        $this->progressCallbacks[$toolName] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Execute a tool call and return a standardized response.
+     */
+    public function executeWithResponse(ToolCall $toolCall): ToolResponse
+    {
+        $name = $toolCall->function->name;
+
+        try {
+            $result = $this->execute($toolCall);
+
+            return ToolResponse::success(
+                $toolCall->id,
+                $name,
+                (string) $result
+            );
+        } catch (\Throwable $e) {
+            return ToolResponse::error(
+                $toolCall->id,
+                $name,
+                $e->getMessage()
+            );
+        }
+    }
+
+    /**
      * Execute a tool call.
      *
      * @param  ToolCall  $toolCall  The tool call to execute
-     * @return mixed The result of the tool execution
+     * @return string The result of the tool execution
      *
      * @throws ToolExecutionException If the tool execution fails or is not registered
      */
-    public function execute(ToolCall $toolCall): mixed
+    public function execute(ToolCall $toolCall): string
     {
         $name = $toolCall->function->name;
 
@@ -151,7 +190,35 @@ class ToolRegistry implements \Countable
             $handler = $this->tools[$name]['handler'];
             $arguments = $toolCall->function->getArgumentsAsArray();
 
-            return call_user_func($handler, $arguments);
+            // Create a progress reporter if we have a progress callback
+            $progressReporter = null;
+
+            if (isset($this->progressCallbacks[$name])) {
+                $progressReporter = function (int $progress, string $message = '') use ($toolCall, $name): void {
+                    $response = ToolResponse::progress(
+                        $toolCall->id,
+                        $name,
+                        $progress,
+                        $message
+                    );
+
+                    if ($this->progressCallbacks[$name] !== null) {
+                        call_user_func($this->progressCallbacks[$name], $response);
+                    }
+                };
+            }
+
+            // Add the progress reporter to the arguments if the handler accepts it
+            $reflection = new \ReflectionFunction($handler);
+            $parameters = $reflection->getParameters();
+
+            if (count($parameters) > 1 && $parameters[1]->getName() === 'progressReporter') {
+                $result = call_user_func($handler, $arguments, $progressReporter);
+            } else {
+                $result = call_user_func($handler, $arguments);
+            }
+
+            return (string) $result;
         } catch (\Throwable $e) {
             if ($e instanceof ToolExecutionException) {
                 throw $e;

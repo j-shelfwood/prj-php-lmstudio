@@ -5,30 +5,36 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Conversations;
 
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
+use Shelfwood\LMStudio\Http\Factories\RequestFactoryInterface;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 
 /**
  * Manages conversation operations.
  */
-class ConversationManager
+class ConversationManager implements ConversationManagerInterface
 {
     private LMStudioClientInterface $client;
+
+    private ?RequestFactoryInterface $requestFactory;
 
     /**
      * Create a new conversation manager.
      */
-    public function __construct(LMStudioClientInterface $client)
-    {
+    public function __construct(
+        LMStudioClientInterface $client,
+        ?RequestFactoryInterface $requestFactory = null
+    ) {
         $this->client = $client;
+        $this->requestFactory = $requestFactory;
     }
 
     /**
      * Create a new conversation.
      */
-    public function createConversation(string $title = 'New Conversation'): Conversation
+    public function createConversation(string $title = 'New Conversation'): ConversationInterface
     {
-        return Conversation::builder($this->client)
+        return Conversation::builder($this->client, $this->requestFactory)
             ->withTitle($title)
             ->build();
     }
@@ -36,9 +42,9 @@ class ConversationManager
     /**
      * Create a conversation with a system message.
      */
-    public function createConversationWithSystem(string $systemMessage, string $title = 'New Conversation'): Conversation
+    public function createConversationWithSystem(string $systemMessage, string $title = 'New Conversation'): ConversationInterface
     {
-        return Conversation::builder($this->client)
+        return Conversation::builder($this->client, $this->requestFactory)
             ->withTitle($title)
             ->withSystemMessage($systemMessage)
             ->build();
@@ -51,8 +57,8 @@ class ConversationManager
         ToolRegistry $toolRegistry,
         string $title = 'New Conversation',
         ?string $systemMessage = null
-    ): Conversation {
-        $builder = Conversation::builder($this->client)
+    ): ConversationInterface {
+        $builder = Conversation::builder($this->client, $this->requestFactory)
             ->withTitle($title)
             ->withToolRegistry($toolRegistry);
 
@@ -66,15 +72,15 @@ class ConversationManager
     /**
      * Load a conversation from JSON.
      */
-    public function loadConversation(string $json): Conversation
+    public function loadConversation(string $json): ConversationInterface
     {
-        return Conversation::fromJson($json, $this->client);
+        return Conversation::fromJson($json, $this->client, $this->requestFactory);
     }
 
     /**
      * Save a conversation to JSON.
      */
-    public function saveConversation(Conversation $conversation): string
+    public function saveConversation(ConversationInterface $conversation): string
     {
         return $conversation->toJson();
     }
@@ -86,8 +92,8 @@ class ConversationManager
         ChatHistory $history,
         string $title = 'New Conversation',
         ?ToolRegistry $toolRegistry = null
-    ): Conversation {
-        $builder = Conversation::builder($this->client)
+    ): ConversationInterface {
+        $builder = Conversation::builder($this->client, $this->requestFactory)
             ->withTitle($title)
             ->withHistory($history);
 

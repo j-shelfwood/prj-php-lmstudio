@@ -124,7 +124,7 @@ echo "Story: {$response}\n";
 ### Advanced Streaming with StreamBuilder
 
 ```php
-use Shelfwood\LMStudio\Builders\StreamBuilder;
+use Shelfwood\LMStudio\Streaming\StreamBuilder;
 
 // Create a stream builder
 $streamBuilder = StreamBuilder::create($client)

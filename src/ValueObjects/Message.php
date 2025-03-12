@@ -30,6 +30,38 @@ class Message implements \JsonSerializable
     }
 
     /**
+     * Create a message from an array.
+     */
+    public static function fromArray(array $data): self
+    {
+        $role = Role::from($data['role'] ?? 'user');
+        $content = $data['content'] ?? null;
+        $name = null;
+        $toolCalls = null;
+
+        // Handle name or tool_call_id based on role
+        if ($role === Role::TOOL && isset($data['tool_call_id'])) {
+            $name = $data['tool_call_id'];
+        } elseif (isset($data['name'])) {
+            $name = $data['name'];
+        }
+
+        // Handle tool calls
+        if (isset($data['tool_calls']) && is_array($data['tool_calls'])) {
+            $toolCalls = [];
+            foreach ($data['tool_calls'] as $toolCallData) {
+                if ($toolCallData instanceof ToolCall) {
+                    $toolCalls[] = $toolCallData;
+                } else {
+                    $toolCalls[] = ToolCall::fromArray($toolCallData);
+                }
+            }
+        }
+
+        return new self($role, $content, $toolCalls, $name);
+    }
+
+    /**
      * Create a system message.
      */
     public static function system(string $content): self

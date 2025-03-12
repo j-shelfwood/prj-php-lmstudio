@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio;
 
-use Shelfwood\LMStudio\Builders\StreamBuilder;
+use Psr\Log\LoggerInterface;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Container\ServiceContainer;
 use Shelfwood\LMStudio\Contracts\ConfigAwareInterface;
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
 use Shelfwood\LMStudio\Conversations\Conversation;
-use Shelfwood\LMStudio\Conversations\ConversationManager;
+use Shelfwood\LMStudio\Conversations\ConversationInterface;
+use Shelfwood\LMStudio\Conversations\ConversationManagerInterface;
 use Shelfwood\LMStudio\Exceptions\InvalidConfigurationException;
-use Shelfwood\LMStudio\Tools\ToolRegistry;
+use Shelfwood\LMStudio\Streaming\StreamBuilderInterface;
+use Shelfwood\LMStudio\Tools\ToolRegistryInterface;
 
 /**
  * Main entry point for the LM Studio PHP client.
@@ -28,22 +31,24 @@ use Shelfwood\LMStudio\Tools\ToolRegistry;
  */
 class LMStudio implements ConfigAwareInterface
 {
-    private LMStudioConfig $config;
-
-    private ?LMS $lms = null;
-
-    private ?OpenAI $openai = null;
-
-    private ?ConversationManager $conversationManager = null;
+    /**
+     * The service container.
+     */
+    private ServiceContainer $container;
 
     /**
      * Create a new LM Studio client instance.
      *
      * @param  LMStudioConfig|null  $config  Optional configuration (will use defaults if not provided)
+     * @param  ServiceContainer|null  $container  Optional service container (will create a new one if not provided)
      */
-    public function __construct(?LMStudioConfig $config = null)
+    public function __construct(?LMStudioConfig $config = null, ?ServiceContainer $container = null)
     {
-        $this->config = $config ?? new LMStudioConfig;
+        $this->container = $container ?? new ServiceContainer;
+
+        if ($config !== null) {
+            $this->container->withConfig($config);
+        }
     }
 
     /**
@@ -53,7 +58,17 @@ class LMStudio implements ConfigAwareInterface
      */
     public function getConfig(): LMStudioConfig
     {
-        return $this->config;
+        return $this->container->get(LMStudioConfig::class);
+    }
+
+    /**
+     * Get the service container.
+     *
+     * @return ServiceContainer The service container
+     */
+    public function getContainer(): ServiceContainer
+    {
+        return $this->container;
     }
 
     /**
@@ -63,11 +78,9 @@ class LMStudio implements ConfigAwareInterface
      */
     public function lms(): LMStudioClientInterface
     {
-        if ($this->lms === null) {
-            $this->lms = new LMS($this->config);
-        }
+        $this->container->useClient(LMS::class);
 
-        return $this->lms;
+        return $this->container->get(LMStudioClientInterface::class);
     }
 
     /**
@@ -78,8 +91,8 @@ class LMStudio implements ConfigAwareInterface
      */
     public function setLmsClient(LMS $client): self
     {
-        $this->lms = $client;
-        $this->conversationManager = null; // Reset conversation manager if client changes
+        $this->container->instance(LMS::class, $client);
+        $this->container->useClient(LMS::class);
 
         return $this;
     }
@@ -91,11 +104,9 @@ class LMStudio implements ConfigAwareInterface
      */
     public function openai(): LMStudioClientInterface
     {
-        if ($this->openai === null) {
-            $this->openai = new OpenAI($this->config);
-        }
+        $this->container->useClient(OpenAI::class);
 
-        return $this->openai;
+        return $this->container->get(LMStudioClientInterface::class);
     }
 
     /**
@@ -106,8 +117,21 @@ class LMStudio implements ConfigAwareInterface
      */
     public function setOpenAiClient(OpenAI $client): self
     {
-        $this->openai = $client;
-        $this->conversationManager = null; // Reset conversation manager if client changes
+        $this->container->instance(OpenAI::class, $client);
+        $this->container->useClient(OpenAI::class);
+
+        return $this;
+    }
+
+    /**
+     * Set a logger for the client.
+     *
+     * @param  LoggerInterface  $logger  The logger to use
+     * @return self For method chaining
+     */
+    public function withLogger(LoggerInterface $logger): self
+    {
+        $this->container->withLogger($logger);
 
         return $this;
     }
@@ -126,13 +150,9 @@ class LMStudio implements ConfigAwareInterface
             throw new InvalidConfigurationException('Base URL cannot be empty');
         }
 
-        $clone = clone $this;
-        $clone->config = $this->config->withBaseUrl($baseUrl);
-        $clone->lms = null;
-        $clone->openai = null;
-        $clone->conversationManager = null;
+        $config = $this->getConfig()->withBaseUrl($baseUrl);
 
-        return $clone;
+        return new self($config);
     }
 
     /**
@@ -149,13 +169,9 @@ class LMStudio implements ConfigAwareInterface
             throw new InvalidConfigurationException('API key cannot be empty');
         }
 
-        $clone = clone $this;
-        $clone->config = $this->config->withApiKey($apiKey);
-        $clone->lms = null;
-        $clone->openai = null;
-        $clone->conversationManager = null;
+        $config = $this->getConfig()->withApiKey($apiKey);
 
-        return $clone;
+        return new self($config);
     }
 
     /**
@@ -166,13 +182,9 @@ class LMStudio implements ConfigAwareInterface
      */
     public function withHeaders(array $headers): self
     {
-        $clone = clone $this;
-        $clone->config = $this->config->withHeaders($headers);
-        $clone->lms = null;
-        $clone->openai = null;
-        $clone->conversationManager = null;
+        $config = $this->getConfig()->withHeaders($headers);
 
-        return $clone;
+        return new self($config);
     }
 
     /**
@@ -189,13 +201,9 @@ class LMStudio implements ConfigAwareInterface
             throw new InvalidConfigurationException('Timeout must be greater than zero');
         }
 
-        $clone = clone $this;
-        $clone->config = $this->config->withTimeout($timeout);
-        $clone->lms = null;
-        $clone->openai = null;
-        $clone->conversationManager = null;
+        $config = $this->getConfig()->withTimeout($timeout);
 
-        return $clone;
+        return new self($config);
     }
 
     /**
@@ -212,13 +220,9 @@ class LMStudio implements ConfigAwareInterface
             throw new InvalidConfigurationException('TTL must be a non-negative integer');
         }
 
-        $clone = clone $this;
-        $clone->config = $this->config->withTtl($ttl);
-        $clone->lms = null;
-        $clone->openai = null;
-        $clone->conversationManager = null;
+        $config = $this->getConfig()->withTtl($ttl);
 
-        return $clone;
+        return new self($config);
     }
 
     /**
@@ -229,46 +233,38 @@ class LMStudio implements ConfigAwareInterface
      */
     public function withAutoEvict(bool $autoEvict): self
     {
-        $clone = clone $this;
-        $clone->config = $this->config->withAutoEvict($autoEvict);
-        $clone->lms = null;
-        $clone->openai = null;
-        $clone->conversationManager = null;
+        $config = $this->getConfig()->withAutoEvict($autoEvict);
 
-        return $clone;
+        return new self($config);
     }
 
     /**
      * Create a new chat builder for streaming.
      *
-     * @return StreamBuilder A new stream builder instance
+     * @return StreamBuilderInterface A new stream builder instance
      */
-    public function chat(): StreamBuilder
+    public function chat(): StreamBuilderInterface
     {
-        return new StreamBuilder($this->lms());
+        return $this->container->get(Streaming\StreamBuilderInterface::class);
     }
 
     /**
      * Get the conversation manager.
      *
-     * @return ConversationManager The conversation manager instance
+     * @return ConversationManagerInterface The conversation manager instance
      */
-    public function conversations(): ConversationManager
+    public function conversations(): ConversationManagerInterface
     {
-        if ($this->conversationManager === null) {
-            $this->conversationManager = new ConversationManager($this->lms());
-        }
-
-        return $this->conversationManager;
+        return $this->container->get(Conversations\ConversationManagerInterface::class);
     }
 
     /**
      * Create a new conversation.
      *
      * @param  string  $title  The conversation title
-     * @return Conversation A new conversation instance
+     * @return ConversationInterface A new conversation instance
      */
-    public function createConversation(string $title = 'New Conversation'): Conversation
+    public function createConversation(string $title = 'New Conversation'): ConversationInterface
     {
         return $this->conversations()->createConversation($title);
     }
@@ -278,9 +274,9 @@ class LMStudio implements ConfigAwareInterface
      *
      * @param  string  $systemMessage  The system message content
      * @param  string  $title  The conversation title
-     * @return Conversation A new conversation instance with the system message
+     * @return ConversationInterface A new conversation instance with the system message
      */
-    public function createConversationWithSystem(string $systemMessage, string $title = 'New Conversation'): Conversation
+    public function createConversationWithSystem(string $systemMessage, string $title = 'New Conversation'): ConversationInterface
     {
         return $this->conversations()->createConversationWithSystem($systemMessage, $title);
     }
@@ -288,26 +284,26 @@ class LMStudio implements ConfigAwareInterface
     /**
      * Create a new conversation with tools.
      *
-     * @param  ToolRegistry  $toolRegistry  The tool registry to use
+     * @param  ToolRegistryInterface  $toolRegistry  The tool registry
      * @param  string  $title  The conversation title
-     * @param  string|null  $systemMessage  Optional system message
-     * @return Conversation A new conversation instance with tools
+     * @param  string|null  $systemMessage  Optional system message content
+     * @return ConversationInterface A new conversation instance with tools
      */
     public function createConversationWithTools(
-        ToolRegistry $toolRegistry,
+        ToolRegistryInterface $toolRegistry,
         string $title = 'New Conversation',
         ?string $systemMessage = null
-    ): Conversation {
+    ): ConversationInterface {
         return $this->conversations()->createConversationWithTools($toolRegistry, $title, $systemMessage);
     }
 
     /**
      * Create a new tool registry.
      *
-     * @return ToolRegistry A new tool registry instance
+     * @return ToolRegistryInterface A new tool registry instance
      */
-    public function createToolRegistry(): ToolRegistry
+    public function createToolRegistry(): ToolRegistryInterface
     {
-        return new ToolRegistry;
+        return $this->container->get(Tools\ToolRegistryInterface::class);
     }
 }

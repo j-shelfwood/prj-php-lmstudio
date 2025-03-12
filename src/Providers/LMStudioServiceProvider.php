@@ -6,6 +6,7 @@ namespace Shelfwood\LMStudio\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Shelfwood\LMStudio\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Container\ServiceContainer;
 use Shelfwood\LMStudio\LMStudio;
 
 class LMStudioServiceProvider extends ServiceProvider
@@ -31,8 +32,23 @@ class LMStudioServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(ServiceContainer::class, function ($app) {
+            $container = new ServiceContainer;
+            $container->withConfig($app->make(LMStudioConfig::class));
+
+            // If a PSR-3 logger is available in the Laravel container, use it
+            if ($app->bound('log')) {
+                $container->withLogger($app['log']);
+            }
+
+            return $container;
+        });
+
         $this->app->singleton(LMStudio::class, function ($app) {
-            return new LMStudio($app->make(LMStudioConfig::class));
+            return new LMStudio(
+                $app->make(LMStudioConfig::class),
+                $app->make(ServiceContainer::class)
+            );
         });
 
         $this->app->register(LMStudioConsoleServiceProvider::class);

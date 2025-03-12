@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Conversations;
 
 use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
+use Shelfwood\LMStudio\Http\Factories\RequestFactoryInterface;
 use Shelfwood\LMStudio\Tools\ToolRegistry;
 use Shelfwood\LMStudio\ValueObjects\ChatHistory;
 
@@ -36,7 +37,10 @@ class ConversationBuilder
     /**
      * Create a new conversation builder.
      */
-    public function __construct(private LMStudioClientInterface $client) {}
+    public function __construct(
+        private LMStudioClientInterface $client,
+        private ?RequestFactoryInterface $requestFactory = null
+    ) {}
 
     /**
      * Set the conversation title.
@@ -160,10 +164,12 @@ class ConversationBuilder
     {
         // Create the conversation
         $conversation = new Conversation(
-            client: $this->client,
-            title: $this->title,
-            id: $this->id,
-            history: $this->history
+            $this->client,
+            $this->title,
+            $this->id,
+            $this->history,
+            null,
+            $this->requestFactory
         );
 
         // Set model, temperature, and max tokens if provided
@@ -186,7 +192,9 @@ class ConversationBuilder
 
         // Set metadata if provided
         if (! empty($this->metadata)) {
-            $conversation->setMetadata($this->metadata);
+            foreach ($this->metadata as $key => $value) {
+                $conversation->setMetadata($key, $value);
+            }
         }
 
         // Add system messages

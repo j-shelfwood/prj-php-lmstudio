@@ -67,7 +67,7 @@ it('can set an existing chat history', function (): void {
     $builder = new ConversationBuilder($client);
     $conversation = $builder->withHistory($history)->build();
 
-    expect($conversation->getHistory())->toBe($history);
+    expect($conversation->getChatHistory())->toBe($history);
     expect($conversation->getMessages())->toHaveCount(1);
 });
 

@@ -29,6 +29,28 @@ class ChatHistory implements \Countable, \IteratorAggregate, \JsonSerializable
     }
 
     /**
+     * Create a chat history from an array of message data.
+     *
+     * @param array $messagesData Array of message data
+     * @return self
+     */
+    public static function fromArray(array $messagesData): self
+    {
+        $history = new self();
+
+        foreach ($messagesData as $messageData) {
+            if ($messageData instanceof Message) {
+                $history->addMessage($messageData);
+            } else {
+                $message = Message::fromArray($messageData);
+                $history->addMessage($message);
+            }
+        }
+
+        return $history;
+    }
+
+    /**
      * Add a message to the chat history.
      */
     public function addMessage(Message $message): self

@@ -43,6 +43,26 @@ class ToolCall implements \JsonSerializable
     }
 
     /**
+     * Create a tool call from an array.
+     *
+     * @param array $data The tool call data
+     * @return self
+     */
+    public static function fromArray(array $data): self
+    {
+        $id = $data['id'] ?? uniqid('call_');
+        $type = isset($data['type']) ? ToolType::from($data['type']) : ToolType::FUNCTION;
+
+        $functionData = $data['function'] ?? [];
+        $functionName = $functionData['name'] ?? '';
+        $functionArgs = $functionData['arguments'] ?? '{}';
+
+        $function = new FunctionCall($functionName, $functionArgs);
+
+        return new self($id, $type, $function);
+    }
+
+    /**
      * Create a function tool call.
      *
      * @param  string  $name  The name of the function to call
