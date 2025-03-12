@@ -43,4 +43,24 @@ class TextCompletionResponse
             usage: $data['usage'] ?? [],
         );
     }
+
+    /**
+     * Get the choices in the completion.
+     */
+    public function getChoices(): array
+    {
+        return $this->choices;
+    }
+
+    /**
+     * Get the text from the first choice.
+     */
+    public function getText(): ?string
+    {
+        if (empty($this->choices)) {
+            return null;
+        }
+
+        return $this->choices[0]['text'] ?? null;
+    }
 }
