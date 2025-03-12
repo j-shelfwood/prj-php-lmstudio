@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Enums\Role;
-use Shelfwood\LMStudio\Enums\ToolType;
-use Shelfwood\LMStudio\ValueObjects\FunctionCall;
-use Shelfwood\LMStudio\ValueObjects\Message;
-use Shelfwood\LMStudio\ValueObjects\ToolCall;
+use Shelfwood\LMStudio\Enum\Role;
+use Shelfwood\LMStudio\Enum\ToolType;
+use Shelfwood\LMStudio\ValueObject\FunctionCall;
+use Shelfwood\LMStudio\ValueObject\Message;
+use Shelfwood\LMStudio\ValueObject\ToolCall;
 
 describe('Message', function (): void {
     it('can be instantiated with role and content', function (): void {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Http\Responses\Common\Function_;
+use Shelfwood\LMStudio\Http\Response\Common\Function_;
 
 describe('Function_', function (): void {
     it('can be instantiated with name and arguments', function (): void {

@@ -6,7 +6,7 @@ namespace Tests;
 
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Orchestra\Testbench\TestCase as BaseTestCase;
-use Shelfwood\LMStudio\Providers\LMStudioServiceProvider;
+use Shelfwood\LMStudio\Core\Provider\LMStudioServiceProvider;
 
 abstract class TestCase extends BaseTestCase
 {

@@ -8,8 +8,8 @@ use Mockery;
 use Mockery\MockInterface;
 use Shelfwood\LMStudio\Http\Client;
 use Shelfwood\LMStudio\Http\StreamingResponseHandler;
-use Shelfwood\LMStudio\LMS;
-use Shelfwood\LMStudio\OpenAI;
+use Shelfwood\LMStudio\Api\Client\LMS;
+use Shelfwood\LMStudio\Api\Client\OpenAI;
 
 trait ClientMockingTrait
 {

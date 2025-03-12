@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Enums\FinishReason;
-use Shelfwood\LMStudio\Enums\ToolType;
-use Shelfwood\LMStudio\ValueObjects\StreamChunk;
-use Shelfwood\LMStudio\ValueObjects\ToolCall;
+use Shelfwood\LMStudio\Enum\FinishReason;
+use Shelfwood\LMStudio\Enum\ToolType;
+use Shelfwood\LMStudio\ValueObject\StreamChunk;
+use Shelfwood\LMStudio\ValueObject\ToolCall;
 
 test('it can be instantiated with raw chunk data', function (): void {
     $rawChunk = ['choices' => [['delta' => ['content' => 'Hello']]]];

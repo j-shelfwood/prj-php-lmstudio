@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
-use Shelfwood\LMStudio\Http\Factories\RequestFactoryInterface;
-use Shelfwood\LMStudio\Http\Requests\Common\RequestInterface;
-use Shelfwood\LMStudio\Streaming\StreamBuilder;
-use Shelfwood\LMStudio\Streaming\StreamResponse;
-use Shelfwood\LMStudio\Tools\ToolRegistry;
-use Shelfwood\LMStudio\ValueObjects\ChatHistory;
-use Shelfwood\LMStudio\ValueObjects\Message;
-use Shelfwood\LMStudio\ValueObjects\StreamChunk;
-use Shelfwood\LMStudio\ValueObjects\Tool;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Api\Contract\LMStudioClientInterface;
+use Shelfwood\LMStudio\Http\Factory\RequestFactoryInterface;
+use Shelfwood\LMStudio\Http\Request\Common\RequestInterface;
+use Shelfwood\LMStudio\Stream\StreamBuilder;
+use Shelfwood\LMStudio\Stream\StreamResponse;
+use Shelfwood\LMStudio\Tool\ToolRegistry;
+use Shelfwood\LMStudio\ValueObject\ChatHistory;
+use Shelfwood\LMStudio\ValueObject\Message;
+use Shelfwood\LMStudio\ValueObject\StreamChunk;
+use Shelfwood\LMStudio\ValueObject\Tool;
 
 beforeEach(function (): void {
     $this->client = Mockery::mock(LMStudioClientInterface::class);

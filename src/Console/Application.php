@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Console;
 
-use Shelfwood\LMStudio\Commands\Chat;
-use Shelfwood\LMStudio\Commands\Sequence;
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\LMStudio;
+use Shelfwood\LMStudio\Console\Command\Chat;
+use Shelfwood\LMStudio\Console\Command\Sequence;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Core\LMStudio;
 use Symfony\Component\Console\Application as SymfonyApplication;
 
 class Application extends SymfonyApplication

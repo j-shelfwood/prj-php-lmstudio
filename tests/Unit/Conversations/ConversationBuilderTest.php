@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Conversations;
 
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
-use Shelfwood\LMStudio\Conversations\Conversation;
-use Shelfwood\LMStudio\Conversations\ConversationBuilder;
-use Shelfwood\LMStudio\Enums\Role;
-use Shelfwood\LMStudio\Tools\ToolRegistry;
-use Shelfwood\LMStudio\ValueObjects\ChatHistory;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Api\Contract\LMStudioClientInterface;
+use Shelfwood\LMStudio\Chat\Conversation;
+use Shelfwood\LMStudio\Chat\ConversationBuilder;
+use Shelfwood\LMStudio\Enum\Role;
+use Shelfwood\LMStudio\Tool\ToolRegistry;
+use Shelfwood\LMStudio\ValueObject\ChatHistory;
 
 // Helper function to create a properly mocked client
 function createMockedClient()

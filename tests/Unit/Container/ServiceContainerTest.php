@@ -3,13 +3,13 @@
 declare(strict_types=1);
 
 use Psr\Log\LoggerInterface;
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Container\NotFoundException;
-use Shelfwood\LMStudio\Container\ServiceContainer;
-use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Core\Container\NotFoundException;
+use Shelfwood\LMStudio\Core\Container\ServiceContainer;
+use Shelfwood\LMStudio\Api\Contract\LMStudioClientInterface;
 use Shelfwood\LMStudio\Http\Client;
-use Shelfwood\LMStudio\LMS;
-use Shelfwood\LMStudio\OpenAI;
+use Shelfwood\LMStudio\Api\Client\LMS;
+use Shelfwood\LMStudio\Api\Client\OpenAI;
 
 describe('ServiceContainer', function (): void {
     it('can be instantiated', function (): void {

@@ -6,8 +6,8 @@ use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Exceptions\LMStudioException;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Exception\LMStudioException;
 use Shelfwood\LMStudio\Http\Client;
 
 beforeEach(function (): void {

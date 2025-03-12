@@ -11,10 +11,10 @@ use GuzzleHttp\Middleware;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Exceptions\LMStudioException;
-use Shelfwood\LMStudio\Exceptions\StreamingException;
-use Shelfwood\LMStudio\Logging\Logger;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Exception\LMStudioException;
+use Shelfwood\LMStudio\Exception\StreamingException;
+use Shelfwood\LMStudio\Log\Logger;
 
 class Client
 {
@@ -163,7 +163,7 @@ class Client
 
                 // Use the handler to process the stream and yield StreamChunk objects
                 foreach ($handler->stream() as $rawChunk) {
-                    $chunk = new \Shelfwood\LMStudio\ValueObjects\StreamChunk($rawChunk);
+                    $chunk = new \Shelfwood\LMStudio\ValueObject\StreamChunk($rawChunk);
 
                     // Log tool calls if present
                     if ($chunk->hasToolCalls()) {

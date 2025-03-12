@@ -13,8 +13,8 @@ composer require shelfwood/lmstudio
 ### Creating a Client
 
 ```php
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\OpenAI;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Api\Client\OpenAI;
 
 // Create a configuration
 $config = new LMStudioConfig(
@@ -32,7 +32,7 @@ $client = new OpenAI($config);
 ### Simple Conversation
 
 ```php
-use Shelfwood\LMStudio\Conversations\Conversation;
+use Shelfwood\LMStudio\Chat\Conversation;
 
 // Create a conversation with a system message
 $conversation = Conversation::withSystemMessage(
@@ -63,8 +63,8 @@ $conversation->sendStreaming(
 ### Using Tools
 
 ```php
-use Shelfwood\LMStudio\Tools\ToolRegistry;
-use Shelfwood\LMStudio\ValueObjects\Tool;
+use Shelfwood\LMStudio\Tool\ToolRegistry;
+use Shelfwood\LMStudio\ValueObject\Tool;
 
 // Create a tool registry
 $toolRegistry = new ToolRegistry();
@@ -124,7 +124,7 @@ echo "Story: {$response}\n";
 ### Advanced Streaming with StreamBuilder
 
 ```php
-use Shelfwood\LMStudio\Streaming\StreamBuilder;
+use Shelfwood\LMStudio\Stream\StreamBuilder;
 
 // Create a stream builder
 $streamBuilder = StreamBuilder::create($client)
@@ -179,7 +179,7 @@ $config = new LMStudioConfig(
 You can create and use chat configurations:
 
 ```php
-use Shelfwood\LMStudio\ValueObjects\ChatConfiguration;
+use Shelfwood\LMStudio\ValueObject\ChatConfiguration;
 
 // Create a configuration with the builder pattern
 $chatConfig = ChatConfiguration::builder('qwen2.5-7b-instruct-1m')

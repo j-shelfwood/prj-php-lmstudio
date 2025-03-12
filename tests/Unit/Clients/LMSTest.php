@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Enums\Role;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Enum\Role;
 use Shelfwood\LMStudio\Http\Client;
-use Shelfwood\LMStudio\Http\Requests\V0\ChatCompletionRequest;
-use Shelfwood\LMStudio\Http\Requests\V0\EmbeddingRequest;
-use Shelfwood\LMStudio\Http\Requests\V0\TextCompletionRequest;
-use Shelfwood\LMStudio\Http\Responses\V0\ChatCompletion;
-use Shelfwood\LMStudio\Http\Responses\V0\Embedding;
-use Shelfwood\LMStudio\Http\Responses\V0\TextCompletion;
-use Shelfwood\LMStudio\LMS;
-use Shelfwood\LMStudio\ValueObjects\ChatHistory;
-use Shelfwood\LMStudio\ValueObjects\Message;
+use Shelfwood\LMStudio\Http\Request\V0\ChatCompletionRequest;
+use Shelfwood\LMStudio\Http\Request\V0\EmbeddingRequest;
+use Shelfwood\LMStudio\Http\Request\V0\TextCompletionRequest;
+use Shelfwood\LMStudio\Http\Response\V0\ChatCompletion;
+use Shelfwood\LMStudio\Http\Response\V0\Embedding;
+use Shelfwood\LMStudio\Http\Response\V0\TextCompletion;
+use Shelfwood\LMStudio\Api\Client\LMS;
+use Shelfwood\LMStudio\ValueObject\ChatHistory;
+use Shelfwood\LMStudio\ValueObject\Message;
 
 test('it returns chat completion dto', function (): void {
     $mockResponse = [

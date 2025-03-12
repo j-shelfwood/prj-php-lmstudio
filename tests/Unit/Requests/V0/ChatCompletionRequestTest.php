@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Requests\V0;
 
-use Shelfwood\LMStudio\Enums\Role;
-use Shelfwood\LMStudio\Http\Requests\V0\ChatCompletionRequest;
-use Shelfwood\LMStudio\ValueObjects\ChatHistory;
-use Shelfwood\LMStudio\ValueObjects\JsonSchema;
-use Shelfwood\LMStudio\ValueObjects\Message;
-use Shelfwood\LMStudio\ValueObjects\Tool;
+use Shelfwood\LMStudio\Enum\Role;
+use Shelfwood\LMStudio\Http\Request\V0\ChatCompletionRequest;
+use Shelfwood\LMStudio\ValueObject\ChatHistory;
+use Shelfwood\LMStudio\ValueObject\JsonSchema;
+use Shelfwood\LMStudio\ValueObject\Message;
+use Shelfwood\LMStudio\ValueObject\Tool;
 
 test('it can be instantiated with messages array', function (): void {
     $messages = [

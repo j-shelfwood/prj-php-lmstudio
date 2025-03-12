@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
 
 test('config has default values', function (): void {
     $config = new LMStudioConfig;

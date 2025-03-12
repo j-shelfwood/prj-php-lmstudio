@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\ValueObjects\FunctionCall;
+use Shelfwood\LMStudio\ValueObject\FunctionCall;
 
 describe('FunctionCall', function (): void {
     it('can be instantiated with name and arguments', function (): void {

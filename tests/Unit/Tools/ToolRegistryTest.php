@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Enums\ToolType;
-use Shelfwood\LMStudio\Exceptions\InvalidToolDefinitionException;
-use Shelfwood\LMStudio\Tools\ToolRegistry;
-use Shelfwood\LMStudio\ValueObjects\FunctionCall;
-use Shelfwood\LMStudio\ValueObjects\Tool;
-use Shelfwood\LMStudio\ValueObjects\ToolCall;
+use Shelfwood\LMStudio\Enum\ToolType;
+use Shelfwood\LMStudio\Exception\InvalidToolDefinitionException;
+use Shelfwood\LMStudio\Tool\ToolRegistry;
+use Shelfwood\LMStudio\ValueObject\FunctionCall;
+use Shelfwood\LMStudio\ValueObject\Tool;
+use Shelfwood\LMStudio\ValueObject\ToolCall;
 
 beforeEach(function (): void {
     $this->registry = new ToolRegistry;
@@ -172,5 +172,5 @@ test('it throws an exception when executing an unregistered tool', function (): 
     );
 
     expect(fn () => $this->registry->execute($toolCall))
-        ->toThrow(\Shelfwood\LMStudio\Exceptions\ToolExecutionException::class, "Tool 'nonexistent_tool' is not registered");
+        ->toThrow(\Shelfwood\LMStudio\Exception\ToolExecutionException::class, "Tool 'nonexistent_tool' is not registered");
 });

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\ValueObjects\ToolFunction;
+use Shelfwood\LMStudio\ValueObject\ToolFunction;
 
 describe('ToolFunction', function (): void {
     it('can be instantiated with name and description', function (): void {

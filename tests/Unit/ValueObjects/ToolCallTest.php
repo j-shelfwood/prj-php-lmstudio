@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Enums\ToolType;
-use Shelfwood\LMStudio\ValueObjects\FunctionCall;
-use Shelfwood\LMStudio\ValueObjects\ToolCall;
+use Shelfwood\LMStudio\Enum\ToolType;
+use Shelfwood\LMStudio\ValueObject\FunctionCall;
+use Shelfwood\LMStudio\ValueObject\ToolCall;
 
 describe('ToolCall', function (): void {
     it('can be instantiated with id, type, and function', function (): void {

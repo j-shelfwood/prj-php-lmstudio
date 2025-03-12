@@ -2,16 +2,17 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
-use Shelfwood\LMStudio\Conversations\Conversation;
-use Shelfwood\LMStudio\Enums\Role;
-use Shelfwood\LMStudio\Enums\ToolType;
-use Shelfwood\LMStudio\Tools\ToolRegistry;
-use Shelfwood\LMStudio\ValueObjects\ChatHistory;
-use Shelfwood\LMStudio\ValueObjects\FunctionCall;
-use Shelfwood\LMStudio\ValueObjects\Message;
-use Shelfwood\LMStudio\ValueObjects\ToolCall;
+use Shelfwood\LMStudio\Api\Contract\LMStudioClientInterface;
+use Shelfwood\LMStudio\Chat\Conversation;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Enum\Role;
+use Shelfwood\LMStudio\Enum\ToolType;
+use Shelfwood\LMStudio\Tool\ToolRegistry;
+use Shelfwood\LMStudio\ValueObject\ChatHistory;
+use Shelfwood\LMStudio\ValueObject\FunctionCall;
+use Shelfwood\LMStudio\ValueObject\Message;
+use Shelfwood\LMStudio\ValueObject\Tool;
+use Shelfwood\LMStudio\ValueObject\ToolCall;
 
 beforeEach(function (): void {
     // Create a mock config object
@@ -175,7 +176,7 @@ test('it can get a response', function (): void {
     // Mock the chatCompletion method with a more specific mock
     $this->client->shouldReceive('chatCompletion')
         ->once()
-        ->with(Mockery::type('Shelfwood\LMStudio\Http\Requests\V1\ChatCompletionRequest'))
+        ->with(Mockery::type('Shelfwood\LMStudio\Http\Request\V1\ChatCompletionRequest'))
         ->andReturn((object) [
             'choices' => [
                 (object) [
@@ -204,7 +205,7 @@ test('it can get a response with tool calls', function (): void {
 
     // Create a tool registry with a calculator tool
     $toolRegistry = new ToolRegistry;
-    $calculatorTool = \Shelfwood\LMStudio\ValueObjects\Tool::function(
+    $calculatorTool = Tool::function(
         'calculator',
         'Calculate a mathematical expression',
         [
@@ -229,7 +230,7 @@ test('it can get a response with tool calls', function (): void {
     // First response with tool calls
     $this->client->shouldReceive('chatCompletion')
         ->once()
-        ->with(Mockery::type('Shelfwood\LMStudio\Http\Requests\V1\ChatCompletionRequest'))
+        ->with(Mockery::type('Shelfwood\LMStudio\Http\Request\V1\ChatCompletionRequest'))
         ->andReturn((object) [
             'choices' => [
                 (object) [
@@ -254,7 +255,7 @@ test('it can get a response with tool calls', function (): void {
     // Second response after tool execution (no more tool calls)
     $this->client->shouldReceive('chatCompletion')
         ->once()
-        ->with(Mockery::type('Shelfwood\LMStudio\Http\Requests\V1\ChatCompletionRequest'))
+        ->with(Mockery::type('Shelfwood\LMStudio\Http\Request\V1\ChatCompletionRequest'))
         ->andReturn((object) [
             'choices' => [
                 (object) [

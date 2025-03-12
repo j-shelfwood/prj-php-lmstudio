@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\ValueObjects;
 
 use InvalidArgumentException;
-use Shelfwood\LMStudio\ValueObjects\JsonSchema;
+use Shelfwood\LMStudio\ValueObject\JsonSchema;
 use Tests\TestCase;
 
 class JsonSchemaTest extends TestCase

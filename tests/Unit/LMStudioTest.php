@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Config\LMStudioConfig;
-use Shelfwood\LMStudio\Contracts\LMStudioClientInterface;
-use Shelfwood\LMStudio\LMS;
-use Shelfwood\LMStudio\LMStudio;
-use Shelfwood\LMStudio\OpenAI;
+use Shelfwood\LMStudio\Api\Client\LMS;
+use Shelfwood\LMStudio\Api\Client\OpenAI;
+use Shelfwood\LMStudio\Api\Contract\LMStudioClientInterface;
+use Shelfwood\LMStudio\Core\Config\LMStudioConfig;
+use Shelfwood\LMStudio\Core\LMStudio;
 
 test('LMStudio can be instantiated with default config', function (): void {
     $client = new LMStudio;
@@ -55,9 +55,9 @@ test('LMStudio clients are lazily instantiated', function (): void {
     $client = new LMStudio;
 
     // Create mock clients with type casting
-    /** @var \Shelfwood\LMStudio\LMS $mockLms */
+    /** @var \Shelfwood\LMStudio\Api\Client\LMS $mockLms */
     $mockLms = Mockery::mock(LMS::class);
-    /** @var \Shelfwood\LMStudio\OpenAI $mockOpenAi */
+    /** @var \Shelfwood\LMStudio\Api\Client\OpenAI $mockOpenAi */
     $mockOpenAi = Mockery::mock(OpenAI::class);
 
     // Initially, the clients should not be set
@@ -77,9 +77,9 @@ test('LMStudio with methods reset client instances', function (): void {
     $client = new LMStudio;
 
     // Create and set mock clients with type casting
-    /** @var \Shelfwood\LMStudio\LMS $mockLms */
+    /** @var \Shelfwood\LMStudio\Api\Client\LMS $mockLms */
     $mockLms = Mockery::mock(LMS::class);
-    /** @var \Shelfwood\LMStudio\OpenAI $mockOpenAi */
+    /** @var \Shelfwood\LMStudio\Api\Client\OpenAI $mockOpenAi */
     $mockOpenAi = Mockery::mock(OpenAI::class);
     $client->setLmsClient($mockLms);
     $client->setOpenAiClient($mockOpenAi);
