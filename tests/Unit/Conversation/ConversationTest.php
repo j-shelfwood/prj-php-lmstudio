@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Tests\Unit\Conversation;
 
 use Mockery;
-use Shelfwood\LMStudio\Conversation\Conversation;
-use Shelfwood\LMStudio\Enum\FinishReason;
-use Shelfwood\LMStudio\Enum\Role;
-use Shelfwood\LMStudio\Model\Choice;
-use Shelfwood\LMStudio\Model\Message;
-use Shelfwood\LMStudio\Response\ChatCompletionResponse;
-use Shelfwood\LMStudio\Service\ChatService;
+use Shelfwood\LMStudio\Api\Enum\FinishReason;
+use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Api\Model\Choice;
+use Shelfwood\LMStudio\Api\Model\Message;
+use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
+use Shelfwood\LMStudio\Api\Service\ChatService;
+use Shelfwood\LMStudio\Core\Conversation\Conversation;
 
 beforeEach(function (): void {
     $this->chatService = Mockery::mock(ChatService::class);

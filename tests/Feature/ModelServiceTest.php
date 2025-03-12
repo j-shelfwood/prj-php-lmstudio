@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Contract\ApiClientInterface;
-use Shelfwood\LMStudio\Enum\ModelState;
-use Shelfwood\LMStudio\Enum\ModelType;
-use Shelfwood\LMStudio\Model\ModelInfo;
-use Shelfwood\LMStudio\Response\ModelResponse;
-use Shelfwood\LMStudio\Service\ModelService;
+use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
+use Shelfwood\LMStudio\Api\Enum\ModelState;
+use Shelfwood\LMStudio\Api\Enum\ModelType;
+use Shelfwood\LMStudio\Api\Model\ModelInfo;
+use Shelfwood\LMStudio\Api\Response\ModelResponse;
+use Shelfwood\LMStudio\Api\Service\ModelService;
 
 beforeEach(function (): void {
     $this->apiClient = Mockery::mock(ApiClientInterface::class);

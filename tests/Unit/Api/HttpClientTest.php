@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Api\HttpClient;
-use Shelfwood\LMStudio\Exception\ApiException;
+use Shelfwood\LMStudio\Api\Client\HttpClient;
+use Shelfwood\LMStudio\Api\Exception\ApiException;
 
 beforeEach(function (): void {
     $this->httpClient = Mockery::mock(HttpClient::class)

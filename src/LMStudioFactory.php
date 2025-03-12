@@ -4,22 +4,26 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio;
 
-use Shelfwood\LMStudio\Api\ApiClient;
-use Shelfwood\LMStudio\Api\HttpClient;
-use Shelfwood\LMStudio\Conversation\Conversation;
-use Shelfwood\LMStudio\Service\ChatService;
-use Shelfwood\LMStudio\Service\CompletionService;
-use Shelfwood\LMStudio\Service\EmbeddingService;
-use Shelfwood\LMStudio\Service\ModelService;
+use Shelfwood\LMStudio\Api\Client\ApiClient;
+use Shelfwood\LMStudio\Api\Client\HttpClient;
+use Shelfwood\LMStudio\Api\Service\ChatService;
+use Shelfwood\LMStudio\Api\Service\CompletionService;
+use Shelfwood\LMStudio\Api\Service\EmbeddingService;
+use Shelfwood\LMStudio\Api\Service\ModelService;
+use Shelfwood\LMStudio\Core\Builder\ConversationBuilder;
+use Shelfwood\LMStudio\Core\Conversation\Conversation;
+use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 
 class LMStudioFactory
 {
     private string $baseUrl;
+
     private array $defaultHeaders;
 
     /**
-     * @param string $baseUrl The base URL of the API
-     * @param array $defaultHeaders Default headers to include in all requests
+     * @param  string  $baseUrl  The base URL of the API
+     * @param  array  $defaultHeaders  Default headers to include in all requests
      */
     public function __construct(
         string $baseUrl = 'http://localhost:1234',
@@ -31,13 +35,11 @@ class LMStudioFactory
 
     /**
      * Create an API client.
-     *
-     * @return ApiClient
      */
     public function createApiClient(): ApiClient
     {
         return new ApiClient(
-            new HttpClient(),
+            new HttpClient,
             $this->baseUrl,
             $this->defaultHeaders
         );
@@ -45,8 +47,6 @@ class LMStudioFactory
 
     /**
      * Create a model service.
-     *
-     * @return ModelService
      */
     public function createModelService(): ModelService
     {
@@ -55,8 +55,6 @@ class LMStudioFactory
 
     /**
      * Create a chat service.
-     *
-     * @return ChatService
      */
     public function createChatService(): ChatService
     {
@@ -65,8 +63,6 @@ class LMStudioFactory
 
     /**
      * Create a completion service.
-     *
-     * @return CompletionService
      */
     public function createCompletionService(): CompletionService
     {
@@ -75,8 +71,6 @@ class LMStudioFactory
 
     /**
      * Create an embedding service.
-     *
-     * @return EmbeddingService
      */
     public function createEmbeddingService(): EmbeddingService
     {
@@ -86,16 +80,39 @@ class LMStudioFactory
     /**
      * Create a conversation.
      *
-     * @param string $model The model to use
-     * @param array $options Additional options
-     * @return Conversation
+     * @param  string  $model  The model to use
+     * @param  array  $options  Additional options
+     * @param  ToolRegistry|null  $toolRegistry  The tool registry
+     * @param  EventHandler|null  $eventHandler  The event handler
+     * @param  bool  $streaming  Whether to enable streaming
      */
-    public function createConversation(string $model, array $options = []): Conversation
-    {
+    public function createConversation(
+        string $model,
+        array $options = [],
+        ?ToolRegistry $toolRegistry = null,
+        ?EventHandler $eventHandler = null,
+        bool $streaming = false
+    ): Conversation {
         return new Conversation(
             $this->createChatService(),
             $model,
-            $options
+            $options,
+            $toolRegistry,
+            $eventHandler,
+            $streaming
+        );
+    }
+
+    /**
+     * Create a conversation builder.
+     *
+     * @param  string  $model  The model to use
+     */
+    public function createConversationBuilder(string $model): ConversationBuilder
+    {
+        return new ConversationBuilder(
+            $this->createChatService(),
+            $model
         );
     }
 }

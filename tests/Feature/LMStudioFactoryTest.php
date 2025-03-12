@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Api\ApiClient;
-use Shelfwood\LMStudio\Conversation\Conversation;
-use Shelfwood\LMStudio\Enum\Role;
+use Shelfwood\LMStudio\Api\Client\ApiClient;
+use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
+use Shelfwood\LMStudio\Api\Service\ChatService;
+use Shelfwood\LMStudio\Api\Service\CompletionService;
+use Shelfwood\LMStudio\Api\Service\EmbeddingService;
+use Shelfwood\LMStudio\Api\Service\ModelService;
+use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\LMStudioFactory;
-use Shelfwood\LMStudio\Response\ChatCompletionResponse;
-use Shelfwood\LMStudio\Service\ChatService;
-use Shelfwood\LMStudio\Service\CompletionService;
-use Shelfwood\LMStudio\Service\EmbeddingService;
-use Shelfwood\LMStudio\Service\ModelService;
 
 test('factory creates services that work together', function (): void {
     // Create a mock factory that will return mocked services

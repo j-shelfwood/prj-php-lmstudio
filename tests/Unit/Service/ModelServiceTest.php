@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Contract\ApiClientInterface;
-use Shelfwood\LMStudio\Model\ModelInfo;
-use Shelfwood\LMStudio\Response\ModelResponse;
-use Shelfwood\LMStudio\Service\ModelService;
+use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
+use Shelfwood\LMStudio\Api\Model\ModelInfo;
+use Shelfwood\LMStudio\Api\Response\ModelResponse;
+use Shelfwood\LMStudio\Api\Service\ModelService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->apiClient = Mockery::mock(ApiClientInterface::class);
     $this->modelService = new ModelService($this->apiClient);
 });
 
-test('list models returns model response', function () {
+test('list models returns model response', function (): void {
     // Mock the API response
     $apiResponse = [
         'object' => 'list',
@@ -68,7 +68,7 @@ test('list models returns model response', function () {
     expect($models[1]->isLoaded())->toBeFalse();
 });
 
-test('get model returns model info', function () {
+test('get model returns model info', function (): void {
     // Mock the API response
     $apiResponse = [
         'id' => 'model1',

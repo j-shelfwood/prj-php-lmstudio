@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Enum\Role;
-use Shelfwood\LMStudio\Model\Message;
+use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Api\Model\Message;
 
 test('message can be created with role and content', function (): void {
     $message = new Message(Role::USER, 'Hello, world!');

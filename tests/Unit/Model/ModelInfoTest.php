@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Enum\ModelState;
-use Shelfwood\LMStudio\Enum\ModelType;
-use Shelfwood\LMStudio\Model\ModelInfo;
+use Shelfwood\LMStudio\Api\Enum\ModelState;
+use Shelfwood\LMStudio\Api\Enum\ModelType;
+use Shelfwood\LMStudio\Api\Model\ModelInfo;
 
 test('model info can be created from array', function (): void {
     $data = [

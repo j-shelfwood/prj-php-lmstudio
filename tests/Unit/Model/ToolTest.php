@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Enum\ToolType;
-use Shelfwood\LMStudio\Model\Tool;
+use Shelfwood\LMStudio\Api\Enum\ToolType;
+use Shelfwood\LMStudio\Api\Model\Tool;
 
 test('tool can be created with type and function', function (): void {
     $function = [

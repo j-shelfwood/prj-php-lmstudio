@@ -1,0 +1,78 @@
+[
+  {
+    "id": "chatcmpl-123-chunk-1",
+    "object": "chat.completion.chunk",
+    "created": 1677858242,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": "I'm sorry"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-123-chunk-2",
+    "object": "chat.completion.chunk",
+    "created": 1677858242,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": " for any inconvenience"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-123-chunk-3",
+    "object": "chat.completion.chunk",
+    "created": 1677858242,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": ", but as an AI, I don't have real-time capabilities"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-123-chunk-4",
+    "object": "chat.completion.chunk",
+    "created": 1677858242,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": " to provide current weather updates or forecasts."
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-123-chunk-5",
+    "object": "chat.completion.chunk",
+    "created": 1677858242,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": " Please check a reliable weather website or app for the most accurate information on the weather in London."
+        },
+        "finish_reason": "stop"
+      }
+    ]
+  }
+]

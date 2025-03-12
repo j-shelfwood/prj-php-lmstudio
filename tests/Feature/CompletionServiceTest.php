@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Contract\ApiClientInterface;
-use Shelfwood\LMStudio\Response\TextCompletionResponse;
-use Shelfwood\LMStudio\Service\CompletionService;
+use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
+use Shelfwood\LMStudio\Api\Response\TextCompletionResponse;
+use Shelfwood\LMStudio\Api\Service\CompletionService;
 
 beforeEach(function (): void {
     $this->apiClient = Mockery::mock(ApiClientInterface::class);

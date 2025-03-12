@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Contract\ApiClientInterface;
-use Shelfwood\LMStudio\Enum\Role;
-use Shelfwood\LMStudio\Enum\ToolType;
-use Shelfwood\LMStudio\Exception\ValidationException;
-use Shelfwood\LMStudio\Model\Message;
-use Shelfwood\LMStudio\Model\Tool;
-use Shelfwood\LMStudio\Response\ChatCompletionResponse;
-use Shelfwood\LMStudio\Service\ChatService;
+use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
+use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Api\Enum\ToolType;
+use Shelfwood\LMStudio\Api\Exception\ValidationException;
+use Shelfwood\LMStudio\Api\Model\Message;
+use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
+use Shelfwood\LMStudio\Api\Service\ChatService;
 
 beforeEach(function (): void {
     $this->apiClient = Mockery::mock(ApiClientInterface::class);
