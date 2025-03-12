@@ -2,23 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Shelfwood\LMStudio\Http\Response\V1;
-
-use Shelfwood\LMStudio\Http\Response\Common\Choice;
-use Shelfwood\LMStudio\Http\Response\Common\Usage;
+namespace Shelfwood\LMStudio\Response;
 
 /**
- * Represents a chat completion response from the V1 API.
+ * Represents a chat completion response.
  */
-class ChatCompletion
+class ChatCompletionResponse
 {
     /**
      * @param  string  $id  The ID of the completion
      * @param  string  $object  The object type
      * @param  int  $created  The timestamp when the completion was created
      * @param  string  $model  The model used for the completion
-     * @param  array<Choice>  $choices  The choices in the completion
-     * @param  Usage  $usage  The token usage information
+     * @param  array  $choices  The choices in the completion
+     * @param  array  $usage  The token usage information
      * @param  string|null  $systemFingerprint  The system fingerprint
      */
     public function __construct(
@@ -27,12 +24,15 @@ class ChatCompletion
         public readonly int $created,
         public readonly string $model,
         public readonly array $choices,
-        public readonly Usage $usage,
+        public readonly array $usage,
         public readonly ?string $systemFingerprint = null,
     ) {}
 
     /**
-     * Create a ChatCompletion object from an array.
+     * Create a ChatCompletionResponse object from an array.
+     *
+     * @param  array  $data  The response data
+     * @return self The created object
      */
     public static function fromArray(array $data): self
     {
@@ -41,11 +41,8 @@ class ChatCompletion
             object: $data['object'] ?? 'chat.completion',
             created: $data['created'] ?? time(),
             model: $data['model'] ?? '',
-            choices: array_map(
-                fn (array $choice) => Choice::fromArray($choice),
-                $data['choices'] ?? []
-            ),
-            usage: Usage::fromArray($data['usage'] ?? []),
+            choices: $data['choices'] ?? [],
+            usage: $data['usage'] ?? [],
             systemFingerprint: $data['system_fingerprint'] ?? null,
         );
     }

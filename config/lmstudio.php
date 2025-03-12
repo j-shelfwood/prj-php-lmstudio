@@ -20,8 +20,6 @@ return [
 
     'timeout' => env('LMSTUDIO_TIMEOUT', 30),
 
-    'headers' => [],
-
     /*
     |--------------------------------------------------------------------------
     | Default Model
@@ -33,7 +31,10 @@ return [
     |
     */
 
-    'default_model' => env('LMSTUDIO_DEFAULT_MODEL', 'qwen2.5-7b-instruct-1m'),
+    'model' => env('LMSTUDIO_MODEL', 'qwen2.5-7b-instruct-1m'),
+    'max_tokens' => env('LMSTUDIO_MAX_TOKENS', 1000),
+    'temperature' => env('LMSTUDIO_TEMPERATURE', 0.7),
+    'top_p' => env('LMSTUDIO_TOP_P', 1),
 
     /*
     |--------------------------------------------------------------------------
@@ -50,34 +51,4 @@ return [
     'idle_timeout' => env('LMSTUDIO_IDLE_TIMEOUT', 15),
 
     'max_retries' => env('LMSTUDIO_MAX_RETRIES', 3),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Health Check Configuration
-    |--------------------------------------------------------------------------
-    |
-    | Configure health check behavior to verify the LMStudio server
-    | is available before making requests.
-    |
-    */
-
-    'health_check' => [
-        'enabled' => env('LMSTUDIO_HEALTH_CHECK_ENABLED', true),
-        'interval' => env('LMSTUDIO_HEALTH_CHECK_INTERVAL', 5),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Debug Settings
-    |--------------------------------------------------------------------------
-    |
-    | Configure debug options for troubleshooting API interactions.
-    |
-    */
-
-    'debug' => [
-        'enabled' => env('LMSTUDIO_DEBUG', false),
-        'verbose' => env('LMSTUDIO_DEBUG_VERBOSE', false),
-        'log_file' => env('LMSTUDIO_DEBUG_LOG', storage_path('logs/lmstudio.log')),
-    ],
 ];
