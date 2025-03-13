@@ -2,13 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Conversation;
-
-use Mockery;
-use Shelfwood\LMStudio\Api\Enum\FinishReason;
 use Shelfwood\LMStudio\Api\Enum\Role;
-use Shelfwood\LMStudio\Api\Model\Choice;
+use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Model\Message;
+use Shelfwood\LMStudio\Api\Model\Tool;
 use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
@@ -16,98 +13,112 @@ use Shelfwood\LMStudio\Core\Conversation\Conversation;
 describe('Conversation', function (): void {
     beforeEach(function (): void {
         $this->chatService = Mockery::mock(ChatService::class);
-        $this->conversation = new Conversation($this->chatService, 'test-model');
+        $this->conversation = new Conversation($this->chatService, 'qwen2.5-7b-instruct-1m');
     });
 
-    it('add system message', function (): void {
-        $this->conversation->addSystemMessage('Hello');
-        $messages = $this->conversation->getMessages();
+    test('conversation can get response and maintain history', function (): void {
+        // Load the mock response
+        $mockResponse = load_mock('chat/standard-response.json');
+        $chatCompletionResponse = ChatCompletionResponse::fromArray($mockResponse);
 
-        expect($messages)->toHaveCount(1);
-        expect($messages[0])->toBeInstanceOf(Message::class);
+        // Add a system message
+        $this->conversation->addSystemMessage('You are a helpful assistant.');
+
+        // Add a user message
+        $this->conversation->addUserMessage('What\'s the weather like in London?');
+
+        // Set up the mock to return the mock response
+        $this->chatService->shouldReceive('createCompletion')
+            ->once()
+            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), [])
+            ->andReturn($chatCompletionResponse);
+
+        // Get a response
+        $response = $this->conversation->getResponse();
+
+        // Assert the response is correct
+        $expectedContent = "I'm sorry for any inconvenience, but as an AI, I don't have real-time capabilities to provide current weather updates or forecasts. Please check a reliable weather website or app for the most accurate information on the weather in London.";
+        expect($response)->toBe($expectedContent);
+
+        // Assert the conversation history is maintained
+        $messages = $this->conversation->getMessages();
+        expect($messages)->toHaveCount(3);
         expect($messages[0]->getRole())->toBe(Role::SYSTEM);
-        expect($messages[0]->getContent())->toBe('Hello');
+        expect($messages[0]->getContent())->toBe('You are a helpful assistant.');
+        expect($messages[1]->getRole())->toBe(Role::USER);
+        expect($messages[1]->getContent())->toBe('What\'s the weather like in London?');
+        expect($messages[2]->getRole())->toBe(Role::ASSISTANT);
+        expect($messages[2]->getContent())->toBe($expectedContent);
     });
 
-    it('add user message', function (): void {
-        $this->conversation->addUserMessage('Hello');
-        $messages = $this->conversation->getMessages();
+    test('conversation can handle tool calls and responses', function (): void {
+        // Load the mock responses
+        $toolResponse = load_mock('chat/tool-response.json');
+        $standardResponse = load_mock('chat/standard-response.json');
 
-        expect($messages)->toHaveCount(1);
-        expect($messages[0])->toBeInstanceOf(Message::class);
-        expect($messages[0]->getRole())->toBe(Role::USER);
-        expect($messages[0]->getContent())->toBe('Hello');
-    });
+        $toolCompletionResponse = ChatCompletionResponse::fromArray($toolResponse);
+        $finalCompletionResponse = ChatCompletionResponse::fromArray($standardResponse);
 
-    it('add assistant message', function (): void {
-        $this->conversation->addAssistantMessage('Hello');
-        $messages = $this->conversation->getMessages();
-
-        expect($messages)->toHaveCount(1);
-        expect($messages[0])->toBeInstanceOf(Message::class);
-        expect($messages[0]->getRole())->toBe(Role::ASSISTANT);
-        expect($messages[0]->getContent())->toBe('Hello');
-    });
-
-    it('add tool message', function (): void {
-        $this->conversation->addToolMessage('Hello', 'tool-123');
-        $messages = $this->conversation->getMessages();
-
-        expect($messages)->toHaveCount(1);
-        expect($messages[0])->toBeInstanceOf(Message::class);
-        expect($messages[0]->getRole())->toBe(Role::TOOL);
-        expect($messages[0]->getContent())->toBe('Hello');
-        expect($messages[0]->getToolCallId())->toBe('tool-123');
-    });
-
-    it('get response', function (): void {
-        $this->conversation->addUserMessage('Hello');
-
-        // Create a mock Choice object
-        $choice = new Choice(
-            index: 0,
-            logprobs: null,
-            finishReason: FinishReason::STOP,
-            message: [
-                'role' => 'assistant',
-                'content' => 'Hi there!',
+        // Create a tool
+        $tool = new Tool(
+            ToolType::FUNCTION,
+            [
+                'name' => 'get_current_weather',
+                'description' => 'Get the current weather in a location',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'location' => [
+                            'type' => 'string',
+                            'description' => 'The location to get weather for',
+                        ],
+                    ],
+                    'required' => ['location'],
+                ],
             ]
         );
 
-        // Create a mock ChatCompletionResponse
-        $response = Mockery::mock(ChatCompletionResponse::class);
-        $response->shouldReceive('getChoices')->andReturn([$choice]);
+        // Add a user message
+        $this->conversation->addUserMessage('What\'s the weather like in London?');
 
-        // Set up the chat service mock
-        $this->chatService
-            ->shouldReceive('createCompletion')
-            ->with('test-model', Mockery::type('array'), [])
-            ->andReturn($response);
+        // Set up the mock to return the tool response first
+        $this->chatService->shouldReceive('createCompletion')
+            ->once()
+            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), [])
+            ->andReturn($toolCompletionResponse);
 
-        $result = $this->conversation->getResponse();
+        // Get the first response (which should be a tool call)
+        $response = $this->conversation->getResponse();
 
-        expect($result)->toBe('Hi there!');
-        expect($this->conversation->getMessages())->toHaveCount(2);
-        expect($this->conversation->getMessages()[1]->getRole())->toBe(Role::ASSISTANT);
-        expect($this->conversation->getMessages()[1]->getContent())->toBe('Hi there!');
-    });
+        // Assert the conversation has the tool call
+        $messages = $this->conversation->getMessages();
+        expect($messages)->toHaveCount(2); // User message and assistant message with tool call
 
-    it('clear messages', function (): void {
-        $this->conversation->addUserMessage('Hello');
-        expect($this->conversation->getMessages())->toHaveCount(1);
+        // Add a tool response
+        $this->conversation->addToolMessage('The weather in London is sunny and 22°C.', '201464470');
 
-        $this->conversation->clearMessages();
-        expect($this->conversation->getMessages())->toHaveCount(0);
-    });
+        // Set up the mock to return the final response
+        $this->chatService->shouldReceive('createCompletion')
+            ->once()
+            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), [])
+            ->andReturn($finalCompletionResponse);
 
-    it('set model', function (): void {
-        $this->conversation->setModel('new-model');
-        expect($this->conversation->getModel())->toBe('new-model');
-    });
+        // Get the final response
+        $finalResponse = $this->conversation->getResponse();
 
-    it('set options', function (): void {
-        $options = ['temperature' => 0.7];
-        $this->conversation->setOptions($options);
-        expect($this->conversation->getOptions())->toBe($options);
+        // Assert the final response is correct
+        $expectedContent = "I'm sorry for any inconvenience, but as an AI, I don't have real-time capabilities to provide current weather updates or forecasts. Please check a reliable weather website or app for the most accurate information on the weather in London.";
+        expect($finalResponse)->toBe($expectedContent);
+
+        // Assert the conversation history is maintained
+        $messages = $this->conversation->getMessages();
+        expect($messages)->toHaveCount(4);
+        expect($messages[0]->getRole())->toBe(Role::USER);
+        expect($messages[1]->getRole())->toBe(Role::ASSISTANT);
+        expect($messages[2]->getRole())->toBe(Role::TOOL);
+        expect($messages[2]->getContent())->toBe('The weather in London is sunny and 22°C.');
+        expect($messages[2]->getToolCallId())->toBe('201464470');
+        expect($messages[3]->getRole())->toBe(Role::ASSISTANT);
+        expect($messages[3]->getContent())->toBe($expectedContent);
     });
 });

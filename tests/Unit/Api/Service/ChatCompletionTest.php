@@ -18,7 +18,7 @@ describe('ChatCompletion', function (): void {
 
     test('chat completion returns expected response', function (): void {
         // Load the mock response
-        $mockResponse = json_decode(file_get_contents(__DIR__.'/../mocks/chat/standard-response.json'), true);
+        $mockResponse = load_mock('chat/standard-response.json');
 
         // Create test messages
         $messages = [
@@ -63,7 +63,7 @@ describe('ChatCompletion', function (): void {
 
     test('chat completion with tools returns expected response', function (): void {
         // Load the mock response
-        $mockResponse = json_decode(file_get_contents(__DIR__.'/../mocks/chat/tool-response.json'), true);
+        $mockResponse = load_mock('chat/tool-response.json');
 
         // Create test messages
         $messages = [

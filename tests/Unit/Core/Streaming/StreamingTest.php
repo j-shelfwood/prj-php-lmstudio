@@ -25,7 +25,7 @@ describe('Streaming', function (): void {
 
     test('conversation can stream responses', function (): void {
         // Load the mock streaming chunks
-        $streamingChunks = json_decode(file_get_contents(__DIR__.'/../mocks/chat/streaming-chunks.json'), true);
+        $streamingChunks = load_mock('chat/streaming-chunks.json');
 
         // Add a user message
         $this->conversation->addUserMessage('What\'s the weather like in London?');
@@ -65,7 +65,7 @@ describe('Streaming', function (): void {
 
     test('conversation can stream tool calls', function (): void {
         // Load the mock streaming tool chunks
-        $streamingToolChunks = json_decode(file_get_contents(__DIR__.'/../mocks/chat/streaming-tool-chunks.json'), true);
+        $streamingToolChunks = load_mock('chat/streaming-tool-chunks.json');
 
         // Register a weather tool
         $this->toolRegistry->registerTool(
@@ -167,7 +167,7 @@ describe('Streaming', function (): void {
 
     test('conversation can track streaming progress', function (): void {
         // Load the mock streaming chunks
-        $streamingChunks = json_decode(file_get_contents(__DIR__.'/../mocks/chat/streaming-chunks.json'), true);
+        $streamingChunks = load_mock('chat/streaming-chunks.json');
 
         // Add a user message
         $this->conversation->addUserMessage('What\'s the weather like in London?');

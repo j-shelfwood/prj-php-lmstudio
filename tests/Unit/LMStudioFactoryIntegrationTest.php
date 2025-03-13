@@ -26,7 +26,7 @@ describe('LMStudioFactory', function (): void {
         $factory->shouldReceive('createChatService')->andReturn($chatService);
 
         // Load the mock response
-        $mockResponse = json_decode(file_get_contents(__DIR__.'/../mocks/chat/standard-response.json'), true);
+        $mockResponse = load_mock('chat/standard-response.json');
         $chatCompletionResponse = ChatCompletionResponse::fromArray($mockResponse);
 
         // Set up the chat service mock to return the mock response

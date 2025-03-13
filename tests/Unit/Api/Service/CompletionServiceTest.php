@@ -14,7 +14,7 @@ describe('CompletionService', function (): void {
 
     test('create completion returns expected response', function (): void {
         // Load the mock response
-        $mockResponse = json_decode(file_get_contents(__DIR__.'/../mocks/completions/standard-response.json'), true);
+        $mockResponse = load_mock('completions/standard-response.json');
 
         // Set up the mock to return the mock response
         $this->apiClient->shouldReceive('post')
@@ -48,7 +48,7 @@ describe('CompletionService', function (): void {
 
     test('create completion with options returns expected response', function (): void {
         // Load the mock response
-        $mockResponse = json_decode(file_get_contents(__DIR__.'/../mocks/completions/standard-response.json'), true);
+        $mockResponse = load_mock('completions/standard-response.json');
 
         // Set up the mock to return the mock response
         $this->apiClient->shouldReceive('post')
