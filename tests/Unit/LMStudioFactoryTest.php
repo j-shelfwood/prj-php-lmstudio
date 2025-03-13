@@ -11,7 +11,7 @@ use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\LMStudioFactory;
 
 beforeEach(function (): void {
-    $this->factory = new LMStudioFactory('http://example.com/api');
+    $this->factory = new LMStudioFactory('http://example.com/api', [], 'test-api-key');
 });
 
 test('create api client', function (): void {

@@ -13,5 +13,6 @@ declare(strict_types=1);
 |
 */
 
-// Use our base TestCase for Unit and Feature tests
 uses(Tests\TestCase::class)->in('Unit', 'Feature');
+
+uses(\Orchestra\Testbench\TestCase::class)->in('Integration');

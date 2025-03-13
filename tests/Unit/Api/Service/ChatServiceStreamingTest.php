@@ -10,6 +10,7 @@ use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\Tool;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 
+describe('ToolExecutionHandler', function (): void {
 beforeEach(function (): void {
     $this->apiClient = Mockery::mock(ApiClientInterface::class);
     $this->chatService = new ChatService($this->apiClient);
@@ -171,6 +172,7 @@ test('create completion stream ensures stream option is set', function (): void 
 
     // Call the createCompletionStream method with stream=false in options
     $this->chatService->createCompletionStream('test-model', $messages, [
-        'stream' => false, // This should be overridden to true
-    ], $callback);
+            'stream' => false, // This should be overridden to true
+        ], $callback);
+    });
 });

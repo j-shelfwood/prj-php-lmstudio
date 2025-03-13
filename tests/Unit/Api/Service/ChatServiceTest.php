@@ -11,6 +11,7 @@ use Shelfwood\LMStudio\Api\Model\Tool;
 use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 
+describe('StreamingHandler', function (): void {
 beforeEach(function (): void {
     $this->apiClient = Mockery::mock(ApiClientInterface::class);
     $this->chatService = new ChatService($this->apiClient);
@@ -196,4 +197,5 @@ test('create completion validates messages', function (): void {
     // Expect a ValidationException to be thrown when messages is empty
     expect(fn () => $this->chatService->createCompletion('test-model', []))
         ->toThrow(ValidationException::class, 'Messages are required');
+});
 });

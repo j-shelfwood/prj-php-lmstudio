@@ -7,7 +7,9 @@ namespace Shelfwood\LMStudio\Core\Builder;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
+use Shelfwood\LMStudio\Core\Tools\ToolExecutionHandler;
 
 /**
  * Builder for creating and configuring Conversation instances.
@@ -25,6 +27,10 @@ class ConversationBuilder
     private EventHandler $eventHandler;
 
     private bool $streaming = false;
+
+    private ?StreamingHandler $streamingHandler = null;
+
+    private ?ToolExecutionHandler $toolExecutionHandler = null;
 
     /**
      * Create a new ConversationBuilder.
@@ -93,6 +99,31 @@ class ConversationBuilder
     }
 
     /**
+     * Set a streaming handler for the conversation.
+     *
+     * @param  StreamingHandler  $handler  The streaming handler
+     */
+    public function withStreamingHandler(StreamingHandler $handler): self
+    {
+        $this->streamingHandler = $handler;
+        $this->withStreaming(true);
+
+        return $this;
+    }
+
+    /**
+     * Set a tool execution handler for the conversation.
+     *
+     * @param  ToolExecutionHandler  $handler  The tool execution handler
+     */
+    public function withToolExecutionHandler(ToolExecutionHandler $handler): self
+    {
+        $this->toolExecutionHandler = $handler;
+
+        return $this;
+    }
+
+    /**
      * Register a callback for when a tool is called.
      *
      * @param  callable  $callback  The callback function
@@ -141,6 +172,155 @@ class ConversationBuilder
     }
 
     /**
+     * Register a callback for when streaming starts.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onStreamStart(callable $callback): self
+    {
+        if ($this->streamingHandler === null) {
+            $this->streamingHandler = new StreamingHandler;
+            $this->withStreaming(true);
+        }
+
+        $this->streamingHandler->onStart($callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when content is received during streaming.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onStreamContent(callable $callback): self
+    {
+        if ($this->streamingHandler === null) {
+            $this->streamingHandler = new StreamingHandler;
+            $this->withStreaming(true);
+        }
+
+        $this->streamingHandler->onContent($callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a tool call is received during streaming.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onStreamToolCall(callable $callback): self
+    {
+        if ($this->streamingHandler === null) {
+            $this->streamingHandler = new StreamingHandler;
+            $this->withStreaming(true);
+        }
+
+        $this->streamingHandler->onToolCall($callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when streaming ends.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onStreamEnd(callable $callback): self
+    {
+        if ($this->streamingHandler === null) {
+            $this->streamingHandler = new StreamingHandler;
+            $this->withStreaming(true);
+        }
+
+        $this->streamingHandler->onEnd($callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a streaming error occurs.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onStreamError(callable $callback): self
+    {
+        if ($this->streamingHandler === null) {
+            $this->streamingHandler = new StreamingHandler;
+            $this->withStreaming(true);
+        }
+
+        $this->streamingHandler->onError($callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a tool call is received.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onToolReceived(callable $callback): self
+    {
+        if ($this->toolExecutionHandler === null) {
+            $this->toolExecutionHandler = new ToolExecutionHandler;
+        }
+
+        $this->toolExecutionHandler->onReceived($callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a tool is about to be executed.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onToolExecuting(callable $callback): self
+    {
+        if ($this->toolExecutionHandler === null) {
+            $this->toolExecutionHandler = new ToolExecutionHandler;
+        }
+
+        $this->toolExecutionHandler->onExecuting($callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a tool has been executed successfully.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onToolExecuted(callable $callback): self
+    {
+        if ($this->toolExecutionHandler === null) {
+            $this->toolExecutionHandler = new ToolExecutionHandler;
+        }
+
+        $this->toolExecutionHandler->onExecuted($callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a tool execution fails.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onToolError(callable $callback): self
+    {
+        if ($this->toolExecutionHandler === null) {
+            $this->toolExecutionHandler = new ToolExecutionHandler;
+        }
+
+        $this->toolExecutionHandler->onError($callback);
+
+        return $this;
+    }
+
+    /**
      * Build the conversation.
      */
     public function build(): Conversation
@@ -156,7 +336,9 @@ class ConversationBuilder
             $this->options,
             $this->toolRegistry,
             $this->eventHandler,
-            $this->streaming
+            $this->streaming,
+            $this->streamingHandler,
+            $this->toolExecutionHandler
         );
     }
 }

@@ -9,7 +9,7 @@ use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\LMStudioFactory;
 
 beforeEach(function (): void {
-    $this->factory = new LMStudioFactory('http://example.com/api');
+    $this->factory = new LMStudioFactory('http://example.com/api', [], 'test-api-key');
 });
 
 test('create conversation with streaming', function (): void {

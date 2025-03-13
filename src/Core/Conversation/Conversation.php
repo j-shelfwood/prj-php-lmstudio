@@ -10,7 +10,9 @@ use Shelfwood\LMStudio\Api\Exception\ApiException;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
+use Shelfwood\LMStudio\Core\Tools\ToolExecutionHandler;
 
 class Conversation implements ConversationInterface
 {
@@ -28,6 +30,10 @@ class Conversation implements ConversationInterface
 
     private bool $streaming;
 
+    private ?StreamingHandler $streamingHandler;
+
+    private ?ToolExecutionHandler $toolExecutionHandler;
+
     /**
      * @param  ChatService  $chatService  The chat service
      * @param  string  $model  The model to use
@@ -35,6 +41,8 @@ class Conversation implements ConversationInterface
      * @param  ToolRegistry|null  $toolRegistry  The tool registry
      * @param  EventHandler|null  $eventHandler  The event handler
      * @param  bool  $streaming  Whether to enable streaming
+     * @param  StreamingHandler|null  $streamingHandler  The streaming handler
+     * @param  ToolExecutionHandler|null  $toolExecutionHandler  The tool execution handler
      */
     public function __construct(
         ChatService $chatService,
@@ -42,7 +50,9 @@ class Conversation implements ConversationInterface
         array $options = [],
         ?ToolRegistry $toolRegistry = null,
         ?EventHandler $eventHandler = null,
-        bool $streaming = false
+        bool $streaming = false,
+        ?StreamingHandler $streamingHandler = null,
+        ?ToolExecutionHandler $toolExecutionHandler = null
     ) {
         $this->chatService = $chatService;
         $this->model = $model;
@@ -50,6 +60,8 @@ class Conversation implements ConversationInterface
         $this->toolRegistry = $toolRegistry ?? new ToolRegistry;
         $this->eventHandler = $eventHandler ?? new EventHandler;
         $this->streaming = $streaming;
+        $this->streamingHandler = $streamingHandler;
+        $this->toolExecutionHandler = $toolExecutionHandler;
 
         // Set the stream option in the options array if streaming is enabled
         if ($this->streaming) {
@@ -155,12 +167,12 @@ class Conversation implements ConversationInterface
     /**
      * Get a streaming response from the model.
      *
-     * @param  callable  $callback  The callback function to call for each chunk
+     * @param  callable|null  $callback  The callback function to call for each chunk
      * @return string The complete response
      *
      * @throws ApiException If the request fails
      */
-    public function getStreamingResponse(callable $callback): string
+    public function getStreamingResponse(?callable $callback = null): string
     {
         if (! $this->streaming) {
             $this->options['stream'] = true;
@@ -176,8 +188,18 @@ class Conversation implements ConversationInterface
                 $this->messages,
                 $this->options,
                 function ($chunk) use (&$fullContent, &$toolCalls, $callback): void {
+                    // Trigger the legacy event handler
                     $this->eventHandler->trigger('chunk', $chunk);
-                    $callback($chunk);
+
+                    // Call the legacy callback if provided
+                    if ($callback !== null) {
+                        $callback($chunk);
+                    }
+
+                    // Use the streaming handler if available
+                    if ($this->streamingHandler !== null) {
+                        $this->streamingHandler->handleChunk($chunk);
+                    }
 
                     if (isset($chunk['choices'][0]['delta']['content'])) {
                         $fullContent .= $chunk['choices'][0]['delta']['content'];
@@ -227,6 +249,11 @@ class Conversation implements ConversationInterface
         } catch (\Exception $e) {
             $this->eventHandler->trigger('error', $e);
 
+            // Use the streaming handler for error handling if available
+            if ($this->streamingHandler !== null) {
+                $this->streamingHandler->handleError($e);
+            }
+
             throw $e;
         }
     }
@@ -246,18 +273,46 @@ class Conversation implements ConversationInterface
             // Parse arguments
             $parsedArguments = json_decode($arguments, true) ?? [];
 
+            // Trigger the legacy event handler
             $this->eventHandler->trigger('tool_call', $functionName, $parsedArguments, $toolCallId);
+
+            // Use the tool execution handler if available
+            if ($this->toolExecutionHandler !== null) {
+                $this->toolExecutionHandler->handleReceived($toolCall);
+            }
 
             // Execute the tool if registered
             if ($this->toolRegistry->hasTool($functionName)) {
                 try {
+                    // Notify that the tool is about to be executed
+                    if ($this->toolExecutionHandler !== null) {
+                        $executor = function ($args) use ($functionName) {
+                            return $this->toolRegistry->executeTool($functionName, $args);
+                        };
+
+                        $this->toolExecutionHandler->handleExecuting($toolCall, $executor);
+                    }
+
+                    // Execute the tool
                     $result = $this->toolRegistry->executeTool($functionName, $parsedArguments);
                     $resultContent = is_string($result) ? $result : json_encode($result);
+
+                    // Notify that the tool has been executed successfully
+                    if ($this->toolExecutionHandler !== null) {
+                        $this->toolExecutionHandler->handleExecuted($toolCall, $result);
+                    }
 
                     // Add the tool response to the conversation
                     $this->addToolMessage($resultContent, $toolCallId);
                 } catch (\Exception $e) {
+                    // Trigger the legacy event handler
                     $this->eventHandler->trigger('error', $e);
+
+                    // Use the tool execution handler for error handling if available
+                    if ($this->toolExecutionHandler !== null) {
+                        $this->toolExecutionHandler->handleError($toolCall, $e);
+                    }
+
                     $this->addToolMessage("Error: {$e->getMessage()}", $toolCallId);
                 }
             }
@@ -346,6 +401,26 @@ class Conversation implements ConversationInterface
     public function getEventHandler(): EventHandler
     {
         return $this->eventHandler;
+    }
+
+    /**
+     * Get the streaming handler.
+     *
+     * @return StreamingHandler|null The streaming handler
+     */
+    public function getStreamingHandler(): ?StreamingHandler
+    {
+        return $this->streamingHandler;
+    }
+
+    /**
+     * Get the tool execution handler.
+     *
+     * @return ToolExecutionHandler|null The tool execution handler
+     */
+    public function getToolExecutionHandler(): ?ToolExecutionHandler
+    {
+        return $this->toolExecutionHandler;
     }
 
     /**
