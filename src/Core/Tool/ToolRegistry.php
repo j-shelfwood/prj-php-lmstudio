@@ -105,7 +105,7 @@ class ToolRegistry
      */
     public function getToolsArray(): array
     {
-        return array_map(fn (Tool $tool) => $tool->toArray(), $this->tools);
+        return array_values(array_map(fn (Tool $tool) => $tool->toArray(), $this->tools));
     }
 
     /**

@@ -128,10 +128,22 @@ class Conversation implements ConversationInterface
     public function getResponse(): string
     {
         try {
+            // Add tools to options if any are registered
+            $options = $this->options;
+
+            // Only include tools if there are actually tools registered
+            if ($this->toolRegistry->hasTools()) {
+                $toolsArray = $this->toolRegistry->getToolsArray();
+
+                if (! empty($toolsArray)) {
+                    $options['tools'] = $toolsArray;
+                }
+            }
+
             $completion = $this->chatService->createCompletion(
                 $this->model,
                 $this->messages,
-                $this->options
+                $options
             );
 
             $this->eventHandler->trigger('response', $completion);
@@ -183,10 +195,22 @@ class Conversation implements ConversationInterface
             $fullContent = '';
             $toolCalls = null;
 
+            // Add tools to options if any are registered
+            $options = $this->options;
+
+            // Only include tools if there are actually tools registered
+            if ($this->toolRegistry->hasTools()) {
+                $toolsArray = $this->toolRegistry->getToolsArray();
+
+                if (! empty($toolsArray)) {
+                    $options['tools'] = $toolsArray;
+                }
+            }
+
             $this->chatService->createCompletionStream(
                 $this->model,
                 $this->messages,
-                $this->options,
+                $options,
                 function ($chunk) use (&$fullContent, &$toolCalls, $callback): void {
                     // Trigger the legacy event handler
                     $this->eventHandler->trigger('chunk', $chunk);

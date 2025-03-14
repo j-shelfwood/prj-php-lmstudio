@@ -131,7 +131,7 @@ class ConversationBuilder
      */
     public function onToolCall(callable $callback): self
     {
-        $this->eventHandler->registerCallback('tool_call', $callback);
+        $this->eventHandler->on('tool_call', $callback);
 
         return $this;
     }
@@ -143,7 +143,7 @@ class ConversationBuilder
      */
     public function onResponse(callable $callback): self
     {
-        $this->eventHandler->registerCallback('response', $callback);
+        $this->eventHandler->on('response', $callback);
 
         return $this;
     }
@@ -155,7 +155,7 @@ class ConversationBuilder
      */
     public function onError(callable $callback): self
     {
-        $this->eventHandler->registerCallback('error', $callback);
+        $this->eventHandler->on('error', $callback);
 
         return $this;
     }
@@ -167,7 +167,7 @@ class ConversationBuilder
      */
     public function onChunk(callable $callback): self
     {
-        $this->eventHandler->registerCallback('chunk', $callback);
+        $this->eventHandler->on('chunk', $callback);
 
         return $this;
     }
@@ -334,7 +334,19 @@ class ConversationBuilder
     }
 
     /**
+     * Get the tool registry.
+     *
+     * @return ToolRegistry The tool registry
+     */
+    public function getToolRegistry(): ToolRegistry
+    {
+        return $this->toolRegistry;
+    }
+
+    /**
      * Build the conversation.
+     *
+     * @return Conversation The conversation instance
      */
     public function build(): Conversation
     {

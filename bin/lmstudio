@@ -1,0 +1,42 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Check if this file is being run from the project root
+if (! file_exists(__DIR__.'/../vendor/autoload.php')) {
+    echo "Please run this command from the project root.\n";
+    exit(1);
+}
+
+// Load the autoloader
+require __DIR__.'/../vendor/autoload.php';
+
+use Shelfwood\LMStudio\LMStudioFactory;
+use Shelfwood\LMStudio\Console\Command\ChatCommand;
+use Shelfwood\LMStudio\Console\Command\SequenceCommand;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Dotenv\Dotenv;
+
+// Load environment variables from .env if it exists
+if (file_exists(__DIR__.'/../.env')) {
+    $dotenv = new Dotenv();
+    $dotenv->load(__DIR__.'/../.env');
+}
+
+// Create the application
+$application = new Application('LMStudio CLI', '1.0.0');
+
+// Create the LMStudio factory instance with development defaults
+$factory = new LMStudioFactory(
+    baseUrl: getenv('LMSTUDIO_BASE_URL') ?: 'http://localhost:1234',
+    defaultHeaders: [],
+    apiKey: getenv('LMSTUDIO_API_KEY') ?: 'lm-studio'
+);
+
+// Register commands
+$application->add(new ChatCommand($factory));
+$application->add(new SequenceCommand($factory));
+
+// Run the application
+$application->run();

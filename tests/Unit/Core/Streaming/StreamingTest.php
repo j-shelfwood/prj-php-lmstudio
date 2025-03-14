@@ -93,12 +93,24 @@ describe('Streaming', function (): void {
 
         // Track tool call events
         $toolCallEvents = [];
-        $this->eventHandler->registerCallback('tool_call', function ($name, $args, $id) use (&$toolCallEvents): void {
+        $this->eventHandler->on('tool_call', function ($name, $args, $id) use (&$toolCallEvents): void {
             $toolCallEvents[] = [
                 'name' => $name,
                 'args' => $args,
                 'id' => $id,
             ];
+        });
+
+        // Track error events
+        $errorEvents = [];
+        $this->eventHandler->on('error', function ($error) use (&$errorEvents): void {
+            $errorEvents[] = $error;
+        });
+
+        // Track chunk events
+        $chunkEvents = [];
+        $this->eventHandler->on('chunk', function ($chunk) use (&$chunkEvents): void {
+            $chunkEvents[] = $chunk;
         });
 
         // Set up the mock to call the callback with each chunk
@@ -147,7 +159,7 @@ describe('Streaming', function (): void {
 
         // Track error events
         $errorEvents = [];
-        $this->eventHandler->registerCallback('error', function ($error) use (&$errorEvents): void {
+        $this->eventHandler->on('error', function ($error) use (&$errorEvents): void {
             $errorEvents[] = $error;
         });
 
@@ -176,7 +188,7 @@ describe('Streaming', function (): void {
 
         // Track chunk events
         $chunkEvents = [];
-        $this->eventHandler->registerCallback('chunk', function ($chunk) use (&$chunkEvents): void {
+        $this->eventHandler->on('chunk', function ($chunk) use (&$chunkEvents): void {
             $chunkEvents[] = $chunk;
         });
 

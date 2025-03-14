@@ -65,8 +65,19 @@ class HttpClient implements HttpClientInterface
         $responseData = json_decode($response, true);
 
         if ($statusCode >= 400) {
+            // Extract error message from response
+            $errorMessage = 'Unknown error';
+
+            if (is_array($responseData)) {
+                if (isset($responseData['error']['message'])) {
+                    $errorMessage = $responseData['error']['message'];
+                } elseif (isset($responseData['error'])) {
+                    $errorMessage = is_string($responseData['error']) ? $responseData['error'] : json_encode($responseData['error']);
+                }
+            }
+
             throw new ApiException(
-                'API Error: '.($responseData['error']['message'] ?? 'Unknown error'),
+                'API Error: '.$errorMessage,
                 $statusCode,
                 null,
                 $responseData

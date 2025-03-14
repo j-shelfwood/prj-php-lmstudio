@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Illuminate\Support\ServiceProvider;
-use Mockery;
 use Shelfwood\LMStudio\Laravel\LMStudioServiceProvider;
 use Shelfwood\LMStudio\LMStudioFactory;
 

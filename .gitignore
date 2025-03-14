@@ -1,5 +1,4 @@
 vendor/
-bin/
 build/
 
 .DS_Store
@@ -15,3 +14,4 @@ logs/
 depfile.yaml
 dependencies.dot
 psalm.xml
+.env

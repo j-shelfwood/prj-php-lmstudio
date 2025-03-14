@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'base_url' => env('LMSTUDIO_BASE_URL', 'https://api.lmstudio.ai/v1'),
+    'base_url' => env('LMSTUDIO_BASE_URL', 'http://localhost:1234'),
 
     'api_key' => env('LMSTUDIO_API_KEY', ''),
 

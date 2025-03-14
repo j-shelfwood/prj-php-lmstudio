@@ -63,7 +63,7 @@ test('create conversation with tool registry', function (): void {
 
 test('create conversation with event handler', function (): void {
     $eventHandler = new EventHandler;
-    $eventHandler->registerCallback('response', function ($response): void {
+    $eventHandler->on('response', function ($response): void {
         // Response callback
     });
 
@@ -100,7 +100,7 @@ test('create conversation with all features', function (): void {
     );
 
     $eventHandler = new EventHandler;
-    $eventHandler->registerCallback('response', function ($response): void {
+    $eventHandler->on('response', function ($response): void {
         // Response callback
     });
 

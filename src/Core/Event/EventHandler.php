@@ -10,25 +10,40 @@ namespace Shelfwood\LMStudio\Core\Event;
 class EventHandler
 {
     /**
-     * @var array<string, array<callable>> Map of event names to callbacks
+     * @var array<string, array<callable>> The registered event handlers
      */
-    private array $callbacks = [];
+    private array $handlers = [];
 
     /**
-     * Register a callback for an event.
+     * Register a handler for an event.
      *
      * @param  string  $event  The event name
-     * @param  callable  $callback  The callback function
+     * @param  callable  $handler  The handler function
      */
-    public function registerCallback(string $event, callable $callback): self
+    public function on(string $event, callable $handler): void
     {
-        if (! isset($this->callbacks[$event])) {
-            $this->callbacks[$event] = [];
+        if (! isset($this->handlers[$event])) {
+            $this->handlers[$event] = [];
         }
 
-        $this->callbacks[$event][] = $callback;
+        $this->handlers[$event][] = $handler;
+    }
 
-        return $this;
+    /**
+     * Trigger an event.
+     *
+     * @param  string  $event  The event name
+     * @param  mixed  ...$args  The event arguments
+     */
+    public function trigger(string $event, ...$args): void
+    {
+        if (! isset($this->handlers[$event])) {
+            return;
+        }
+
+        foreach ($this->handlers[$event] as $handler) {
+            $handler(...$args);
+        }
     }
 
     /**
@@ -39,24 +54,7 @@ class EventHandler
      */
     public function hasCallbacks(string $event): bool
     {
-        return isset($this->callbacks[$event]) && ! empty($this->callbacks[$event]);
-    }
-
-    /**
-     * Trigger an event.
-     *
-     * @param  string  $event  The event name
-     * @param  mixed  ...$args  The arguments to pass to the callbacks
-     */
-    public function trigger(string $event, ...$args): void
-    {
-        if (! $this->hasCallbacks($event)) {
-            return;
-        }
-
-        foreach ($this->callbacks[$event] as $callback) {
-            call_user_func_array($callback, $args);
-        }
+        return isset($this->handlers[$event]) && ! empty($this->handlers[$event]);
     }
 
     /**
@@ -67,7 +65,7 @@ class EventHandler
      */
     public function getCallbacks(string $event): array
     {
-        return $this->callbacks[$event] ?? [];
+        return $this->handlers[$event] ?? [];
     }
 
     /**
@@ -77,7 +75,7 @@ class EventHandler
      */
     public function clearCallbacks(string $event): self
     {
-        unset($this->callbacks[$event]);
+        unset($this->handlers[$event]);
 
         return $this;
     }
@@ -87,7 +85,7 @@ class EventHandler
      */
     public function clearAllCallbacks(): self
     {
-        $this->callbacks = [];
+        $this->handlers = [];
 
         return $this;
     }

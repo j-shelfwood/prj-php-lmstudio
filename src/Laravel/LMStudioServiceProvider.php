@@ -25,7 +25,7 @@ class LMStudioServiceProvider extends ServiceProvider
             $config = $app['config']['lmstudio'];
 
             return new LMStudioFactory(
-                $config['base_url'] ?? 'https://api.lmstudio.ai/v1',
+                $config['base_url'] ?? 'http://localhost:1234',
                 $config['headers'] ?? [],
                 $config['api_key'] ?? ''
             );
@@ -83,6 +83,12 @@ class LMStudioServiceProvider extends ServiceProvider
             $this->publishes([
                 $configPath => $publishPath,
             ], 'lmstudio-config');
+
+            // Register Laravel-specific commands
+            $this->commands([
+                Commands\ChatCommand::class,
+                Commands\SequenceCommand::class,
+            ]);
         }
     }
 }
