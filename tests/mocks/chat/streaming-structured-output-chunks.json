@@ -1,0 +1,91 @@
+[
+  {
+    "id": "chatcmpl-k8n2p3j96ag0svrr5z6txi9",
+    "object": "chat.completion.chunk",
+    "created": 1740598352,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": "{"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-k8n2p3j96ag0svrr5z6txi9",
+    "object": "chat.completion.chunk",
+    "created": 1740598352,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "\"joke\":"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-k8n2p3j96ag0svrr5z6txi9",
+    "object": "chat.completion.chunk",
+    "created": 1740598352,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "\"Why don't scientists trust atoms?"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-k8n2p3j96ag0svrr5z6txi9",
+    "object": "chat.completion.chunk",
+    "created": 1740598352,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": " Because they make up everything!\""
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-k8n2p3j96ag0svrr5z6txi9",
+    "object": "chat.completion.chunk",
+    "created": 1740598352,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "}"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-k8n2p3j96ag0svrr5z6txi9",
+    "object": "chat.completion.chunk",
+    "created": 1740598352,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {},
+        "finish_reason": "stop"
+      }
+    ]
+  }
+]

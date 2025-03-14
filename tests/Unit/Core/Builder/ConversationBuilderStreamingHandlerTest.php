@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
+use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Builder\ConversationBuilder;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
@@ -228,5 +230,44 @@ describe('ConversationBuilderStreamingHandler', function (): void {
         $error = new \Exception('Test error');
         $conversation->getToolExecutionHandler()->handleError($toolCall, $error);
         expect($receivedError)->toBe($error);
+    });
+
+    it('with response format and streaming', function (): void {
+        $chatService = Mockery::mock(ChatService::class);
+
+        // Create a response format
+        $jsonSchema = [
+            'name' => 'joke_response',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'joke' => [
+                        'type' => 'string',
+                    ],
+                ],
+                'required' => ['joke'],
+            ],
+        ];
+
+        $responseFormat = new ResponseFormat(ResponseFormatType::JSON_SCHEMA, $jsonSchema);
+
+        // Create a builder with streaming and response format
+        $builder = new ConversationBuilder($chatService, 'test-model');
+        $builder->withStreaming(true)
+            ->withResponseFormat($responseFormat)
+            ->onStreamContent(function ($content) {
+                // Content callback
+            });
+
+        // Build the conversation
+        $conversation = $builder->build();
+
+        // Assert the conversation has the correct configuration
+        expect($conversation->isStreaming())->toBeTrue();
+        expect($conversation->getOptions())->toHaveKey('stream');
+        expect($conversation->getOptions()['stream'])->toBeTrue();
+        expect($conversation->getOptions())->toHaveKey('response_format');
+        expect($conversation->getOptions()['response_format'])->toBe($responseFormat);
+        expect($conversation->getStreamingHandler())->not->toBeNull();
     });
 });

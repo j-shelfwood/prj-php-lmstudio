@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
+use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Builder\ConversationBuilder;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
@@ -182,5 +184,38 @@ describe('ConversationBuilder', function (): void {
         expect($conversation->getEventHandler()->hasCallbacks('error'))->toBeTrue();
         expect($conversation->getEventHandler()->hasCallbacks('tool_call'))->toBeTrue();
         expect($conversation->getEventHandler()->hasCallbacks('chunk'))->toBeTrue();
+    });
+
+    test('conversation builder can set response format', function (): void {
+        // Create a mock chat service
+        $chatService = Mockery::mock(ChatService::class);
+
+        // Create a response format
+        $jsonSchema = [
+            'name' => 'joke_response',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'joke' => [
+                        'type' => 'string',
+                    ],
+                ],
+                'required' => ['joke'],
+            ],
+        ];
+
+        $responseFormat = new ResponseFormat(ResponseFormatType::JSON_SCHEMA, $jsonSchema);
+
+        // Create a conversation builder
+        $builder = new ConversationBuilder($chatService, 'test-model');
+        $builder->withResponseFormat($responseFormat);
+
+        // Build the conversation
+        $conversation = $builder->build();
+
+        // Assert the response format is set in the options
+        $options = $conversation->getOptions();
+        expect($options)->toHaveKey('response_format');
+        expect($options['response_format'])->toBe($responseFormat);
     });
 });

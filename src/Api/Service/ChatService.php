@@ -7,6 +7,7 @@ namespace Shelfwood\LMStudio\Api\Service;
 use Shelfwood\LMStudio\Api\Exception\ApiException;
 use Shelfwood\LMStudio\Api\Exception\ValidationException;
 use Shelfwood\LMStudio\Api\Model\Message;
+use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Model\Tool;
 use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
 
@@ -42,6 +43,13 @@ class ChatService extends AbstractService
             $options['tools'] = array_map(function ($tool) {
                 return $tool instanceof Tool ? $tool->toArray() : $tool;
             }, $options['tools']);
+        }
+
+        // Convert ResponseFormat object to array
+        if (isset($options['response_format'])) {
+            $options['response_format'] = $options['response_format'] instanceof ResponseFormat
+                ? $options['response_format']->toArray()
+                : $options['response_format'];
         }
 
         $data = array_merge([
@@ -92,6 +100,13 @@ class ChatService extends AbstractService
             $options['tools'] = array_map(function ($tool) {
                 return $tool instanceof Tool ? $tool->toArray() : $tool;
             }, $options['tools']);
+        }
+
+        // Convert ResponseFormat object to array
+        if (isset($options['response_format'])) {
+            $options['response_format'] = $options['response_format'] instanceof ResponseFormat
+                ? $options['response_format']->toArray()
+                : $options['response_format'];
         }
 
         $data = array_merge([

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Core\Builder;
 
+use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
@@ -316,6 +317,18 @@ class ConversationBuilder
         }
 
         $this->toolExecutionHandler->onError($callback);
+
+        return $this;
+    }
+
+    /**
+     * Set the response format.
+     *
+     * @param  ResponseFormat  $responseFormat  The response format
+     */
+    public function withResponseFormat(ResponseFormat $responseFormat): self
+    {
+        $this->options['response_format'] = $responseFormat;
 
         return $this;
     }

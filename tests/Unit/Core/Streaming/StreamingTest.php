@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
 use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
@@ -202,5 +204,71 @@ describe('Streaming', function (): void {
         // Assert the progress text was assembled correctly
         $expectedContent = "I'm sorry for any inconvenience, but as an AI, I don't have real-time capabilities to provide current weather updates or forecasts. Please check a reliable weather website or app for the most accurate information on the weather in London.";
         expect($progressText)->toBe($expectedContent);
+    });
+
+    test('conversation can stream structured output', function (): void {
+        // Load the mock streaming chunks
+        $streamingChunks = load_mock('chat/streaming-structured-output-chunks.json');
+
+        // Create a response format
+        $jsonSchema = [
+            'name' => 'joke_response',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'joke' => [
+                        'type' => 'string',
+                    ],
+                ],
+                'required' => ['joke'],
+            ],
+        ];
+
+        $responseFormat = new ResponseFormat(ResponseFormatType::JSON_SCHEMA, $jsonSchema);
+
+        // Create a conversation with streaming enabled and response format
+        $conversation = new Conversation(
+            $this->chatService,
+            'qwen2.5-7b-instruct-1m',
+            ['response_format' => $responseFormat],
+            $this->toolRegistry,
+            $this->eventHandler,
+            true
+        );
+
+        // Add a user message
+        $conversation->addUserMessage('Tell me a joke.');
+
+        // Set up the mock to call the callback with each chunk
+        $this->chatService->shouldReceive('createCompletionStream')
+            ->once()
+            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), Mockery::type('array'), Mockery::type('callable'))
+            ->andReturnUsing(function ($model, $messages, $options, $callback) use ($streamingChunks): void {
+                foreach ($streamingChunks as $chunk) {
+                    $callback($chunk);
+                }
+            });
+
+        // Collect the chunks
+        $receivedChunks = [];
+        $fullContent = $conversation->getStreamingResponse(function ($chunk) use (&$receivedChunks): void {
+            $receivedChunks[] = $chunk;
+        });
+
+        // Assert the chunks were received
+        expect($receivedChunks)->toHaveCount(count($streamingChunks));
+        expect($receivedChunks[0]['id'])->toBe('chatcmpl-k8n2p3j96ag0svrr5z6txi9');
+
+        // Assert the full content was assembled correctly
+        $expectedContent = '{"joke":"Why don\'t scientists trust atoms? Because they make up everything!"}';
+        expect($fullContent)->toBe($expectedContent);
+
+        // Assert the conversation history is maintained
+        $messages = $conversation->getMessages();
+        expect($messages)->toHaveCount(2);
+        expect($messages[0]->getRole())->toBe(Role::USER);
+        expect($messages[0]->getContent())->toBe('Tell me a joke.');
+        expect($messages[1]->getRole())->toBe(Role::ASSISTANT);
+        expect($messages[1]->getContent())->toBe($expectedContent);
     });
 });
