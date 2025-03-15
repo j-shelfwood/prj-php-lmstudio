@@ -4,60 +4,75 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Api\Service;
 
-use Shelfwood\LMStudio\Api\Exception\ApiException;
+use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
 use Shelfwood\LMStudio\Api\Exception\ValidationException;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
 use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
 
 class ChatService extends AbstractService
 {
+    private ApiClientInterface $client;
+
+    public function __construct(ApiClientInterface $client)
+    {
+        $this->client = $client;
+    }
+
     /**
      * Create a chat completion.
      *
-     * @param  string  $model  The model to use
-     * @param  array  $messages  The messages to send
-     * @param  array  $options  Additional options
+     * @param  array|Message[]  $messages
+     * @param  array|Tool[]|ToolDefinition[]|null  $tools
      *
-     * @throws ApiException If the request fails
-     * @throws ValidationException If the request is invalid
+     * @throws ValidationException
      */
-    public function createCompletion(string $model, array $messages, array $options = []): ChatCompletionResponse
-    {
-        if (empty($model)) {
-            throw new ValidationException('Model is required');
-        }
+    public function createCompletion(
+        string $model,
+        array $messages,
+        ?array $tools = null,
+        ?ResponseFormat $responseFormat = null,
+        ?array $options = null
+    ): ChatCompletionResponse {
+        $this->validateModel($model);
+        $this->validateMessages($messages);
 
-        if (empty($messages)) {
-            throw new ValidationException('Messages are required');
-        }
-
-        // Convert Message objects to arrays
-        $messageData = array_map(function ($message) {
-            return $message instanceof Message ? $message->toArray() : $message;
-        }, $messages);
-
-        // Convert Tool objects to arrays
-        if (isset($options['tools'])) {
-            $options['tools'] = array_map(function ($tool) {
-                return $tool instanceof Tool ? $tool->toArray() : $tool;
-            }, $options['tools']);
-        }
-
-        // Convert ResponseFormat object to array
-        if (isset($options['response_format'])) {
-            $options['response_format'] = $options['response_format'] instanceof ResponseFormat
-                ? $options['response_format']->toArray()
-                : $options['response_format'];
-        }
-
-        $data = array_merge([
+        $data = [
             'model' => $model,
-            'messages' => $messageData,
-        ], $options);
+            'messages' => $this->formatMessages($messages),
+        ];
 
-        $response = $this->apiClient->post('/api/v0/chat/completions', $data);
+        if ($tools !== null) {
+            $toolsArray = [];
+
+            foreach ($tools as $tool) {
+                if ($tool instanceof Tool) {
+                    $toolsArray[] = $tool->toArray();
+                } elseif ($tool instanceof ToolDefinition) {
+                    $toolsArray[] = [
+                        'type' => 'function',
+                        'function' => [
+                            'name' => $tool->getName(),
+                            'description' => $tool->getDescription(),
+                            'parameters' => $tool->getParameters()->toArray(),
+                        ],
+                    ];
+                }
+            }
+            $data['tools'] = $toolsArray;
+        }
+
+        if ($responseFormat !== null) {
+            $data['response_format'] = $responseFormat->toArray();
+        }
+
+        if ($options !== null) {
+            $data = array_merge($data, $options);
+        }
+
+        $response = $this->client->post('/api/v0/chat/completions', $data);
 
         return ChatCompletionResponse::fromArray($response);
     }
@@ -66,54 +81,117 @@ class ChatService extends AbstractService
      * Create a streaming chat completion.
      *
      * @param  string  $model  The model to use
-     * @param  array  $messages  The messages to send
-     * @param  array  $options  Additional options
-     * @param  callable  $callback  Callback function to handle each chunk of data
-     *
-     * @throws ApiException If the request fails
-     * @throws ValidationException If the request is invalid
+     * @param  Message[]  $messages  The messages to send
+     * @param  callable  $callback  The callback to handle streaming data
+     * @param  Tool[]|null  $tools  The tools to use
+     * @param  ResponseFormat|null  $responseFormat  The response format
+     * @param  array|null  $options  Additional options
      */
-    public function createCompletionStream(string $model, array $messages, array $options = [], ?callable $callback = null): void
+    public function createCompletionStream(
+        string $model,
+        array $messages,
+        callable $callback,
+        ?array $tools = null,
+        ?ResponseFormat $responseFormat = null,
+        ?array $options = null
+    ): void {
+        $this->validateModel($model);
+        $this->validateMessages($messages);
+        $this->validateCallback($callback);
+
+        $data = [
+            'model' => $model,
+            'messages' => $this->formatMessages($messages),
+            'stream' => true,
+        ];
+
+        if ($tools !== null) {
+            $toolsArray = [];
+
+            foreach ($tools as $tool) {
+                if ($tool instanceof Tool) {
+                    $toolsArray[] = $tool->toArray();
+                } elseif ($tool instanceof ToolDefinition) {
+                    $toolsArray[] = [
+                        'type' => 'function',
+                        'function' => [
+                            'name' => $tool->getName(),
+                            'description' => $tool->getDescription(),
+                            'parameters' => $tool->getParameters()->toArray(),
+                        ],
+                    ];
+                }
+            }
+            $data['tools'] = $toolsArray;
+        }
+
+        if ($responseFormat !== null) {
+            $data['response_format'] = $responseFormat->toArray();
+        }
+
+        if ($options !== null) {
+            $data = array_merge($data, $options);
+        }
+
+        // Ensure stream is always true
+        $data['stream'] = true;
+
+        $this->client->postStream('/api/v0/chat/completions', $data, $callback);
+    }
+
+    /**
+     * Validate the model.
+     *
+     * @param  string  $model  The model to validate
+     *
+     * @throws ValidationException If the model is invalid
+     */
+    private function validateModel(string $model): void
     {
         if (empty($model)) {
             throw new ValidationException('Model is required');
         }
+    }
 
+    /**
+     * Validate the messages.
+     *
+     * @param  Message[]  $messages  The messages to validate
+     *
+     * @throws ValidationException If the messages are invalid
+     */
+    private function validateMessages(array $messages): void
+    {
         if (empty($messages)) {
             throw new ValidationException('Messages are required');
         }
 
+        foreach ($messages as $message) {
+            if (! $message instanceof Message) {
+                throw new ValidationException('Messages must be instances of Message');
+            }
+        }
+    }
+
+    /**
+     * Validate the callback.
+     *
+     * @throws ValidationException
+     */
+    private function validateCallback(?callable $callback): void
+    {
         if ($callback === null) {
             throw new ValidationException('Callback is required for streaming');
         }
+    }
 
-        // Ensure streaming is enabled
-        $options['stream'] = true;
-
-        // Convert Message objects to arrays
-        $messageData = array_map(function ($message) {
-            return $message instanceof Message ? $message->toArray() : $message;
-        }, $messages);
-
-        // Convert Tool objects to arrays
-        if (isset($options['tools'])) {
-            $options['tools'] = array_map(function ($tool) {
-                return $tool instanceof Tool ? $tool->toArray() : $tool;
-            }, $options['tools']);
-        }
-
-        // Convert ResponseFormat object to array
-        if (isset($options['response_format'])) {
-            $options['response_format'] = $options['response_format'] instanceof ResponseFormat
-                ? $options['response_format']->toArray()
-                : $options['response_format'];
-        }
-
-        $data = array_merge([
-            'model' => $model,
-            'messages' => $messageData,
-        ], $options);
-
-        $this->apiClient->postStream('/api/v0/chat/completions', $data, $callback);
+    /**
+     * Format messages for API request.
+     *
+     * @param  array|Message[]  $messages
+     */
+    private function formatMessages(array $messages): array
+    {
+        return array_map(fn (Message $message) => $message->toArray(), $messages);
     }
 }

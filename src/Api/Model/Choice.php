@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Api\Model;
 
 use Shelfwood\LMStudio\Api\Enum\FinishReason;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 
 /**
  * Represents a choice in a completion response.
@@ -101,14 +102,22 @@ class Choice
      */
     public function hasToolCalls(): bool
     {
-        return ! empty($this->message['tool_calls']);
+        return isset($this->message['tool_calls']) && ! empty($this->message['tool_calls']);
     }
 
     /**
      * Get the tool calls from the message.
+     *
+     * @return array<ToolCall>
      */
     public function getToolCalls(): array
     {
-        return $this->message['tool_calls'] ?? [];
+        if (! $this->hasToolCalls()) {
+            return [];
+        }
+
+        $toolCalls = $this->message['tool_calls'] ?? [];
+
+        return array_map(fn (array $toolCall) => ToolCall::fromArray($toolCall), $toolCalls);
     }
 }

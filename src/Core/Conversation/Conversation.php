@@ -8,6 +8,7 @@ use Shelfwood\LMStudio\Api\Contract\ConversationInterface;
 use Shelfwood\LMStudio\Api\Enum\Role;
 use Shelfwood\LMStudio\Api\Exception\ApiException;
 use Shelfwood\LMStudio\Api\Model\Message;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
@@ -33,6 +34,11 @@ class Conversation implements ConversationInterface
     private ?StreamingHandler $streamingHandler;
 
     private ?ToolExecutionHandler $toolExecutionHandler;
+
+    /**
+     * Track whether progress has been triggered.
+     */
+    private bool $progressTriggered = false;
 
     /**
      * @param  ChatService  $chatService  The chat service
@@ -194,6 +200,7 @@ class Conversation implements ConversationInterface
         try {
             $fullContent = '';
             $toolCalls = null;
+            $this->progressTriggered = false;
 
             // Add tools to options if any are registered
             $options = $this->options;
@@ -208,10 +215,10 @@ class Conversation implements ConversationInterface
             }
 
             $this->chatService->createCompletionStream(
-                $this->model,
-                $this->messages,
-                $options,
-                function ($chunk) use (&$fullContent, &$toolCalls, $callback): void {
+                model: $this->model,
+                messages: $this->messages,
+                options: $options,
+                callback: function ($chunk) use (&$fullContent, &$toolCalls, $callback): void {
                     // Trigger the legacy event handler
                     $this->eventHandler->trigger('chunk', $chunk);
 
@@ -269,6 +276,12 @@ class Conversation implements ConversationInterface
                 $this->handleToolCalls($toolCalls);
             }
 
+            // Trigger progress event when streaming is complete, but only if no progress events have been triggered yet
+            if (! $this->progressTriggered) {
+                $this->eventHandler->trigger('progress', 1.0);
+                $this->progressTriggered = true;
+            }
+
             return $fullContent;
         } catch (\Exception $e) {
             $this->eventHandler->trigger('error', $e);
@@ -290,9 +303,9 @@ class Conversation implements ConversationInterface
     private function handleToolCalls(array $toolCalls): void
     {
         foreach ($toolCalls as $toolCall) {
-            $toolCallId = $toolCall['id'] ?? '';
-            $functionName = $toolCall['function']['name'] ?? '';
-            $arguments = $toolCall['function']['arguments'] ?? '{}';
+            $toolCallId = $toolCall instanceof ToolCall ? $toolCall->getId() : ($toolCall['id'] ?? '');
+            $functionName = $toolCall instanceof ToolCall ? $toolCall->getFunction()->getName() : ($toolCall['function']['name'] ?? '');
+            $arguments = $toolCall instanceof ToolCall ? $toolCall->getFunction()->getArguments() : ($toolCall['function']['arguments'] ?? '{}');
 
             // Parse arguments
             $parsedArguments = json_decode($arguments, true) ?? [];
@@ -468,5 +481,37 @@ class Conversation implements ConversationInterface
         $this->options['stream'] = $streaming;
 
         return $this;
+    }
+
+    /**
+     * Set the streaming handler.
+     *
+     * @param  StreamingHandler  $handler  The streaming handler
+     */
+    public function setStreamingHandler(StreamingHandler $handler): self
+    {
+        $this->streamingHandler = $handler;
+
+        return $this;
+    }
+
+    /**
+     * Set the tool execution handler.
+     *
+     * @param  ToolExecutionHandler  $handler  The tool execution handler
+     */
+    public function setToolExecutionHandler(ToolExecutionHandler $handler): self
+    {
+        $this->toolExecutionHandler = $handler;
+
+        return $this;
+    }
+
+    /**
+     * Mark progress as triggered.
+     */
+    public function markProgressTriggered(): void
+    {
+        $this->progressTriggered = true;
     }
 }

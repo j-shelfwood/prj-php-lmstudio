@@ -1,0 +1,46 @@
+[
+  {
+    "id": "chatcmpl-123-chunk-1",
+    "object": "chat.completion.chunk",
+    "created": 1677858242,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": "{\"joke\":\"Why did"
+        }
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-123-chunk-2",
+    "object": "chat.completion.chunk",
+    "created": 1677858242,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": " the scarecrow win an award? Because he was"
+        }
+      }
+    ]
+  },
+  {
+    "id": "chatcmpl-123-chunk-3",
+    "object": "chat.completion.chunk",
+    "created": 1677858242,
+    "model": "qwen2.5-7b-instruct-1m",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": " outstanding in his field!\"}"
+        },
+        "finish_reason": "stop"
+      }
+    ]
+  }
+]

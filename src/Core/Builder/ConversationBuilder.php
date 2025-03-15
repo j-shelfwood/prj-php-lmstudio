@@ -352,18 +352,34 @@ class ConversationBuilder
     {
         // Add tools to options if any are registered
         if ($this->toolRegistry->hasTools()) {
-            $this->options['tools'] = $this->toolRegistry->getToolsArray();
+            $tools = [];
+
+            foreach ($this->toolRegistry->getTools() as $name => $tool) {
+                $tools[$name] = $tool->toArray();
+            }
+            $this->options['tools'] = $tools;
         }
 
-        return new Conversation(
+        $conversation = new Conversation(
             $this->chatService,
             $this->model,
             $this->options,
             $this->toolRegistry,
-            $this->eventHandler,
-            $this->streaming,
-            $this->streamingHandler,
-            $this->toolExecutionHandler
+            $this->eventHandler
         );
+
+        if ($this->streaming) {
+            $conversation->setStreaming(true);
+
+            if ($this->streamingHandler !== null) {
+                $conversation->setStreamingHandler($this->streamingHandler);
+            }
+        }
+
+        if ($this->toolExecutionHandler !== null) {
+            $conversation->setToolExecutionHandler($this->toolExecutionHandler);
+        }
+
+        return $conversation;
     }
 }

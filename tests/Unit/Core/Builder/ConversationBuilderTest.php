@@ -69,15 +69,28 @@ describe('ConversationBuilder', function (): void {
         $options = $conversation->getOptions();
         expect($options)->toHaveKey('tools');
         expect($options['tools'])->toBeArray();
+        expect($options['tools'])->toHaveCount(1);
 
-        // Check the structure of the tools array
-        expect($options['tools'])->toHaveKey('get_weather');
-        $tool = $options['tools']['get_weather'];
+        // Check the structure of the first tool in the array
+        $tool = $options['tools'][0];
         expect($tool)->toHaveKey('type');
         expect($tool)->toHaveKey('function');
         expect($tool['type'])->toBe('function');
         expect($tool['function'])->toHaveKey('name');
         expect($tool['function']['name'])->toBe('get_weather');
+        expect($tool['function'])->toHaveKey('description');
+        expect($tool['function']['description'])->toBe('Get the current weather in a location');
+        expect($tool['function'])->toHaveKey('parameters');
+        expect($tool['function']['parameters'])->toHaveKey('type');
+        expect($tool['function']['parameters']['type'])->toBe('object');
+        expect($tool['function']['parameters'])->toHaveKey('properties');
+        expect($tool['function']['parameters']['properties'])->toHaveKey('location');
+        expect($tool['function']['parameters']['properties']['location'])->toBe([
+            'type' => 'string',
+            'description' => 'The location to get weather for',
+        ]);
+        expect($tool['function']['parameters'])->toHaveKey('required');
+        expect($tool['function']['parameters']['required'])->toBe(['location']);
     });
 
     test('builder registers event callbacks correctly', function (): void {

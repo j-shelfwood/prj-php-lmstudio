@@ -106,7 +106,7 @@ class SequenceCommand extends BaseCommand
                     'description' => 'Get the current server time',
                     'parameters' => [
                         'type' => 'object',
-                        'properties' => [],
+                        'properties' => (object) [],
                         'required' => [],
                     ],
                 ]
@@ -127,8 +127,8 @@ class SequenceCommand extends BaseCommand
                     $result = date('Y-m-d H:i:s');
 
                     // Add tool result to conversation
-                    $messages[] = new Message(Role::ASSISTANT, null, $toolCall['id']);
-                    $messages[] = new Message(Role::TOOL, $result, $toolCall['id']);
+                    $messages[] = new Message(Role::ASSISTANT, null, [$toolCall]);
+                    $messages[] = new Message(Role::TOOL, $result, null, $toolCall['id']);
 
                     // Get final response
                     $finalResponse = $chatService->createCompletion($model, $messages);

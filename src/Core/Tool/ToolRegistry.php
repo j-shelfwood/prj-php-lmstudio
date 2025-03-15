@@ -6,6 +6,9 @@ namespace Shelfwood\LMStudio\Core\Tool;
 
 use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 
 /**
  * Registry for managing tool registrations.
@@ -23,27 +26,37 @@ class ToolRegistry
     private array $tools = [];
 
     /**
-     * Register a tool function.
+     * Register a tool with the registry.
      *
-     * @param  string  $name  The name of the function
-     * @param  callable  $callback  The function to call
+     * @param  string  $name  The name of the tool
+     * @param  callable  $callback  The callback to execute when the tool is called
      * @param  array  $parameters  The function parameters schema
-     * @param  string|null  $description  The function description
+     * @param  string|null  $description  The description of the tool
      */
     public function registerTool(string $name, callable $callback, array $parameters, ?string $description = null): self
     {
         $this->callbacks[$name] = $callback;
 
-        $functionDefinition = [
-            'name' => $name,
-            'parameters' => $parameters,
-        ];
+        $toolParameters = new ToolParameters;
 
-        if ($description !== null) {
-            $functionDefinition['description'] = $description;
+        foreach ($parameters['properties'] ?? [] as $paramName => $paramData) {
+            $toolParameters->addProperty(
+                $paramName,
+                new ToolParameter($paramData['type'], $paramData['description'] ?? '')
+            );
         }
 
-        $this->tools[$name] = new Tool(ToolType::FUNCTION, $functionDefinition);
+        foreach ($parameters['required'] ?? [] as $required) {
+            $toolParameters->addRequired($required);
+        }
+
+        $toolDefinition = new ToolDefinition(
+            $name,
+            $description ?? '',
+            $toolParameters
+        );
+
+        $this->tools[$name] = new Tool(ToolType::FUNCTION, $toolDefinition);
 
         return $this;
     }
@@ -71,21 +84,19 @@ class ToolRegistry
     }
 
     /**
-     * Execute a tool.
+     * Execute a tool by name.
      *
      * @param  string  $name  The name of the tool
      * @param  array  $arguments  The arguments to pass to the tool
      * @return mixed The result of the tool execution
-     *
-     * @throws \InvalidArgumentException If the tool is not registered
      */
     public function executeTool(string $name, array $arguments)
     {
-        if (! $this->hasTool($name)) {
-            throw new \InvalidArgumentException("Tool '{$name}' is not registered");
+        if (! isset($this->callbacks[$name])) {
+            throw new \RuntimeException("Tool '$name' not found");
         }
 
-        return call_user_func($this->callbacks[$name], $arguments);
+        return ($this->callbacks[$name])($arguments);
     }
 
     /**
@@ -111,10 +122,10 @@ class ToolRegistry
     /**
      * Get all registered tools.
      *
-     * @return array<string, Tool> The tools
+     * @return Tool[]
      */
     public function getTools(): array
     {
-        return $this->tools;
+        return array_values($this->tools);
     }
 }

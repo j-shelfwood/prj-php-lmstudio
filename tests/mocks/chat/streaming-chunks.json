@@ -9,9 +9,8 @@
         "index": 0,
         "delta": {
           "role": "assistant",
-          "content": "I'm sorry"
-        },
-        "finish_reason": null
+          "content": "I'm sorry for any"
+        }
       }
     ]
   },
@@ -24,9 +23,8 @@
       {
         "index": 0,
         "delta": {
-          "content": " for any inconvenience"
-        },
-        "finish_reason": null
+          "content": " inconvenience, but as an AI, I don't have real-time capabilities"
+        }
       }
     ]
   },
@@ -39,9 +37,8 @@
       {
         "index": 0,
         "delta": {
-          "content": ", but as an AI, I don't have real-time capabilities"
-        },
-        "finish_reason": null
+          "content": " to provide current weather updates or forecasts."
+        }
       }
     ]
   },
@@ -54,9 +51,8 @@
       {
         "index": 0,
         "delta": {
-          "content": " to provide current weather updates or forecasts."
-        },
-        "finish_reason": null
+          "content": " Please check a reliable weather website or app for the most accurate information on the weather in London."
+        }
       }
     ]
   },
@@ -68,9 +64,7 @@
     "choices": [
       {
         "index": 0,
-        "delta": {
-          "content": " Please check a reliable weather website or app for the most accurate information on the weather in London."
-        },
+        "delta": {},
         "finish_reason": "stop"
       }
     ]

@@ -6,20 +6,22 @@ namespace Shelfwood\LMStudio\Api\Model;
 
 use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Exception\ValidationException;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
 
 class Tool
 {
     private ToolType $type;
-    private array $function;
+
+    private ToolDefinition $definition;
 
     /**
-     * @param ToolType $type The type of the tool
-     * @param array $function The function definition
+     * @param  ToolType  $type  The type of the tool
+     * @param  ToolDefinition  $definition  The tool definition
      */
-    public function __construct(ToolType $type, array $function)
+    public function __construct(ToolType $type, ToolDefinition $definition)
     {
         $this->type = $type;
-        $this->function = $function;
+        $this->definition = $definition;
 
         $this->validate();
     }
@@ -27,34 +29,29 @@ class Tool
     /**
      * Create a Tool from an array.
      *
-     * @param array $data The tool data
-     * @return self
+     * @param  array  $data  The tool data
      */
     public static function fromArray(array $data): self
     {
         $type = ToolType::from($data['type']);
         $function = $data['function'] ?? [];
 
-        return new self($type, $function);
+        return new self($type, ToolDefinition::fromArray($function));
     }
 
     /**
      * Convert the tool to an array.
-     *
-     * @return array
      */
     public function toArray(): array
     {
         return [
             'type' => $this->type->value,
-            'function' => $this->function,
+            'function' => $this->definition->toArray(),
         ];
     }
 
     /**
      * Get the type of the tool.
-     *
-     * @return ToolType
      */
     public function getType(): ToolType
     {
@@ -62,13 +59,11 @@ class Tool
     }
 
     /**
-     * Get the function definition.
-     *
-     * @return array
+     * Get the tool definition.
      */
-    public function getFunction(): array
+    public function getDefinition(): ToolDefinition
     {
-        return $this->function;
+        return $this->definition;
     }
 
     /**
@@ -78,16 +73,10 @@ class Tool
      */
     private function validate(): void
     {
-        if (empty($this->function)) {
-            throw new ValidationException('Function definition is required');
-        }
-
-        if (!isset($this->function['name'])) {
-            throw new ValidationException('Function name is required');
-        }
-
-        if (!isset($this->function['parameters'])) {
-            throw new ValidationException('Function parameters are required');
+        // The validation is now handled by the ToolDefinition class
+        // We only need to validate that we have a definition
+        if ($this->definition === null) {
+            throw new ValidationException('Tool definition is required');
         }
     }
 }

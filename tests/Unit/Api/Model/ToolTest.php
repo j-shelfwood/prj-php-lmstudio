@@ -2,83 +2,82 @@
 
 declare(strict_types=1);
 
+namespace Tests\Unit\Api\Model;
+
+use PHPUnit\Framework\TestCase;
 use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 
-describe('StreamingHandler', function (): void {
-    test('tool can be created with type and function', function (): void {
-        $function = [
-            'name' => 'get_weather',
-            'description' => 'Get the weather for a location',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'location' => [
-                        'type' => 'string',
-                        'description' => 'The location to get weather for',
-                    ],
-                ],
-                'required' => ['location'],
-            ],
-        ];
+class ToolTest extends TestCase
+{
+    public function test_tool_can_be_created_with_type_and_function(): void
+    {
+        $parameters = new ToolParameters;
+        $parameters->addProperty('test', new ToolParameter('string', 'A test parameter'));
+        $definition = new ToolDefinition('test_tool', 'A test tool', $parameters);
 
-        $tool = new Tool(ToolType::FUNCTION, $function);
+        $tool = new Tool(ToolType::FUNCTION, $definition);
 
-        expect($tool)->toBeInstanceOf(Tool::class);
-        expect($tool->getType())->toBe(ToolType::FUNCTION);
-        expect($tool->getFunction())->toBe($function);
-    });
+        $this->assertSame(ToolType::FUNCTION, $tool->getType());
+        $this->assertSame($definition, $tool->getDefinition());
+    }
 
-    test('tool can be converted to array', function (): void {
-        $function = [
-            'name' => 'get_weather',
-            'description' => 'Get the weather for a location',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'location' => [
-                        'type' => 'string',
-                        'description' => 'The location to get weather for',
-                    ],
-                ],
-                'required' => ['location'],
-            ],
-        ];
+    public function test_tool_can_be_converted_to_array(): void
+    {
+        $parameters = new ToolParameters;
+        $parameters->addProperty('test', new ToolParameter('string', 'A test parameter'));
+        $definition = new ToolDefinition('test_tool', 'A test tool', $parameters);
 
-        $tool = new Tool(ToolType::FUNCTION, $function);
+        $tool = new Tool(ToolType::FUNCTION, $definition);
+
         $array = $tool->toArray();
 
-        expect($array)->toBe([
+        $this->assertSame([
             'type' => 'function',
-            'function' => $function,
-        ]);
-    });
-
-    test('tool can be created from array', function (): void {
-        $function = [
-            'name' => 'get_weather',
-            'description' => 'Get the weather for a location',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'location' => [
-                        'type' => 'string',
-                        'description' => 'The location to get weather for',
+            'function' => [
+                'name' => 'test_tool',
+                'description' => 'A test tool',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'test' => [
+                            'type' => 'string',
+                            'description' => 'A test parameter',
+                        ],
                     ],
+                    'required' => [],
                 ],
-                'required' => ['location'],
             ],
-        ];
+        ], $array);
+    }
 
+    public function test_tool_can_be_created_from_array(): void
+    {
         $array = [
             'type' => 'function',
-            'function' => $function,
+            'function' => [
+                'name' => 'test_tool',
+                'description' => 'A test tool',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'test' => [
+                            'type' => 'string',
+                            'description' => 'A test parameter',
+                        ],
+                    ],
+                    'required' => [],
+                ],
+            ],
         ];
 
         $tool = Tool::fromArray($array);
 
-        expect($tool)->toBeInstanceOf(Tool::class);
-        expect($tool->getType())->toBe(ToolType::FUNCTION);
-        expect($tool->getFunction())->toBe($function);
-    });
-});
+        $this->assertSame(ToolType::FUNCTION, $tool->getType());
+        $this->assertSame('test_tool', $tool->getDefinition()->getName());
+        $this->assertSame('A test tool', $tool->getDefinition()->getDescription());
+    }
+}

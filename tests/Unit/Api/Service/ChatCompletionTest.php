@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
 use Shelfwood\LMStudio\Api\Enum\Role;
-use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 
@@ -62,84 +64,86 @@ describe('ChatCompletion', function (): void {
     });
 
     test('chat completion with tools returns expected response', function (): void {
-        // Load the mock response
-        $mockResponse = load_mock('chat/tool-response.json');
-
         // Create test messages
         $messages = [
-            new Message(Role::USER, 'What\'s the weather like in London?'),
+            Message::forUser('What\'s the weather like in London?'),
         ];
 
-        // Create a tool
-        $tool = new Tool(
-            ToolType::FUNCTION,
-            [
-                'name' => 'get_current_weather',
-                'description' => 'Get the current weather in a location',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'location' => [
-                            'type' => 'string',
-                            'description' => 'The location to get weather for',
-                        ],
-                    ],
-                    'required' => ['location'],
-                ],
-            ]
+        // Create tool parameters
+        $parameters = new ToolParameters;
+        $parameters->addProperty('location', new ToolParameter('string', 'The location to get weather for'));
+        $parameters->addRequired('location');
+
+        // Create tool definition
+        $definition = new ToolDefinition(
+            'get_weather',
+            'Get the weather for a location',
+            $parameters
         );
 
-        // Set up the mock to return the mock response
-        $this->apiClient->shouldReceive('post')
-            ->once()
-            ->with('/api/v0/chat/completions', [
-                'model' => 'qwen2.5-7b-instruct-1m',
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => 'What\'s the weather like in London?',
-                    ],
-                ],
-                'tools' => [
-                    [
-                        'type' => 'function',
-                        'function' => [
-                            'name' => 'get_current_weather',
-                            'description' => 'Get the current weather in a location',
-                            'parameters' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'location' => [
-                                        'type' => 'string',
-                                        'description' => 'The location to get weather for',
-                                    ],
+        // Mock the API response
+        $apiResponse = [
+            'id' => 'chatcmpl-123',
+            'object' => 'chat.completion',
+            'created' => 1677858242,
+            'model' => 'qwen2.5-7b-instruct-1m',
+            'choices' => [
+                [
+                    'index' => 0,
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => 'I will check the weather in London.',
+                        'tool_calls' => [
+                            [
+                                'id' => 'call_123',
+                                'type' => 'function',
+                                'function' => [
+                                    'name' => 'get_weather',
+                                    'arguments' => '{"location":"London"}',
                                 ],
-                                'required' => ['location'],
                             ],
                         ],
                     ],
+                    'finish_reason' => 'tool_calls',
                 ],
-            ])
-            ->andReturn($mockResponse);
+            ],
+            'usage' => [
+                'prompt_tokens' => 10,
+                'completion_tokens' => 10,
+                'total_tokens' => 20,
+            ],
+        ];
+
+        // Set up the mock to expect a POST request with the correct data
+        $this->apiClient->shouldReceive('post')
+            ->once()
+            ->with('/api/v0/chat/completions', Mockery::on(function ($data) {
+                return $data['model'] === 'qwen2.5-7b-instruct-1m'
+                    && is_array($data['messages'])
+                    && is_array($data['tools'])
+                    && $data['tools'][0]['type'] === 'function'
+                    && $data['tools'][0]['function']['name'] === 'get_weather';
+            }))
+            ->andReturn($apiResponse);
 
         // Call the createCompletion method
-        $response = $this->chatService->createCompletion('qwen2.5-7b-instruct-1m', $messages, [
-            'tools' => [$tool->toArray()],
-        ]);
+        $response = $this->chatService->createCompletion('qwen2.5-7b-instruct-1m', $messages, [$definition]);
 
         // Assert the response is a ChatCompletionResponse
         expect($response)->toBeInstanceOf(ChatCompletionResponse::class);
 
         // Assert the response contains the correct data
-        expect($response->id)->toBe('chatcmpl-bnxt7kcizqs5l79zojom4q');
+        expect($response->id)->toBe('chatcmpl-123');
         expect($response->object)->toBe('chat.completion');
         expect($response->model)->toBe('qwen2.5-7b-instruct-1m');
         expect($response->getChoices())->toHaveCount(1);
 
-        // Assert the tool calls are correct
+        // Assert the content is correct
+        expect($response->getContent())->toBe('I will check the weather in London.');
         expect($response->hasToolCalls())->toBeTrue();
         expect($response->getToolCalls())->toHaveCount(1);
-        expect($response->getToolCalls()[0]['function']['name'])->toBe('get_current_weather');
-        expect($response->getToolCalls()[0]['function']['arguments'])->toBe('{"location":"London"}');
+        expect($response->getToolCalls()[0]->getType())->toBe('function');
+        expect($response->getToolCalls()[0]->getFunction()->getName())->toBe('get_weather');
+        expect($response->getToolCalls()[0]->getFunction()->getArguments())->toBe('{"location":"London"}');
     });
 });

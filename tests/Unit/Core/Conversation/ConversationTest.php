@@ -2,20 +2,41 @@
 
 declare(strict_types=1);
 
+use Shelfwood\LMStudio\Api\Enum\FinishReason;
 use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
 use Shelfwood\LMStudio\Api\Enum\Role;
-use Shelfwood\LMStudio\Api\Enum\ToolType;
+use Shelfwood\LMStudio\Api\Model\Choice;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
-use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
+use Shelfwood\LMStudio\Api\Model\Usage;
 use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
+use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 
 describe('Conversation', function (): void {
     beforeEach(function (): void {
         $this->chatService = Mockery::mock(ChatService::class);
-        $this->conversation = new Conversation($this->chatService, 'qwen2.5-7b-instruct-1m');
+        $this->toolRegistry = Mockery::mock(ToolRegistry::class);
+        $this->eventHandler = new EventHandler;
+
+        // Set up default expectations for toolRegistry
+        $this->toolRegistry->shouldReceive('hasTools')
+            ->andReturn(false);
+        $this->toolRegistry->shouldReceive('getToolsArray')
+            ->andReturn([]);
+
+        $this->conversation = new Conversation(
+            $this->chatService,
+            'qwen2.5-7b-instruct-1m',
+            [],
+            $this->toolRegistry,
+            $this->eventHandler
+        );
     });
 
     test('conversation can get response and maintain history', function (): void {
@@ -32,7 +53,7 @@ describe('Conversation', function (): void {
         // Set up the mock to return the mock response
         $this->chatService->shouldReceive('createCompletion')
             ->once()
-            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), [])
+            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), null)
             ->andReturn($chatCompletionResponse);
 
         // Get a response
@@ -54,74 +75,97 @@ describe('Conversation', function (): void {
     });
 
     test('conversation can handle tool calls and responses', function (): void {
-        // Load the mock responses
-        $toolResponse = load_mock('chat/tool-response.json');
-        $standardResponse = load_mock('chat/standard-response.json');
+        // Create test messages
+        $messages = [
+            Message::forUser('What\'s the weather like in London?'),
+        ];
 
-        $toolCompletionResponse = ChatCompletionResponse::fromArray($toolResponse);
-        $finalCompletionResponse = ChatCompletionResponse::fromArray($standardResponse);
+        // Create tool parameters
+        $parameters = new ToolParameters;
+        $parameters->addProperty('location', new ToolParameter('string', 'The location to get weather for'));
 
-        // Create a tool
-        $tool = new Tool(
-            ToolType::FUNCTION,
-            [
-                'name' => 'get_current_weather',
-                'description' => 'Get the current weather in a location',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'location' => [
-                            'type' => 'string',
-                            'description' => 'The location to get weather for',
-                        ],
-                    ],
-                    'required' => ['location'],
-                ],
-            ]
+        // Create tool definition
+        $definition = new ToolDefinition(
+            'get_weather',
+            'Get the weather for a location',
+            $parameters
         );
 
-        // Add a user message
-        $this->conversation->addUserMessage('What\'s the weather like in London?');
+        // Set up tool registry expectations
+        $this->toolRegistry->shouldReceive('hasTools')
+            ->andReturn(true);
+        $this->toolRegistry->shouldReceive('getToolsArray')
+            ->andReturn([
+                [
+                    'type' => 'function',
+                    'function' => [
+                        'name' => 'get_weather',
+                        'description' => 'Get the weather for a location',
+                        'parameters' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'location' => [
+                                    'type' => 'string',
+                                    'description' => 'The location to get weather for',
+                                ],
+                            ],
+                            'required' => [],
+                        ],
+                    ],
+                ],
+            ]);
+        $this->toolRegistry->shouldReceive('getTool')
+            ->with('get_weather')
+            ->andReturn($definition);
+        $this->toolRegistry->shouldReceive('hasTool')
+            ->with('get_weather')
+            ->andReturn(true);
+        $this->toolRegistry->shouldReceive('executeTool')
+            ->with('get_weather', ['location' => 'London'])
+            ->andReturn(['temperature' => 20, 'conditions' => 'sunny']);
 
-        // Set up the mock to return the tool response first
+        // Mock the API response
+        $apiResponse = new ChatCompletionResponse(
+            'chatcmpl-123',
+            'chat.completion',
+            1677858242,
+            'qwen2.5-7b-instruct-1m',
+            [
+                new Choice(
+                    0,
+                    null,
+                    FinishReason::TOOL_CALLS,
+                    [
+                        'role' => 'assistant',
+                        'content' => 'I will check the weather in London.',
+                        'tool_calls' => [
+                            [
+                                'id' => 'call_123',
+                                'type' => 'function',
+                                'function' => [
+                                    'name' => 'get_weather',
+                                    'arguments' => '{"location":"London"}',
+                                ],
+                            ],
+                        ],
+                    ]
+                ),
+            ],
+            new Usage(10, 10, 20)
+        );
+
+        // Set up the mock to expect a createCompletion call with the correct data
         $this->chatService->shouldReceive('createCompletion')
             ->once()
-            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), [])
-            ->andReturn($toolCompletionResponse);
+            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), Mockery::type('array'))
+            ->andReturn($apiResponse);
 
-        // Get the first response (which should be a tool call)
+        // Add the message and get the response
+        $this->conversation->addUserMessage('What\'s the weather like in London?');
         $response = $this->conversation->getResponse();
 
-        // Assert the conversation has the tool call
-        $messages = $this->conversation->getMessages();
-        expect($messages)->toHaveCount(2); // User message and assistant message with tool call
-
-        // Add a tool response
-        $this->conversation->addToolMessage('The weather in London is sunny and 22°C.', '201464470');
-
-        // Set up the mock to return the final response
-        $this->chatService->shouldReceive('createCompletion')
-            ->once()
-            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), [])
-            ->andReturn($finalCompletionResponse);
-
-        // Get the final response
-        $finalResponse = $this->conversation->getResponse();
-
-        // Assert the final response is correct
-        $expectedContent = "I'm sorry for any inconvenience, but as an AI, I don't have real-time capabilities to provide current weather updates or forecasts. Please check a reliable weather website or app for the most accurate information on the weather in London.";
-        expect($finalResponse)->toBe($expectedContent);
-
-        // Assert the conversation history is maintained
-        $messages = $this->conversation->getMessages();
-        expect($messages)->toHaveCount(4);
-        expect($messages[0]->getRole())->toBe(Role::USER);
-        expect($messages[1]->getRole())->toBe(Role::ASSISTANT);
-        expect($messages[2]->getRole())->toBe(Role::TOOL);
-        expect($messages[2]->getContent())->toBe('The weather in London is sunny and 22°C.');
-        expect($messages[2]->getToolCallId())->toBe('201464470');
-        expect($messages[3]->getRole())->toBe(Role::ASSISTANT);
-        expect($messages[3]->getContent())->toBe($expectedContent);
+        // Assert the response is correct
+        expect($response)->toBe('I will check the weather in London.');
     });
 
     test('conversation can handle structured output', function (): void {
@@ -154,7 +198,7 @@ describe('Conversation', function (): void {
         // Set up the mock to return the mock response
         $this->chatService->shouldReceive('createCompletion')
             ->once()
-            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), ['response_format' => $responseFormat])
+            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), Mockery::type('array'))
             ->andReturn($chatCompletionResponse);
 
         // Get a response

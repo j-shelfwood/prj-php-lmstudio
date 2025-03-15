@@ -5,11 +5,13 @@ declare(strict_types=1);
 use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
 use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
 use Shelfwood\LMStudio\Api\Enum\Role;
-use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Exception\ValidationException;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 
 describe('ToolExecutionHandler', function (): void {
@@ -49,40 +51,57 @@ describe('ToolExecutionHandler', function (): void {
             ], $callback);
 
         // Call the createCompletionStream method
-        $this->chatService->createCompletionStream('test-model', $messages, [], $callback);
+        $this->chatService->createCompletionStream('test-model', $messages, $callback);
     });
 
     test('create completion stream with tools', function (): void {
         // Create test messages
         $messages = [
-            new Message(Role::USER, 'What\'s the weather like in London?'),
+            Message::forUser('What\'s the weather like in London?'),
         ];
 
-        // Create a tool
-        $tool = new Tool(
-            ToolType::FUNCTION,
-            [
-                'name' => 'get_weather',
-                'description' => 'Get the weather for a location',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'location' => [
-                            'type' => 'string',
-                            'description' => 'The location to get weather for',
-                        ],
-                    ],
-                    'required' => ['location'],
-                ],
-            ]
+        // Create tool parameters
+        $parameters = new ToolParameters;
+        $parameters->addProperty('location', new ToolParameter('string', 'The location to get weather for'));
+
+        // Create tool definition
+        $definition = new ToolDefinition(
+            'get_weather',
+            'Get the weather for a location',
+            $parameters
         );
 
-        // Create a callback
-        $callback = function ($chunk): void {
-            // Callback function
-        };
+        // Mock the API response chunks
+        $chunks = [
+            [
+                'id' => 'chatcmpl-123',
+                'object' => 'chat.completion.chunk',
+                'created' => 1677858242,
+                'model' => 'test-model',
+                'choices' => [
+                    [
+                        'index' => 0,
+                        'delta' => [
+                            'role' => 'assistant',
+                            'content' => 'I will check the weather in London.',
+                            'tool_calls' => [
+                                [
+                                    'id' => 'call_123',
+                                    'type' => 'function',
+                                    'function' => [
+                                        'name' => 'get_weather',
+                                        'arguments' => '{"location":"London"}',
+                                    ],
+                                ],
+                            ],
+                        ],
+                        'finish_reason' => 'tool_calls',
+                    ],
+                ],
+            ],
+        ];
 
-        // Set up the mock to expect a streaming POST request with the correct data
+        // Set up the mock to expect a POST request with the correct data
         $this->apiClient->shouldReceive('postStream')
             ->once()
             ->with('/api/v0/chat/completions', [
@@ -93,6 +112,7 @@ describe('ToolExecutionHandler', function (): void {
                         'content' => 'What\'s the weather like in London?',
                     ],
                 ],
+                'stream' => true,
                 'tools' => [
                     [
                         'type' => 'function',
@@ -107,18 +127,37 @@ describe('ToolExecutionHandler', function (): void {
                                         'description' => 'The location to get weather for',
                                     ],
                                 ],
-                                'required' => ['location'],
+                                'required' => [],
                             ],
                         ],
                     ],
                 ],
-                'stream' => true,
-            ], $callback);
+            ], Mockery::type('callable'))
+            ->andReturnUsing(function ($endpoint, $data, $callback) use ($chunks): void {
+                foreach ($chunks as $chunk) {
+                    $callback($chunk);
+                }
+            });
+
+        // Create a callback to collect the chunks
+        $receivedChunks = [];
+        $callback = function ($chunk) use (&$receivedChunks): void {
+            $receivedChunks[] = $chunk;
+        };
 
         // Call the createCompletionStream method
-        $this->chatService->createCompletionStream('test-model', $messages, [
-            'tools' => [$tool],
-        ], $callback);
+        $this->chatService->createCompletionStream('test-model', $messages, $callback, [$definition]);
+
+        // Assert that we received the expected chunks
+        expect($receivedChunks)->toHaveCount(1);
+        expect($receivedChunks[0]['id'])->toBe('chatcmpl-123');
+        expect($receivedChunks[0]['object'])->toBe('chat.completion.chunk');
+        expect($receivedChunks[0]['choices'][0]['delta']['role'])->toBe('assistant');
+        expect($receivedChunks[0]['choices'][0]['delta']['content'])->toBe('I will check the weather in London.');
+        expect($receivedChunks[0]['choices'][0]['delta']['tool_calls'][0]['id'])->toBe('call_123');
+        expect($receivedChunks[0]['choices'][0]['delta']['tool_calls'][0]['type'])->toBe('function');
+        expect($receivedChunks[0]['choices'][0]['delta']['tool_calls'][0]['function']['name'])->toBe('get_weather');
+        expect($receivedChunks[0]['choices'][0]['delta']['tool_calls'][0]['function']['arguments'])->toBe('{"location":"London"}');
     });
 
     test('create completion stream validates model', function (): void {
@@ -128,7 +167,7 @@ describe('ToolExecutionHandler', function (): void {
         };
 
         // Expect a ValidationException to be thrown when model is empty
-        expect(fn () => $this->chatService->createCompletionStream('', [], [], $callback))
+        expect(fn () => $this->chatService->createCompletionStream('', [], $callback))
             ->toThrow(ValidationException::class, 'Model is required');
     });
 
@@ -139,43 +178,76 @@ describe('ToolExecutionHandler', function (): void {
         };
 
         // Expect a ValidationException to be thrown when messages is empty
-        expect(fn () => $this->chatService->createCompletionStream('test-model', [], [], $callback))
+        expect(fn () => $this->chatService->createCompletionStream('test-model', [], $callback))
             ->toThrow(ValidationException::class, 'Messages are required');
     });
 
     test('create completion stream validates callback', function (): void {
         // Create test messages
         $messages = [
-            new Message(Role::USER, 'Hello, how are you?'),
+            Message::forUser('Hello'),
         ];
 
         // Expect a ValidationException to be thrown when callback is null
-        expect(fn () => $this->chatService->createCompletionStream('test-model', $messages, [], null))
-            ->toThrow(ValidationException::class, 'Callback is required for streaming');
+        expect(fn () => $this->chatService->createCompletionStream('test-model', $messages, null))
+            ->toThrow(\TypeError::class, 'must be of type callable');
     });
 
     test('create completion stream ensures stream option is set', function (): void {
         // Create test messages
         $messages = [
-            new Message(Role::USER, 'Hello, how are you?'),
+            Message::forUser('Hello'),
         ];
 
-        // Create a callback
-        $callback = function ($chunk): void {
-            // Callback function
-        };
+        // Mock the API response chunks
+        $chunks = [
+            [
+                'id' => 'chatcmpl-123',
+                'object' => 'chat.completion.chunk',
+                'created' => 1677858242,
+                'model' => 'test-model',
+                'choices' => [
+                    [
+                        'index' => 0,
+                        'delta' => [
+                            'role' => 'assistant',
+                            'content' => 'Hello!',
+                        ],
+                        'finish_reason' => 'stop',
+                    ],
+                ],
+            ],
+        ];
 
-        // Set up the mock to expect a streaming POST request with stream=true
+        // Set up the mock to expect a POST request with stream=true
         $this->apiClient->shouldReceive('postStream')
             ->once()
             ->with('/api/v0/chat/completions', Mockery::on(function ($data) {
-                return $data['stream'] === true;
-            }), $callback);
+                return isset($data['stream']) && $data['stream'] === true
+                    && $data['model'] === 'test-model'
+                    && is_array($data['messages']);
+            }), Mockery::type('callable'))
+            ->andReturnUsing(function ($endpoint, $data, $callback) use ($chunks): void {
+                foreach ($chunks as $chunk) {
+                    $callback($chunk);
+                }
+            });
+
+        // Create a callback to collect the chunks
+        $receivedChunks = [];
+        $callback = function ($chunk) use (&$receivedChunks): void {
+            $receivedChunks[] = $chunk;
+        };
 
         // Call the createCompletionStream method with stream=false in options
-        $this->chatService->createCompletionStream('test-model', $messages, [
-            'stream' => false, // This should be overridden to true
-        ], $callback);
+        $this->chatService->createCompletionStream('test-model', $messages, $callback, null, null, ['stream' => false]);
+
+        // Assert that we received the expected chunks
+        expect($receivedChunks)->toHaveCount(1);
+        expect($receivedChunks[0]['id'])->toBe('chatcmpl-123');
+        expect($receivedChunks[0]['object'])->toBe('chat.completion.chunk');
+        expect($receivedChunks[0]['choices'][0]['delta']['role'])->toBe('assistant');
+        expect($receivedChunks[0]['choices'][0]['delta']['content'])->toBe('Hello!');
     });
 
     test('create completion stream with response format', function (): void {
@@ -224,8 +296,6 @@ describe('ToolExecutionHandler', function (): void {
             ], $callback);
 
         // Call the createCompletionStream method
-        $this->chatService->createCompletionStream('test-model', $messages, [
-            'response_format' => $responseFormat,
-        ], $callback);
+        $this->chatService->createCompletionStream('test-model', $messages, $callback, null, $responseFormat);
     });
 });
