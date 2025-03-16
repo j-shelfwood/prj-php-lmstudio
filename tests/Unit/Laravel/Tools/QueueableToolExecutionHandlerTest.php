@@ -44,10 +44,11 @@ describe('QueueableToolExecutionHandler', function (): void {
 
         // Use reflection to access protected property
         $reflection = new \ReflectionClass($this->handler);
-        $property = $reflection->getProperty('onQueued');
+        $property = $reflection->getProperty('eventHandler');
         $property->setAccessible(true);
 
-        expect($property->getValue($this->handler))->toBe($callback);
+        $eventHandler = $property->getValue($this->handler);
+        expect($eventHandler->hasCallbacks('lmstudio.tool.queued'))->toBeTrue();
     });
 
     test('set queue connection sets the connection correctly', function (): void {

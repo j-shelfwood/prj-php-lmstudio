@@ -53,14 +53,13 @@ describe('ChatCompletion', function (): void {
         expect($response)->toBeInstanceOf(ChatCompletionResponse::class);
 
         // Assert the response contains the correct data
-        expect($response->id)->toBe('chatcmpl-jinpu9j96ag0svrr5z6txi9');
+        expect($response->id)->toBe('chatcmpl-xrxph8k44efncp7wekaa0h');
         expect($response->object)->toBe('chat.completion');
         expect($response->model)->toBe('qwen2.5-7b-instruct');
         expect($response->getChoices())->toHaveCount(1);
 
         // Assert the content is correct
-        $expectedContent = "I'm sorry for any inconvenience, but as an AI, I don't have real-time capabilities to provide current weather updates or forecasts. Please check a reliable weather website or app for the most accurate information on the weather in London.";
-        expect($response->getContent())->toBe($expectedContent);
+        expect($response->getContent())->toBe('The capital of France is Paris.');
     });
 
     test('chat completion with tools returns expected response', function (): void {

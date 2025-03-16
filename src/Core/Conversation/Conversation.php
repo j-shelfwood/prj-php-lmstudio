@@ -270,4 +270,44 @@ class Conversation implements ConversationInterface
 
         return $this;
     }
+
+    /**
+     * Get the model being used by the conversation.
+     */
+    public function getModel(): string
+    {
+        return $this->model;
+    }
+
+    /**
+     * Get the tool registry.
+     */
+    public function getToolRegistry(): ToolRegistry
+    {
+        return $this->toolRegistry;
+    }
+
+    /**
+     * Get the event handler.
+     */
+    public function getEventHandler(): EventHandler
+    {
+        return $this->eventHandler;
+    }
+
+    /**
+     * Check if streaming is enabled.
+     */
+    public function isStreaming(): bool
+    {
+        return $this->streaming;
+    }
+
+    /**
+     * Get the conversation options.
+     */
+    public function getOptions(): array
+    {
+        return $this->options;
+    }
 }

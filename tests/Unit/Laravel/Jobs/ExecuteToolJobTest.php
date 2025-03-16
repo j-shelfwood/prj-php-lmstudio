@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Event;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\Laravel\Jobs\ExecuteToolJob;
 
@@ -17,17 +18,15 @@ describe('ExecuteToolJob', function (): void {
             'test-tool',
             ['arg' => 'value'],
             'test-id',
-            function (): void {},
-            function (): void {},
             5,
             60,
             'test-queue',
             'test-connection'
         );
 
-        expect($job->toolName)->toBe('test-tool');
-        expect($job->arguments)->toBe(['arg' => 'value']);
-        expect($job->toolCallId)->toBe('test-id');
+        expect($job->getToolName())->toBe('test-tool');
+        expect($job->getParameters())->toBe(['arg' => 'value']);
+        expect($job->getToolCallId())->toBe('test-id');
         expect($job->tries)->toBe(5);
         expect($job->timeout)->toBe(60);
     });
@@ -70,12 +69,14 @@ describe('ExecuteToolJob', function (): void {
             expect($toolCallId)->toBe('test-id');
         };
 
+        // Listen for the success event
+        Event::listen('lmstudio.tool.success', $successCallback);
+
         // Create the job
         $job = new ExecuteToolJob(
             'test-tool',
             ['arg' => 'value'],
-            'test-id',
-            $successCallback
+            'test-id'
         );
 
         // Execute the job
@@ -109,17 +110,18 @@ describe('ExecuteToolJob', function (): void {
             expect($toolCallId)->toBe('test-id');
         };
 
+        // Listen for the error event
+        Event::listen('lmstudio.tool.error', $errorCallback);
+
         // Create the job
         $job = new ExecuteToolJob(
             'test-tool',
             ['arg' => 'value'],
-            'test-id',
-            null,
-            $errorCallback
+            'test-id'
         );
 
-        // Execute the job
-        $job->handle($toolRegistry);
+        // Execute the job and expect an exception
+        expect(fn () => $job->handle($toolRegistry))->toThrow(\Exception::class, 'Test error');
 
         // Assert the error callback was called
         expect($errorCalled)->toBeTrue();

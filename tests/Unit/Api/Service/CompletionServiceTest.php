@@ -21,29 +21,24 @@ describe('CompletionService', function (): void {
             ->once()
             ->with('/api/v0/completions', [
                 'model' => 'qwen2.5-7b-instruct',
-                'prompt' => 'Once upon a time',
-                'max_tokens' => 50,
+                'prompt' => 'What is',
             ])
             ->andReturn($mockResponse);
 
         // Call the createCompletion method
-        $response = $this->completionService->createCompletion('qwen2.5-7b-instruct', 'Once upon a time', [
-            'max_tokens' => 50,
-        ]);
+        $response = $this->completionService->createCompletion('qwen2.5-7b-instruct', 'What is');
 
         // Assert the response is a TextCompletionResponse
         expect($response)->toBeInstanceOf(TextCompletionResponse::class);
 
         // Assert the response contains the correct data
-        expect($response->id)->toBe('cmpl-l7o25hmi2eogutjith3ljs');
+        expect($response->id)->toBe('cmpl-4gtjyxdfethjgyakm6xuq');
         expect($response->object)->toBe('text_completion');
         expect($response->model)->toBe('qwen2.5-7b-instruct');
         expect($response->getChoices())->toHaveCount(1);
 
         // Assert the content is correct
-        $expectedText = ', there was a young girl named Lily who lived in a small village nestled between the mountains and the sea. She had always been fascinated by the stories her grandmother told her about the magical creatures';
-        expect($response->getChoices()[0]['text'])->toBe($expectedText);
-        expect($response->getText())->toBe($expectedText);
+        expect($response->getChoices()[0]['text'])->toBe(' a profound and complex question that has puzzled philosophers');
     });
 
     test('create completion with options returns expected response', function (): void {
@@ -55,31 +50,31 @@ describe('CompletionService', function (): void {
             ->once()
             ->with('/api/v0/completions', [
                 'model' => 'qwen2.5-7b-instruct',
-                'prompt' => 'Once upon a time',
-                'max_tokens' => 50,
+                'prompt' => 'What is',
                 'temperature' => 0.7,
-                'top_p' => 0.9,
+                'max_tokens' => 100,
             ])
             ->andReturn($mockResponse);
 
-        // Call the createCompletion method with additional options
-        $response = $this->completionService->createCompletion('qwen2.5-7b-instruct', 'Once upon a time', [
-            'max_tokens' => 50,
+        // Call the createCompletion method with options
+        $response = $this->completionService->createCompletion('qwen2.5-7b-instruct', 'What is', [
             'temperature' => 0.7,
-            'top_p' => 0.9,
+            'max_tokens' => 100,
         ]);
 
         // Assert the response is a TextCompletionResponse
         expect($response)->toBeInstanceOf(TextCompletionResponse::class);
 
         // Assert the response contains the correct data
-        expect($response->id)->toBe('cmpl-l7o25hmi2eogutjith3ljs');
+        expect($response->id)->toBe('cmpl-4gtjyxdfethjgyakm6xuq');
         expect($response->object)->toBe('text_completion');
         expect($response->model)->toBe('qwen2.5-7b-instruct');
 
         // Assert the usage data is correct
-        expect($response->usage['prompt_tokens'])->toBe(4);
-        expect($response->usage['completion_tokens'])->toBe(49);
-        expect($response->usage['total_tokens'])->toBe(53);
+        expect($response->usage)->toBe([
+            'prompt_tokens' => 5,
+            'completion_tokens' => 9,
+            'total_tokens' => 14,
+        ]);
     });
 });

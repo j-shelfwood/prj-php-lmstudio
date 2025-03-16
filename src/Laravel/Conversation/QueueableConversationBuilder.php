@@ -30,7 +30,7 @@ class QueueableConversationBuilder extends ConversationBuilder
         parent::__construct($chatService, $model);
 
         $this->queueableToolExecutionHandler = new QueueableToolExecutionHandler($queueToolsByDefault);
-        $this->withToolExecutionHandler($this->queueableToolExecutionHandler);
+        $this->withToolExecutor($this->queueableToolExecutionHandler);
     }
 
     /**
@@ -75,7 +75,7 @@ class QueueableConversationBuilder extends ConversationBuilder
         ?bool $shouldQueue = true
     ): self {
         $this->withTool($name, $callback, $parameters, $description);
-        $this->setToolQueueable($name, $shouldQueue ?? true);
+        $this->queueableToolExecutionHandler->setToolQueueable($name, $shouldQueue ?? true);
 
         return $this;
     }

@@ -52,7 +52,7 @@ describe('LMStudioFactory', function (): void {
         $response = $conversation->getResponse();
 
         // Assert the response is correct
-        $expectedContent = "I'm sorry for any inconvenience, but as an AI, I don't have real-time capabilities to provide current weather updates or forecasts. Please check a reliable weather website or app for the most accurate information on the weather in London.";
+        $expectedContent = 'The capital of France is Paris.';
         expect($response)->toBe($expectedContent);
 
         // Assert the conversation history is maintained

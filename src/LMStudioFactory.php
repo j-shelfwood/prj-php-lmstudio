@@ -308,11 +308,9 @@ class LMStudioFactory
     }
 
     /**
-     * Create a new streaming handler instance.
-     *
-     * @return StreamingHandler The streaming handler instance
+     * Create a streaming handler.
      */
-    protected function createStreamingHandler(): StreamingHandler
+    public function createStreamingHandler(): StreamingHandler
     {
         return new StreamingHandler;
     }
