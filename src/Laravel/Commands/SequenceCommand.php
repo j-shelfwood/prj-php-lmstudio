@@ -38,7 +38,7 @@ class SequenceCommand extends Command
     public function handle(LMStudioFactory $factory)
     {
         // Get the model from options or config
-        $model = $this->option('model') ?: config('lmstudio.default_model', 'qwen2.5-7b-instruct-1m');
+        $model = $this->option('model') ?: config('lmstudio.default_model', 'qwen2.5-7b-instruct');
         $embeddingModel = $this->option('embedding-model') ?: config('lmstudio.default_embedding_model', 'text-embedding-nomic-embed-text-v1.5');
 
         $this->info('Starting LM Studio API sequence demonstration');

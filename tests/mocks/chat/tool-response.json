@@ -2,7 +2,7 @@
   "id": "chatcmpl-bnxt7kcizqs5l79zojom4q",
   "object": "chat.completion",
   "created": 1740598354,
-  "model": "qwen2.5-7b-instruct-1m",
+  "model": "qwen2.5-7b-instruct",
   "choices": [
     {
       "index": 0,

@@ -44,7 +44,7 @@ class ChatCommand extends Command
     public function handle(LMStudioFactory $factory): int
     {
         // Get the model from options or config
-        $model = $this->option('model') ?: config('lmstudio.default_model', 'qwen2.5-7b-instruct-1m');
+        $model = $this->option('model') ?: config('lmstudio.default_model', 'qwen2.5-7b-instruct');
 
         try {
             // Verify model exists and is loaded

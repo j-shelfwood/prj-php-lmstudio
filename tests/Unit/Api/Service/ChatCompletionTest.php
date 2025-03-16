@@ -32,7 +32,7 @@ describe('ChatCompletion', function (): void {
         $this->apiClient->shouldReceive('post')
             ->once()
             ->with('/api/v0/chat/completions', [
-                'model' => 'qwen2.5-7b-instruct-1m',
+                'model' => 'qwen2.5-7b-instruct',
                 'messages' => [
                     [
                         'role' => 'system',
@@ -47,7 +47,7 @@ describe('ChatCompletion', function (): void {
             ->andReturn($mockResponse);
 
         // Call the createCompletion method
-        $response = $this->chatService->createCompletion('qwen2.5-7b-instruct-1m', $messages);
+        $response = $this->chatService->createCompletion('qwen2.5-7b-instruct', $messages);
 
         // Assert the response is a ChatCompletionResponse
         expect($response)->toBeInstanceOf(ChatCompletionResponse::class);
@@ -55,7 +55,7 @@ describe('ChatCompletion', function (): void {
         // Assert the response contains the correct data
         expect($response->id)->toBe('chatcmpl-jinpu9j96ag0svrr5z6txi9');
         expect($response->object)->toBe('chat.completion');
-        expect($response->model)->toBe('qwen2.5-7b-instruct-1m');
+        expect($response->model)->toBe('qwen2.5-7b-instruct');
         expect($response->getChoices())->toHaveCount(1);
 
         // Assert the content is correct
@@ -86,7 +86,7 @@ describe('ChatCompletion', function (): void {
             'id' => 'chatcmpl-123',
             'object' => 'chat.completion',
             'created' => 1677858242,
-            'model' => 'qwen2.5-7b-instruct-1m',
+            'model' => 'qwen2.5-7b-instruct',
             'choices' => [
                 [
                     'index' => 0,
@@ -118,7 +118,7 @@ describe('ChatCompletion', function (): void {
         $this->apiClient->shouldReceive('post')
             ->once()
             ->with('/api/v0/chat/completions', Mockery::on(function ($data) {
-                return $data['model'] === 'qwen2.5-7b-instruct-1m'
+                return $data['model'] === 'qwen2.5-7b-instruct'
                     && is_array($data['messages'])
                     && is_array($data['tools'])
                     && $data['tools'][0]['type'] === 'function'
@@ -127,7 +127,7 @@ describe('ChatCompletion', function (): void {
             ->andReturn($apiResponse);
 
         // Call the createCompletion method
-        $response = $this->chatService->createCompletion('qwen2.5-7b-instruct-1m', $messages, [$definition]);
+        $response = $this->chatService->createCompletion('qwen2.5-7b-instruct', $messages, [$definition]);
 
         // Assert the response is a ChatCompletionResponse
         expect($response)->toBeInstanceOf(ChatCompletionResponse::class);
@@ -135,7 +135,7 @@ describe('ChatCompletion', function (): void {
         // Assert the response contains the correct data
         expect($response->id)->toBe('chatcmpl-123');
         expect($response->object)->toBe('chat.completion');
-        expect($response->model)->toBe('qwen2.5-7b-instruct-1m');
+        expect($response->model)->toBe('qwen2.5-7b-instruct');
         expect($response->getChoices())->toHaveCount(1);
 
         // Assert the content is correct

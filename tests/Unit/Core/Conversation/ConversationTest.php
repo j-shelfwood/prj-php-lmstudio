@@ -32,7 +32,7 @@ describe('Conversation', function (): void {
 
         $this->conversation = new Conversation(
             $this->chatService,
-            'qwen2.5-7b-instruct-1m',
+            'qwen2.5-7b-instruct',
             [],
             $this->toolRegistry,
             $this->eventHandler
@@ -53,7 +53,7 @@ describe('Conversation', function (): void {
         // Set up the mock to return the mock response
         $this->chatService->shouldReceive('createCompletion')
             ->once()
-            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), null)
+            ->with('qwen2.5-7b-instruct', Mockery::type('array'), null)
             ->andReturn($chatCompletionResponse);
 
         // Get a response
@@ -129,7 +129,7 @@ describe('Conversation', function (): void {
             'chatcmpl-123',
             'chat.completion',
             1677858242,
-            'qwen2.5-7b-instruct-1m',
+            'qwen2.5-7b-instruct',
             [
                 new Choice(
                     0,
@@ -157,7 +157,7 @@ describe('Conversation', function (): void {
         // Set up the mock to expect a createCompletion call with the correct data
         $this->chatService->shouldReceive('createCompletion')
             ->once()
-            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), Mockery::type('array'))
+            ->with('qwen2.5-7b-instruct', Mockery::type('array'), Mockery::type('array'))
             ->andReturn($apiResponse);
 
         // Add the message and get the response
@@ -198,7 +198,7 @@ describe('Conversation', function (): void {
         // Set up the mock to return the mock response
         $this->chatService->shouldReceive('createCompletion')
             ->once()
-            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), Mockery::type('array'))
+            ->with('qwen2.5-7b-instruct', Mockery::type('array'), Mockery::type('array'))
             ->andReturn($chatCompletionResponse);
 
         // Get a response

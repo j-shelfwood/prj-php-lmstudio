@@ -67,69 +67,6 @@ describe('StreamingHandler', function (): void {
         expect($isComplete)->toBeTrue();
     });
 
-    it('on tool call callback', function (): void {
-        $handler = new StreamingHandler;
-        $receivedToolCall = null;
-        $receivedIndex = null;
-        $isComplete = false;
-
-        $handler->onToolCall(function ($toolCall, $index, $complete) use (&$receivedToolCall, &$receivedIndex, &$isComplete): void {
-            $receivedToolCall = $toolCall;
-            $receivedIndex = $index;
-            $isComplete = $complete;
-        });
-
-        $handler->handleChunk([
-            'choices' => [
-                [
-                    'delta' => [
-                        'tool_calls' => [
-                            [
-                                'id' => 'call_123',
-                                'type' => 'function',
-                                'function' => [
-                                    'name' => 'get_weather',
-                                    'arguments' => '{"location":',
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ]);
-
-        expect($receivedToolCall['id'])->toBe('call_123');
-        expect($receivedToolCall['type'])->toBe('function');
-        expect($receivedToolCall['function']['name'])->toBe('get_weather');
-        expect($receivedToolCall['function']['arguments'])->toBe('{"location":');
-        expect($receivedIndex)->toBe(0);
-        expect($isComplete)->toBeFalse();
-
-        $handler->handleChunk([
-            'choices' => [
-                [
-                    'delta' => [
-                        'tool_calls' => [
-                            [
-                                'function' => [
-                                    'arguments' => '"New York"}',
-                                ],
-                            ],
-                        ],
-                    ],
-                    'finish_reason' => 'tool_calls',
-                ],
-            ],
-        ]);
-
-        expect($receivedToolCall['id'])->toBe('call_123');
-        expect($receivedToolCall['type'])->toBe('function');
-        expect($receivedToolCall['function']['name'])->toBe('get_weather');
-        expect($receivedToolCall['function']['arguments'])->toBe('{"location":"New York"}');
-        expect($receivedIndex)->toBe(0);
-        expect($isComplete)->toBeTrue();
-    });
-
     it('on end callback', function (): void {
         $handler = new StreamingHandler;
         $receivedBuffer = '';

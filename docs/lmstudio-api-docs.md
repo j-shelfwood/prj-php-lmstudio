@@ -287,7 +287,7 @@ For GGUF models: utilize llama.cpp's grammar-based sampling APIs.
 For MLX models: using Outlines.
 The MLX implementation is available on Github: lmstudio-ai/mlx-engine.
 
-Tool Use
+## Tool Use
 
 Tool use enables LLMs to request calls to external functions and APIs through the /v1/chat/completions endpoint, via LM Studio's REST API (or via any OpenAI client). This expands their functionality far beyond text output.
 

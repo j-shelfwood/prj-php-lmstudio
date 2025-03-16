@@ -6,12 +6,15 @@ namespace Shelfwood\LMStudio\Api\Model;
 
 use Shelfwood\LMStudio\Api\Enum\FinishReason;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCallFormatter;
 
 /**
  * Represents a choice in a completion response.
  */
 class Choice
 {
+    private ?ToolCallFormatter $formatter = null;
+
     /**
      * @param  int  $index  The index of the choice
      * @param  array|null  $logprobs  The log probabilities
@@ -23,7 +26,9 @@ class Choice
         public readonly ?array $logprobs,
         public readonly FinishReason $finishReason,
         public readonly array $message
-    ) {}
+    ) {
+        $this->formatter = new ToolCallFormatter;
+    }
 
     /**
      * Create a Choice object from an array.
@@ -102,7 +107,8 @@ class Choice
      */
     public function hasToolCalls(): bool
     {
-        return isset($this->message['tool_calls']) && ! empty($this->message['tool_calls']);
+        return isset($this->message['tool_calls']) && ! empty($this->message['tool_calls'])
+            || ($this->getContent() && strpos($this->getContent(), '<tool_call>') !== false);
     }
 
     /**
@@ -112,12 +118,22 @@ class Choice
      */
     public function getToolCalls(): array
     {
-        if (! $this->hasToolCalls()) {
+        if (isset($this->message['tool_calls']) && ! empty($this->message['tool_calls'])) {
+            $toolCalls = [];
+
+            foreach ($this->message['tool_calls'] as $toolCall) {
+                $toolCalls[] = ToolCall::fromArray($toolCall);
+            }
+
+            return $toolCalls;
+        }
+
+        $content = $this->getContent();
+
+        if (! $content) {
             return [];
         }
 
-        $toolCalls = $this->message['tool_calls'] ?? [];
-
-        return array_map(fn (array $toolCall) => ToolCall::fromArray($toolCall), $toolCalls);
+        return $this->formatter->parseToolCalls($content);
     }
 }

@@ -32,17 +32,17 @@ describe('LMStudioFactory', function (): void {
         // Set up the chat service mock to return the mock response
         $chatService->shouldReceive('createCompletion')
             ->once()
-            ->with('qwen2.5-7b-instruct-1m', Mockery::type('array'), [])
+            ->with('qwen2.5-7b-instruct', Mockery::type('array'), [])
             ->andReturn($chatCompletionResponse);
 
         // Create a mock conversation
-        $conversation = Mockery::mock(Conversation::class, [$chatService, 'qwen2.5-7b-instruct-1m'])->makePartial();
+        $conversation = Mockery::mock(Conversation::class, [$chatService, 'qwen2.5-7b-instruct'])->makePartial();
         $factory->shouldReceive('createConversation')
-            ->with('qwen2.5-7b-instruct-1m')
+            ->with('qwen2.5-7b-instruct')
             ->andReturn($conversation);
 
         // Create a conversation
-        $conversation = $factory->createConversation('qwen2.5-7b-instruct-1m');
+        $conversation = $factory->createConversation('qwen2.5-7b-instruct');
 
         // Add messages to the conversation
         $conversation->addSystemMessage('You are a helpful assistant.');

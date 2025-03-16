@@ -9,6 +9,13 @@ use Shelfwood\LMStudio\Api\Exception\ApiException;
 
 class HttpClient implements HttpClientInterface
 {
+    private StreamBuffer $buffer;
+
+    public function __construct()
+    {
+        $this->buffer = new StreamBuffer;
+    }
+
     /**
      * Send a request to the API.
      *
@@ -35,15 +42,16 @@ class HttpClient implements HttpClientInterface
         ];
 
         // Convert headers array to cURL format
-        $curlHeaders = [];
+        $curlHeaders = [
+            'Accept: application/json',
+            'Content-Type: application/json',
+        ];
 
         foreach ($headers as $key => $value) {
             $curlHeaders[] = "$key: $value";
         }
 
-        if (! empty($curlHeaders)) {
-            $options[CURLOPT_HTTPHEADER] = $curlHeaders;
-        }
+        $options[CURLOPT_HTTPHEADER] = $curlHeaders;
 
         // Add request body for POST, PUT, etc.
         if ($method !== 'GET' && ! empty($data)) {
@@ -65,23 +73,9 @@ class HttpClient implements HttpClientInterface
         $responseData = json_decode($response, true);
 
         if ($statusCode >= 400) {
-            // Extract error message from response
-            $errorMessage = 'Unknown error';
+            $errorMessage = $this->extractErrorMessage($responseData);
 
-            if (is_array($responseData)) {
-                if (isset($responseData['error']['message'])) {
-                    $errorMessage = $responseData['error']['message'];
-                } elseif (isset($responseData['error'])) {
-                    $errorMessage = is_string($responseData['error']) ? $responseData['error'] : json_encode($responseData['error']);
-                }
-            }
-
-            throw new ApiException(
-                'API Error: '.$errorMessage,
-                $statusCode,
-                null,
-                $responseData
-            );
+            throw new ApiException('API Error: '.$errorMessage, $statusCode, null, $responseData);
         }
 
         if (json_last_error() !== JSON_ERROR_NONE) {
@@ -105,61 +99,96 @@ class HttpClient implements HttpClientInterface
     public function requestStream(string $method, string $endpoint, array $data, callable $callback, array $headers = []): void
     {
         $curl = curl_init();
+        error_log('[DEBUG] Initializing stream request to: '.$endpoint);
+
+        // Reset the buffer for this request
+        $this->buffer = new StreamBuffer;
 
         $options = [
             CURLOPT_URL => $endpoint,
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0, // No timeout for streaming
+            CURLOPT_TIMEOUT => 0,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_WRITEFUNCTION => function ($curl, $data) use ($callback) {
-                // Each chunk of data should be a complete JSON object
-                $data = trim($data);
+            CURLOPT_WRITEFUNCTION => function ($curl, $data) use ($callback): int {
+                try {
+                    $length = strlen($data);
+                    error_log(sprintf('[DEBUG] Received chunk: %d bytes', $length));
 
-                // Skip empty lines and "data: [DONE]" messages
-                if (empty($data) || $data === 'data: [DONE]') {
-                    return strlen($data);
+                    // Append the new data to our buffer
+                    $this->buffer->append($data);
+
+                    // Process complete lines from the buffer
+                    while (($line = $this->buffer->readLine()) !== null) {
+                        if (empty($line)) {
+                            continue;
+                        }
+
+                        if ($line === 'data: [DONE]') {
+                            error_log('[DEBUG] Received DONE signal');
+
+                            continue;
+                        }
+
+                        if (strpos($line, 'data: ') === 0) {
+                            $jsonStr = substr($line, 6);
+                            $jsonData = json_decode($jsonStr, true);
+
+                            if (json_last_error() === JSON_ERROR_NONE && $jsonData !== null) {
+                                $callback($jsonData);
+                            } else {
+                                error_log(sprintf('[WARNING] Invalid JSON in data: %s', $jsonStr));
+                            }
+                        }
+                    }
+
+                    // Clear processed data from buffer
+                    $this->buffer->clear();
+
+                    return $length;
+                } catch (\Throwable $e) {
+                    error_log(sprintf('[ERROR] Stream processing error: %s', $e->getMessage()));
+
+                    return $length;
                 }
-
-                // Remove "data: " prefix if present
-                if (strpos($data, 'data: ') === 0) {
-                    $data = substr($data, 6);
-                }
-
-                // Parse JSON data
-                $jsonData = json_decode($data, true);
-
-                if (json_last_error() === JSON_ERROR_NONE && $jsonData !== null) {
-                    $callback($jsonData);
-                }
-
-                return strlen($data);
             },
         ];
 
-        // Convert headers array to cURL format
-        $curlHeaders = [];
+        // Set up headers for SSE
+        $curlHeaders = [
+            'Accept: text/event-stream',
+            'Cache-Control: no-cache',
+            'Content-Type: application/json',
+        ];
 
         foreach ($headers as $key => $value) {
             $curlHeaders[] = "$key: $value";
         }
 
-        if (! empty($curlHeaders)) {
-            $options[CURLOPT_HTTPHEADER] = $curlHeaders;
-        }
+        $options[CURLOPT_HTTPHEADER] = $curlHeaders;
 
         // Add request body for POST, PUT, etc.
         if ($method !== 'GET' && ! empty($data)) {
-            $options[CURLOPT_POSTFIELDS] = json_encode($data);
+            $jsonData = json_encode($data);
+            error_log(sprintf('[DEBUG] Request payload: %s', $jsonData));
+            $options[CURLOPT_POSTFIELDS] = $jsonData;
         }
 
         curl_setopt_array($curl, $options);
 
+        error_log('[DEBUG] Starting cURL execution');
         $this->curlExec($curl);
         $err = $this->curlError($curl);
+        $errno = curl_errno($curl);
         $statusCode = $this->curlGetInfo($curl, CURLINFO_HTTP_CODE);
+
+        error_log(sprintf('[DEBUG] cURL execution completed (Status: %d)', $statusCode));
+
+        if ($errno) {
+            error_log(sprintf('[ERROR] cURL Error %d: %s', $errno, $err));
+        }
 
         curl_close($curl);
 
@@ -170,6 +199,21 @@ class HttpClient implements HttpClientInterface
         if ($statusCode >= 400) {
             throw new ApiException('API Error: HTTP status code '.$statusCode);
         }
+    }
+
+    private function extractErrorMessage(array $responseData): string
+    {
+        if (isset($responseData['error']['message'])) {
+            return $responseData['error']['message'];
+        }
+
+        if (isset($responseData['error'])) {
+            return is_string($responseData['error'])
+                ? $responseData['error']
+                : json_encode($responseData['error']);
+        }
+
+        return 'Unknown error';
     }
 
     /**

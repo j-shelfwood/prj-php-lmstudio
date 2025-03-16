@@ -26,12 +26,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | This is the default model that will be used when no model is specified.
-    | For LM Studio, common models include 'qwen2.5-7b-instruct-1m' or others
+    | For LM Studio, common models include 'qwen2.5-7b-instruct' or others
     | available in your LM Studio installation.
     |
     */
 
-    'model' => env('LMSTUDIO_MODEL', 'qwen2.5-7b-instruct-1m'),
+    'model' => env('LMSTUDIO_MODEL', 'qwen2.5-7b-instruct'),
     'max_tokens' => env('LMSTUDIO_MAX_TOKENS', 1000),
     'temperature' => env('LMSTUDIO_TEMPERATURE', 0.7),
     'top_p' => env('LMSTUDIO_TOP_P', 1),

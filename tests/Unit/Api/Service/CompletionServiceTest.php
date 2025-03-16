@@ -20,14 +20,14 @@ describe('CompletionService', function (): void {
         $this->apiClient->shouldReceive('post')
             ->once()
             ->with('/api/v0/completions', [
-                'model' => 'qwen2.5-7b-instruct-1m',
+                'model' => 'qwen2.5-7b-instruct',
                 'prompt' => 'Once upon a time',
                 'max_tokens' => 50,
             ])
             ->andReturn($mockResponse);
 
         // Call the createCompletion method
-        $response = $this->completionService->createCompletion('qwen2.5-7b-instruct-1m', 'Once upon a time', [
+        $response = $this->completionService->createCompletion('qwen2.5-7b-instruct', 'Once upon a time', [
             'max_tokens' => 50,
         ]);
 
@@ -37,7 +37,7 @@ describe('CompletionService', function (): void {
         // Assert the response contains the correct data
         expect($response->id)->toBe('cmpl-l7o25hmi2eogutjith3ljs');
         expect($response->object)->toBe('text_completion');
-        expect($response->model)->toBe('qwen2.5-7b-instruct-1m');
+        expect($response->model)->toBe('qwen2.5-7b-instruct');
         expect($response->getChoices())->toHaveCount(1);
 
         // Assert the content is correct
@@ -54,7 +54,7 @@ describe('CompletionService', function (): void {
         $this->apiClient->shouldReceive('post')
             ->once()
             ->with('/api/v0/completions', [
-                'model' => 'qwen2.5-7b-instruct-1m',
+                'model' => 'qwen2.5-7b-instruct',
                 'prompt' => 'Once upon a time',
                 'max_tokens' => 50,
                 'temperature' => 0.7,
@@ -63,7 +63,7 @@ describe('CompletionService', function (): void {
             ->andReturn($mockResponse);
 
         // Call the createCompletion method with additional options
-        $response = $this->completionService->createCompletion('qwen2.5-7b-instruct-1m', 'Once upon a time', [
+        $response = $this->completionService->createCompletion('qwen2.5-7b-instruct', 'Once upon a time', [
             'max_tokens' => 50,
             'temperature' => 0.7,
             'top_p' => 0.9,
@@ -75,7 +75,7 @@ describe('CompletionService', function (): void {
         // Assert the response contains the correct data
         expect($response->id)->toBe('cmpl-l7o25hmi2eogutjith3ljs');
         expect($response->object)->toBe('text_completion');
-        expect($response->model)->toBe('qwen2.5-7b-instruct-1m');
+        expect($response->model)->toBe('qwen2.5-7b-instruct');
 
         // Assert the usage data is correct
         expect($response->usage['prompt_tokens'])->toBe(4);

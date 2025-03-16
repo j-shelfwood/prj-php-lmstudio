@@ -2,7 +2,7 @@
   "id": "cmpl-l7o25hmi2eogutjith3ljs",
   "object": "text_completion",
   "created": 1740598359,
-  "model": "qwen2.5-7b-instruct-1m",
+  "model": "qwen2.5-7b-instruct",
   "choices": [
     {
       "index": 0,

@@ -345,41 +345,26 @@ class ConversationBuilder
 
     /**
      * Build the conversation.
-     *
-     * @return Conversation The conversation instance
      */
     public function build(): Conversation
     {
         // Add tools to options if any are registered
         if ($this->toolRegistry->hasTools()) {
-            $tools = [];
-
-            foreach ($this->toolRegistry->getTools() as $name => $tool) {
-                $tools[$name] = $tool->toArray();
+            $toolsArray = $this->toolRegistry->getToolsArray();
+            if (!empty($toolsArray)) {
+                $this->options['tools'] = $toolsArray;
             }
-            $this->options['tools'] = $tools;
         }
 
-        $conversation = new Conversation(
+        return new Conversation(
             $this->chatService,
             $this->model,
             $this->options,
             $this->toolRegistry,
-            $this->eventHandler
+            $this->eventHandler,
+            $this->streaming,
+            $this->streamingHandler,
+            $this->toolExecutionHandler
         );
-
-        if ($this->streaming) {
-            $conversation->setStreaming(true);
-
-            if ($this->streamingHandler !== null) {
-                $conversation->setStreamingHandler($this->streamingHandler);
-            }
-        }
-
-        if ($this->toolExecutionHandler !== null) {
-            $conversation->setToolExecutionHandler($this->toolExecutionHandler);
-        }
-
-        return $conversation;
     }
 }

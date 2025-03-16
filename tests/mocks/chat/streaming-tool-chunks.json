@@ -3,7 +3,7 @@
     "id": "chatcmpl-456-chunk-1",
     "object": "chat.completion.chunk",
     "created": 1677858242,
-    "model": "qwen2.5-7b-instruct-1m",
+    "model": "qwen2.5-7b-instruct",
     "choices": [
       {
         "index": 0,
@@ -28,7 +28,7 @@
     "id": "chatcmpl-456-chunk-2",
     "object": "chat.completion.chunk",
     "created": 1677858242,
-    "model": "qwen2.5-7b-instruct-1m",
+    "model": "qwen2.5-7b-instruct",
     "choices": [
       {
         "index": 0,
@@ -50,7 +50,7 @@
     "id": "chatcmpl-456-chunk-3",
     "object": "chat.completion.chunk",
     "created": 1677858242,
-    "model": "qwen2.5-7b-instruct-1m",
+    "model": "qwen2.5-7b-instruct",
     "choices": [
       {
         "index": 0,
@@ -72,7 +72,7 @@
     "id": "chatcmpl-456-chunk-4",
     "object": "chat.completion.chunk",
     "created": 1677858242,
-    "model": "qwen2.5-7b-instruct-1m",
+    "model": "qwen2.5-7b-instruct",
     "choices": [
       {
         "index": 0,
@@ -94,7 +94,7 @@
     "id": "chatcmpl-456-chunk-5",
     "object": "chat.completion.chunk",
     "created": 1677858242,
-    "model": "qwen2.5-7b-instruct-1m",
+    "model": "qwen2.5-7b-instruct",
     "choices": [
       {
         "index": 0,

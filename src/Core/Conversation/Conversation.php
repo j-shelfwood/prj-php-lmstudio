@@ -13,9 +13,11 @@ use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
+use Shelfwood\LMStudio\Core\Tools\ConversationInterfaceForExecutor;
+use Shelfwood\LMStudio\Core\Tools\ConversationToolExecutor;
 use Shelfwood\LMStudio\Core\Tools\ToolExecutionHandler;
 
-class Conversation implements ConversationInterface
+class Conversation implements ConversationInterface, ConversationInterfaceForExecutor
 {
     private ChatService $chatService;
 
@@ -34,6 +36,8 @@ class Conversation implements ConversationInterface
     private ?StreamingHandler $streamingHandler;
 
     private ?ToolExecutionHandler $toolExecutionHandler;
+
+    private ?ConversationToolExecutor $toolExecutor = null;
 
     /**
      * Track whether progress has been triggered.
@@ -68,6 +72,15 @@ class Conversation implements ConversationInterface
         $this->streaming = $streaming;
         $this->streamingHandler = $streamingHandler;
         $this->toolExecutionHandler = $toolExecutionHandler;
+
+        // Initialize the tool executor
+        if ($this->toolRegistry !== null && $this->eventHandler !== null && $this->toolExecutionHandler !== null) {
+            $this->toolExecutor = new ConversationToolExecutor(
+                $this->toolRegistry,
+                $this->eventHandler,
+                $this->toolExecutionHandler
+            );
+        }
 
         // Set the stream option in the options array if streaming is enabled
         if ($this->streaming) {
@@ -166,7 +179,16 @@ class Conversation implements ConversationInterface
 
             // Add the assistant's response to the conversation
             if (! empty($content) || ! empty($toolCalls)) {
-                $this->messages[] = new Message(Role::ASSISTANT, $content ?? '', $toolCalls);
+                // Convert tool calls array to ToolCall objects if they're not already
+                $toolCallObjects = null;
+
+                if (! empty($toolCalls)) {
+                    $toolCallObjects = array_map(function ($toolCall) {
+                        return $toolCall instanceof ToolCall ? $toolCall : ToolCall::fromArray($toolCall);
+                    }, $toolCalls);
+                }
+
+                $this->messages[] = new Message(Role::ASSISTANT, $content ?? '', $toolCallObjects);
             }
 
             // Handle tool calls if present
@@ -268,7 +290,16 @@ class Conversation implements ConversationInterface
 
             // Add the assistant's response to the conversation
             if (! empty($fullContent) || ! empty($toolCalls)) {
-                $this->messages[] = new Message(Role::ASSISTANT, $fullContent, $toolCalls);
+                // Convert tool calls array to ToolCall objects if present
+                $toolCallObjects = null;
+
+                if (! empty($toolCalls)) {
+                    $toolCallObjects = array_map(function ($toolCall) {
+                        return ToolCall::fromArray($toolCall);
+                    }, $toolCalls);
+                }
+
+                $this->messages[] = new Message(Role::ASSISTANT, $fullContent, $toolCallObjects);
             }
 
             // Handle tool calls if present
@@ -303,55 +334,25 @@ class Conversation implements ConversationInterface
     private function handleToolCalls(array $toolCalls): void
     {
         foreach ($toolCalls as $toolCall) {
-            $toolCallId = $toolCall instanceof ToolCall ? $toolCall->getId() : ($toolCall['id'] ?? '');
-            $functionName = $toolCall instanceof ToolCall ? $toolCall->getFunction()->getName() : ($toolCall['function']['name'] ?? '');
-            $arguments = $toolCall instanceof ToolCall ? $toolCall->getFunction()->getArguments() : ($toolCall['function']['arguments'] ?? '{}');
-
-            // Parse arguments
-            $parsedArguments = json_decode($arguments, true) ?? [];
-
-            // Trigger the legacy event handler
-            $this->eventHandler->trigger('tool_call', $functionName, $parsedArguments, $toolCallId);
-
-            // Use the tool execution handler if available
-            if ($this->toolExecutionHandler !== null) {
-                $this->toolExecutionHandler->handleReceived($toolCall);
+            // If toolCall is already a ToolCall object, use it directly
+            if ($toolCall instanceof ToolCall) {
+                $toolCallObj = $toolCall;
+            } else {
+                // Create ToolCall object from array data
+                $toolCallObj = ToolCall::fromArray($toolCall);
             }
 
-            // Execute the tool if registered
-            if ($this->toolRegistry->hasTool($functionName)) {
-                try {
-                    // Notify that the tool is about to be executed
-                    if ($this->toolExecutionHandler !== null) {
-                        $executor = function ($args) use ($functionName) {
-                            return $this->toolRegistry->executeTool($functionName, $args);
-                        };
+            if ($this->toolExecutor !== null) {
+                $toolResponseMessage = $this->toolExecutor->executeToolCall($toolCallObj, $this);
+                $this->addMessage($toolResponseMessage);
+            } else {
+                // Fallback to old behavior if tool executor is not available
+                $functionName = $toolCallObj->getName();
+                $arguments = $toolCallObj->getArguments();
+                $toolCallId = $toolCallObj->getId();
 
-                        $this->toolExecutionHandler->handleExecuting($toolCall, $executor);
-                    }
-
-                    // Execute the tool
-                    $result = $this->toolRegistry->executeTool($functionName, $parsedArguments);
-                    $resultContent = is_string($result) ? $result : json_encode($result);
-
-                    // Notify that the tool has been executed successfully
-                    if ($this->toolExecutionHandler !== null) {
-                        $this->toolExecutionHandler->handleExecuted($toolCall, $result);
-                    }
-
-                    // Add the tool response to the conversation
-                    $this->addToolMessage($resultContent, $toolCallId);
-                } catch (\Exception $e) {
-                    // Trigger the legacy event handler
-                    $this->eventHandler->trigger('error', $e);
-
-                    // Use the tool execution handler for error handling if available
-                    if ($this->toolExecutionHandler !== null) {
-                        $this->toolExecutionHandler->handleError($toolCall, $e);
-                    }
-
-                    $this->addToolMessage("Error: {$e->getMessage()}", $toolCallId);
-                }
+                // Trigger the legacy event handler
+                $this->eventHandler->trigger('tool_call', $functionName, $arguments, $toolCallId);
             }
         }
     }
@@ -513,5 +514,15 @@ class Conversation implements ConversationInterface
     public function markProgressTriggered(): void
     {
         $this->progressTriggered = true;
+    }
+
+    /**
+     * Add a message to the conversation (implementing ConversationInterfaceForExecutor).
+     *
+     * @param  Message  $message  The message to add
+     */
+    public function addMessage(Message $message): void
+    {
+        $this->messages[] = $message;
     }
 }

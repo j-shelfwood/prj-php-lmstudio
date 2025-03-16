@@ -41,7 +41,7 @@ describe('ModelService', function (): void {
 
         // Check the first model
         expect($models[0])->toBeInstanceOf(ModelInfo::class);
-        expect($models[0]->getId())->toBe('qwen2.5-7b-instruct-1m');
+        expect($models[0]->getId())->toBe('qwen2.5-7b-instruct');
         expect($models[0]->getType())->toBe(ModelType::LLM);
         expect($models[0]->getState())->toBe(ModelState::LOADED);
         expect($models[0]->isLoaded())->toBeTrue();
@@ -69,17 +69,17 @@ describe('ModelService', function (): void {
         // Set up the mock to return the mock response
         $this->apiClient->shouldReceive('get')
             ->once()
-            ->with('/api/v0/models/qwen2.5-7b-instruct-1m')
+            ->with('/api/v0/models/qwen2.5-7b-instruct')
             ->andReturn($mockModelResponse);
 
         // Call the getModel method
-        $model = $this->modelService->getModel('qwen2.5-7b-instruct-1m');
+        $model = $this->modelService->getModel('qwen2.5-7b-instruct');
 
         // Assert the model is a ModelInfo
         expect($model)->toBeInstanceOf(ModelInfo::class);
 
         // Assert the model contains the correct data
-        expect($model->getId())->toBe('qwen2.5-7b-instruct-1m');
+        expect($model->getId())->toBe('qwen2.5-7b-instruct');
         expect($model->getObject())->toBe('model');
         expect($model->getType())->toBe(ModelType::LLM);
         expect($model->getPublisher())->toBe('lmstudio-community');

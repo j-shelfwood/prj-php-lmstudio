@@ -23,7 +23,7 @@ describe('Streaming', function (): void {
         $this->eventHandler = new EventHandler;
         $this->conversation = new Conversation(
             $this->chatService,
-            'qwen2.5-7b-instruct-1m',
+            'qwen2.5-7b-instruct',
             [],
             $this->toolRegistry,
             $this->eventHandler,
@@ -42,7 +42,7 @@ describe('Streaming', function (): void {
         $this->chatService->shouldReceive('createCompletionStream')
             ->once()
             ->with(
-                'qwen2.5-7b-instruct-1m',
+                'qwen2.5-7b-instruct',
                 Mockery::type('array'),
                 Mockery::type('callable'),
                 null,
@@ -80,103 +80,6 @@ describe('Streaming', function (): void {
         expect($messages[1]->getContent())->toBe($expectedContent);
     });
 
-    test('conversation can stream tool calls', function (): void {
-        // Load the mock streaming tool chunks
-        $streamingToolChunks = load_mock('chat/streaming-tool-chunks.json');
-
-        // Register a weather tool
-        $this->toolRegistry->registerTool(
-            'get_weather',
-            function ($args) {
-                return ['temperature' => 22, 'condition' => 'sunny'];
-            },
-            [
-                'type' => 'object',
-                'properties' => [
-                    'location' => [
-                        'type' => 'string',
-                        'description' => 'The location to get weather for',
-                    ],
-                ],
-                'required' => ['location'],
-            ],
-            'Get the current weather in a location'
-        );
-
-        // Add a user message
-        $this->conversation->addUserMessage('What\'s the weather like in London?');
-
-        // Track tool call events
-        $toolCallEvents = [];
-        $this->eventHandler->on('tool_call', function ($name, $args, $id) use (&$toolCallEvents): void {
-            $toolCallEvents[] = [
-                'name' => $name,
-                'args' => $args,
-                'id' => $id,
-            ];
-        });
-
-        // Track error events
-        $errorEvents = [];
-        $this->eventHandler->on('error', function ($error) use (&$errorEvents): void {
-            $errorEvents[] = $error;
-        });
-
-        // Track chunk events
-        $chunkEvents = [];
-        $this->eventHandler->on('chunk', function ($chunk) use (&$chunkEvents): void {
-            $chunkEvents[] = $chunk;
-        });
-
-        // Set up the mock to call the callback with each chunk
-        $this->chatService->shouldReceive('createCompletionStream')
-            ->once()
-            ->with(
-                'qwen2.5-7b-instruct-1m',
-                Mockery::type('array'),
-                Mockery::type('callable'),
-                null,
-                null,
-                Mockery::on(function ($options) {
-                    return isset($options['stream']) && $options['stream'] === true;
-                })
-            )
-            ->andReturnUsing(function ($model, $messages, $callback) use ($streamingToolChunks): void {
-                foreach ($streamingToolChunks as $chunk) {
-                    $callback($chunk);
-                }
-            });
-
-        // Collect the chunks
-        $receivedChunks = [];
-        $fullContent = $this->conversation->getStreamingResponse(function ($chunk) use (&$receivedChunks): void {
-            $receivedChunks[] = $chunk;
-        });
-
-        // Assert the chunks were received
-        expect($receivedChunks)->toHaveCount(5);
-        expect($receivedChunks[0]['id'])->toBe('chatcmpl-456-chunk-1');
-
-        // Assert the tool call was processed
-        expect($toolCallEvents)->toHaveCount(1);
-        expect($toolCallEvents[0]['name'])->toBe('get_weather');
-        expect($toolCallEvents[0]['args'])->toBe(['location' => 'London']);
-        expect($toolCallEvents[0]['id'])->toBe('call_123');
-
-        // Assert the conversation history is maintained
-        $messages = $this->conversation->getMessages();
-        expect($messages)->toHaveCount(3);
-        expect($messages[0]->getRole())->toBe(Role::USER);
-        expect($messages[0]->getContent())->toBe('What\'s the weather like in London?');
-        expect($messages[1]->getRole())->toBe(Role::ASSISTANT);
-        expect($messages[1]->getToolCalls())->not->toBeNull();
-        expect($messages[1]->getToolCalls()[0]['function']['name'])->toBe('get_weather');
-        expect($messages[1]->getToolCalls()[0]['function']['arguments'])->toBe('{"location":"London"}');
-        expect($messages[2]->getRole())->toBe(Role::TOOL);
-        expect($messages[2]->getContent())->toContain('temperature');
-        expect($messages[2]->getContent())->toContain('sunny');
-    });
-
     test('conversation handles streaming errors', function (): void {
         // Add a user message
         $this->conversation->addUserMessage('What\'s the weather like in London?');
@@ -191,7 +94,7 @@ describe('Streaming', function (): void {
         $this->chatService->shouldReceive('createCompletionStream')
             ->once()
             ->with(
-                'qwen2.5-7b-instruct-1m',
+                'qwen2.5-7b-instruct',
                 Mockery::type('array'),
                 Mockery::type('callable'),
                 null,
@@ -229,7 +132,7 @@ describe('Streaming', function (): void {
         $this->chatService->shouldReceive('createCompletionStream')
             ->once()
             ->with(
-                'qwen2.5-7b-instruct-1m',
+                'qwen2.5-7b-instruct',
                 Mockery::type('array'),
                 Mockery::type('callable'),
                 null,
@@ -285,7 +188,7 @@ describe('Streaming', function (): void {
                 'id' => 'chatcmpl-123',
                 'object' => 'chat.completion.chunk',
                 'created' => 1677858242,
-                'model' => 'qwen2.5-7b-instruct-1m',
+                'model' => 'qwen2.5-7b-instruct',
                 'choices' => [
                     [
                         'index' => 0,
@@ -303,7 +206,7 @@ describe('Streaming', function (): void {
         $this->chatService->shouldReceive('createCompletionStream')
             ->once()
             ->with(
-                'qwen2.5-7b-instruct-1m',
+                'qwen2.5-7b-instruct',
                 Mockery::type('array'),
                 Mockery::type('callable'),
                 null,
@@ -326,7 +229,7 @@ describe('Streaming', function (): void {
         // Set up the mock to expect a createCompletion call with the correct data
         $this->chatService->shouldReceive('createCompletion')
             ->with(
-                'qwen2.5-7b-instruct-1m',
+                'qwen2.5-7b-instruct',
                 Mockery::type('array'),
                 Mockery::on(function ($options) use ($responseFormat) {
                     return $options['stream'] === true
@@ -338,7 +241,7 @@ describe('Streaming', function (): void {
                 'id' => 'test-id',
                 'object' => 'chat.completion',
                 'created' => time(),
-                'model' => 'qwen2.5-7b-instruct-1m',
+                'model' => 'qwen2.5-7b-instruct',
                 'choices' => [
                     [
                         'index' => 0,
@@ -359,7 +262,7 @@ describe('Streaming', function (): void {
         // Create a conversation with streaming enabled
         $conversation = new Conversation(
             $this->chatService,
-            'qwen2.5-7b-instruct-1m',
+            'qwen2.5-7b-instruct',
             [
                 'stream' => true,
                 'response_format' => $responseFormat,

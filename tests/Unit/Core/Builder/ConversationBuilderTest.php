@@ -13,7 +13,7 @@ use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 describe('ConversationBuilder', function (): void {
     beforeEach(function (): void {
         $this->chatService = Mockery::mock(ChatService::class);
-        $this->builder = new ConversationBuilder($this->chatService, 'qwen2.5-7b-instruct-1m');
+        $this->builder = new ConversationBuilder($this->chatService, 'qwen2.5-7b-instruct');
     });
 
     test('builder creates conversation with correct configuration', function (): void {

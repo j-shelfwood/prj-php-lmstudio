@@ -42,6 +42,11 @@ class StreamingHandler
     protected $toolCalls = [];
 
     /**
+     * @var array Current tool call being built
+     */
+    protected $currentToolCall = null;
+
+    /**
      * @var bool Whether streaming has started
      */
     protected $started = false;
@@ -156,18 +161,6 @@ class StreamingHandler
     }
 
     /**
-     * Check if a chunk indicates the completion of streaming.
-     *
-     * @param  array  $chunk  The chunk data
-     * @return bool Whether streaming is complete
-     */
-    protected function isComplete(array $chunk): bool
-    {
-        return isset($chunk['choices'][0]['finish_reason']) &&
-               $chunk['choices'][0]['finish_reason'] !== null;
-    }
-
-    /**
      * Process tool call deltas from a chunk.
      *
      * @param  array  $chunk  The full chunk data
@@ -187,26 +180,88 @@ class StreamingHandler
                     ],
                 ];
             } else {
-                // Update existing tool call
+                $currentToolCall = &$this->toolCalls[$index]['function'];
+
                 if (isset($delta['function']['name'])) {
-                    $this->toolCalls[$index]['function']['name'] .= $delta['function']['name'];
+                    $currentToolCall['name'] .= $delta['function']['name'];
                 }
 
                 if (isset($delta['function']['arguments'])) {
-                    $this->toolCalls[$index]['function']['arguments'] .= $delta['function']['arguments'];
+                    $currentToolCall['arguments'] .= $delta['function']['arguments'];
                 }
             }
 
-            // Call the tool call callback
-            if ($this->onToolCall) {
-                call_user_func(
-                    $this->onToolCall,
-                    $this->toolCalls[$index],
-                    $index,
-                    $this->isComplete($chunk)
-                );
+            // Only process the tool call if this is the final chunk
+            if ($this->isToolCallComplete($chunk)) {
+                try {
+                    $currentToolCall = &$this->toolCalls[$index]['function'];
+
+                    // Try to parse arguments as JSON if they're a string
+                    if (isset($currentToolCall['arguments']) && is_string($currentToolCall['arguments'])) {
+                        try {
+                            $parsedArguments = json_decode($currentToolCall['arguments'], true, 512, JSON_THROW_ON_ERROR);
+
+                            if (is_array($parsedArguments)) {
+                                $currentToolCall['arguments'] = $parsedArguments;
+                            }
+                        } catch (\JsonException $e) {
+                            error_log(sprintf(
+                                '[WARNING] StreamingHandler: Invalid JSON arguments for tool call index %d: %s. Arguments: %s',
+                                $index,
+                                $e->getMessage(),
+                                $currentToolCall['arguments']
+                            ));
+
+                            continue;
+                        }
+                    }
+
+                    // Only trigger callback for complete and valid tool calls
+                    if ($this->onToolCall &&
+                        isset($currentToolCall['name']) &&
+                        ! empty($currentToolCall['name']) &&
+                        isset($currentToolCall['arguments'])) {
+
+                        call_user_func(
+                            $this->onToolCall,
+                            $this->toolCalls[$index],
+                            $index,
+                            true
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    error_log(sprintf(
+                        '[ERROR] StreamingHandler: Error processing tool call: %s. Tool call data: %s',
+                        $e->getMessage(),
+                        json_encode($this->toolCalls[$index])
+                    ));
+                }
             }
         }
+    }
+
+    /**
+     * Check if a chunk indicates a complete tool call.
+     *
+     * @param  array  $chunk  The chunk data
+     * @return bool Whether the tool call is complete
+     */
+    protected function isToolCallComplete(array $chunk): bool
+    {
+        return isset($chunk['choices'][0]['finish_reason']) && $chunk['choices'][0]['finish_reason'] === 'tool_calls'
+            || isset($chunk['choices'][0]['delta']['tool_calls'][0]['function']['arguments']);
+    }
+
+    /**
+     * Check if a chunk indicates the completion of streaming.
+     *
+     * @param  array  $chunk  The chunk data
+     * @return bool Whether streaming is complete
+     */
+    protected function isComplete(array $chunk): bool
+    {
+        return isset($chunk['choices'][0]['finish_reason']) &&
+               $chunk['choices'][0]['finish_reason'] !== null;
     }
 
     /**
@@ -235,6 +290,17 @@ class StreamingHandler
     public function reset(): self
     {
         $this->buffer = '';
+        $this->resetToolCalls();
+        $this->started = false;
+
+        return $this;
+    }
+
+    /**
+     * Reset the accumulated tool calls.
+     */
+    public function resetToolCalls(): self
+    {
         $this->toolCalls = [];
         $this->started = false;
 
