@@ -1,7 +1,7 @@
 {
-  "id": "chatcmpl-bnxt7kcizqs5l79zojom4q",
+  "id": "chatcmpl-tpcm6j7jbi9al1v1wkgyxq",
   "object": "chat.completion",
-  "created": 1740598354,
+  "created": 1742151668,
   "model": "qwen2.5-7b-instruct",
   "choices": [
     {
@@ -12,11 +12,11 @@
         "role": "assistant",
         "tool_calls": [
           {
-            "id": "201464470",
+            "id": "793349567",
             "type": "function",
             "function": {
               "name": "get_current_weather",
-              "arguments": "{\"location\":\"London\"}"
+              "arguments": "{\"location\":\"London\",\"unit\":\"celsius\"}"
             }
           }
         ]
@@ -24,25 +24,27 @@
     }
   ],
   "usage": {
-    "prompt_tokens": 502,
-    "completion_tokens": 34,
-    "total_tokens": 536
+    "prompt_tokens": 207,
+    "completion_tokens": 27,
+    "total_tokens": 234
   },
   "stats": {
-    "tokens_per_second": 29.506881004650285,
-    "time_to_first_token": 1.037,
-    "generation_time": 1.186,
+    "tokens_per_second": 33.63670437181052,
+    "time_to_first_token": 0.133,
+    "generation_time": 0.833,
     "stop_reason": "stop"
   },
   "model_info": {
-    "arch": "granite",
+    "arch": "qwen2",
     "quant": "Q8_0",
     "format": "gguf",
-    "context_length": 16384
+    "context_length": 4096
   },
   "runtime": {
     "name": "llama.cpp-mac-arm64-apple-metal-advsimd",
-    "version": "1.17.1",
-    "supported_formats": ["gguf"]
+    "version": "1.21.0",
+    "supported_formats": [
+      "gguf"
+    ]
   }
 }

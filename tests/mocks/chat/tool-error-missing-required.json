@@ -1,7 +1,7 @@
 {
-  "id": "chatcmpl-xrxph8k44efncp7wekaa0h",
+  "id": "chatcmpl-02xw55rr113kznuhcvovsfo",
   "object": "chat.completion",
-  "created": 1742151665,
+  "created": 1742151671,
   "model": "qwen2.5-7b-instruct",
   "choices": [
     {
@@ -10,19 +10,19 @@
       "finish_reason": "stop",
       "message": {
         "role": "assistant",
-        "content": "The capital of France is Paris."
+        "content": "I need you to specify the location for which you want to know the weather."
       }
     }
   ],
   "usage": {
-    "prompt_tokens": 36,
-    "completion_tokens": 7,
-    "total_tokens": 43
+    "prompt_tokens": 205,
+    "completion_tokens": 16,
+    "total_tokens": 221
   },
   "stats": {
-    "tokens_per_second": 37.359609592079764,
-    "time_to_first_token": 0.354,
-    "generation_time": 0.214,
+    "tokens_per_second": 34.46667883137684,
+    "time_to_first_token": 0.132,
+    "generation_time": 0.494,
     "stop_reason": "stop"
   },
   "model_info": {

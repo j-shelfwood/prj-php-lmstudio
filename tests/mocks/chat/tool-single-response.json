@@ -1,0 +1,50 @@
+{
+  "id": "chatcmpl-21rhw3xr5r782gt3ilhcv9",
+  "object": "chat.completion",
+  "created": 1742151665,
+  "model": "qwen2.5-7b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "tool_calls",
+      "message": {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "822361049",
+            "type": "function",
+            "function": {
+              "name": "get_current_weather",
+              "arguments": "{\"location\":\"London\",\"unit\":\"celsius\"}"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 207,
+    "completion_tokens": 27,
+    "total_tokens": 234
+  },
+  "stats": {
+    "tokens_per_second": 33.45948355287136,
+    "time_to_first_token": 0.359,
+    "generation_time": 0.837,
+    "stop_reason": "stop"
+  },
+  "model_info": {
+    "arch": "qwen2",
+    "quant": "Q8_0",
+    "format": "gguf",
+    "context_length": 4096
+  },
+  "runtime": {
+    "name": "llama.cpp-mac-arm64-apple-metal-advsimd",
+    "version": "1.21.0",
+    "supported_formats": [
+      "gguf"
+    ]
+  }
+}

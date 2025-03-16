@@ -1,7 +1,7 @@
 {
-  "id": "chatcmpl-xrxph8k44efncp7wekaa0h",
+  "id": "chatcmpl-c639xto166drotr3st1tn",
   "object": "chat.completion",
-  "created": 1742151665,
+  "created": 1742151669,
   "model": "qwen2.5-7b-instruct",
   "choices": [
     {
@@ -10,19 +10,19 @@
       "finish_reason": "stop",
       "message": {
         "role": "assistant",
-        "content": "The capital of France is Paris."
+        "content": " You should wear something light and comfortable since the temperature in London today is around 18°C and the condition is sunny. Maybe consider a hat or sunglasses if it's bright out!"
       }
     }
   ],
   "usage": {
-    "prompt_tokens": 36,
-    "completion_tokens": 7,
-    "total_tokens": 43
+    "prompt_tokens": 364,
+    "completion_tokens": 37,
+    "total_tokens": 401
   },
   "stats": {
-    "tokens_per_second": 37.359609592079764,
-    "time_to_first_token": 0.354,
-    "generation_time": 0.214,
+    "tokens_per_second": 33.025673115363894,
+    "time_to_first_token": 0.394,
+    "generation_time": 1.15,
     "stop_reason": "stop"
   },
   "model_info": {

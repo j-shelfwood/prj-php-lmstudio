@@ -1,26 +1,26 @@
 {
-  "id": "cmpl-4gtjyxdfethjgyakm6xuq",
+  "id": "cmpl-l4yu4pxd2wc664pxsvfrao",
   "object": "text_completion",
   "created": 1742151673,
   "model": "qwen2.5-7b-instruct",
   "choices": [
     {
       "index": 0,
-      "text": " a profound and complex question that has puzzled philosophers",
+      "text": " in the land of Caramon, there was a beautiful princess named Amara",
       "logprobs": null,
-      "finish_reason": "length"
+      "finish_reason": "stop"
     }
   ],
   "usage": {
-    "prompt_tokens": 5,
-    "completion_tokens": 9,
-    "total_tokens": 14
+    "prompt_tokens": 7,
+    "completion_tokens": 16,
+    "total_tokens": 23
   },
   "stats": {
-    "tokens_per_second": 32.72727272727273,
-    "time_to_first_token": 0.066,
-    "generation_time": 0.275,
-    "stop_reason": "maxPredictedTokensReached"
+    "tokens_per_second": 32.63261589167603,
+    "time_to_first_token": 0.086,
+    "generation_time": 0.491,
+    "stop_reason": "stopStringFound"
   },
   "model_info": {
     "arch": "qwen2",
