@@ -15,6 +15,11 @@ class EventHandler
     private array $handlers = [];
 
     /**
+     * @var array<string, bool> Track which events have been triggered
+     */
+    private array $triggeredEvents = [];
+
+    /**
      * Register a handler for an event.
      *
      * @param  string  $event  The event name
@@ -37,6 +42,8 @@ class EventHandler
      */
     public function trigger(string $event, ...$args): void
     {
+        $this->triggeredEvents[$event] = true;
+
         if (! isset($this->handlers[$event])) {
             return;
         }
@@ -86,6 +93,27 @@ class EventHandler
     public function clearAllCallbacks(): self
     {
         $this->handlers = [];
+
+        return $this;
+    }
+
+    /**
+     * Check if an event has been triggered.
+     *
+     * @param  string  $event  The event name
+     * @return bool Whether the event has been triggered
+     */
+    public function hasBeenTriggered(string $event): bool
+    {
+        return isset($this->triggeredEvents[$event]);
+    }
+
+    /**
+     * Reset the triggered events state.
+     */
+    public function resetTriggeredEvents(): self
+    {
+        $this->triggeredEvents = [];
 
         return $this;
     }

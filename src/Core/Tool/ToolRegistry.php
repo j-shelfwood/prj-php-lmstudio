@@ -30,7 +30,7 @@ class ToolRegistry
      *
      * @param  string  $name  The name of the tool
      * @param  callable  $callback  The callback to execute when the tool is called
-     * @param  array  $parameters  The function parameters schema
+     * @param  array  $parameters  The function parameters schema (array, not ToolParameters object directly)
      * @param  string|null  $description  The description of the tool
      */
     public function registerTool(string $name, callable $callback, array $parameters, ?string $description = null): self
@@ -89,11 +89,13 @@ class ToolRegistry
      * @param  string  $name  The name of the tool
      * @param  array  $arguments  The arguments to pass to the tool
      * @return mixed The result of the tool execution
+     *
+     * @throws \RuntimeException If the tool is not found
      */
     public function executeTool(string $name, array $arguments)
     {
         if (! isset($this->callbacks[$name])) {
-            throw new \RuntimeException("Tool '$name' not found");
+            throw new \RuntimeException("Tool '{$name}' not found");
         }
 
         return ($this->callbacks[$name])($arguments);

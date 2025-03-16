@@ -14,8 +14,9 @@ use Shelfwood\LMStudio\Core\Builder\ConversationBuilder;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
+use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
-use Shelfwood\LMStudio\Core\Tools\ToolExecutionHandler;
+use Shelfwood\LMStudio\Core\Tool\ToolService;
 
 class LMStudioFactory
 {
@@ -47,6 +48,16 @@ class LMStudioFactory
      * @var ChatService|null The chat service instance
      */
     protected ?ChatService $chatService = null;
+
+    /**
+     * @var ToolService|null The tool service instance
+     */
+    protected ?ToolService $toolService = null;
+
+    /**
+     * @var ToolExecutor|null The tool executor instance
+     */
+    protected ?ToolExecutor $toolExecutor = null;
 
     /**
      * @param  string  $baseUrl  The base URL of the API
@@ -119,6 +130,52 @@ class LMStudioFactory
     }
 
     /**
+     * Get the tool service instance.
+     */
+    public function getToolService(): ToolService
+    {
+        if ($this->toolService === null) {
+            $this->toolService = $this->createToolService();
+        }
+
+        return $this->toolService;
+    }
+
+    /**
+     * Get the tool executor instance.
+     */
+    public function getToolExecutor(): ToolExecutor
+    {
+        if ($this->toolExecutor === null) {
+            $this->toolExecutor = $this->createToolExecutor();
+        }
+
+        return $this->toolExecutor;
+    }
+
+    /**
+     * Create a tool service instance.
+     */
+    public function createToolService(): ToolService
+    {
+        return new ToolService(
+            new ToolRegistry,
+            [] // Empty initial configurations
+        );
+    }
+
+    /**
+     * Create a tool executor instance.
+     */
+    public function createToolExecutor(): ToolExecutor
+    {
+        return new ToolExecutor(
+            $this->getToolService()->getToolRegistry(),
+            $this->createEventHandler()
+        );
+    }
+
+    /**
      * Create an API client.
      */
     public function createApiClient(): ApiClient
@@ -178,13 +235,18 @@ class LMStudioFactory
         ?EventHandler $eventHandler = null,
         bool $streaming = false
     ): Conversation {
+        $eventHandler = $eventHandler ?? $this->createEventHandler();
+        $toolRegistry = $toolRegistry ?? $this->getToolService()->getToolRegistry();
+
         return new Conversation(
             $this->getChatService(),
             $model,
             $options,
             $toolRegistry,
             $eventHandler,
-            $streaming
+            $streaming,
+            $streaming ? $this->createStreamingHandler() : null,
+            new ToolExecutor($toolRegistry, $eventHandler)
         );
     }
 
@@ -250,27 +312,15 @@ class LMStudioFactory
      *
      * @return StreamingHandler The streaming handler instance
      */
-    public function createStreamingHandler(): StreamingHandler
+    protected function createStreamingHandler(): StreamingHandler
     {
         return new StreamingHandler;
     }
 
     /**
-     * Create a new tool execution handler instance.
-     *
-     * @return ToolExecutionHandler The tool execution handler instance
+     * Create an event handler.
      */
-    public function createToolExecutionHandler(): ToolExecutionHandler
-    {
-        return new ToolExecutionHandler;
-    }
-
-    /**
-     * Create a new event handler instance.
-     *
-     * @return EventHandler The event handler instance
-     */
-    public function createEventHandler(): EventHandler
+    protected function createEventHandler(): EventHandler
     {
         return new EventHandler;
     }

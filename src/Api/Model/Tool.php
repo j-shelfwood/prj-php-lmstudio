@@ -67,6 +67,30 @@ class Tool
     }
 
     /**
+     * Get the name of the tool.
+     */
+    public function getName(): string
+    {
+        return $this->definition->getName();
+    }
+
+    /**
+     * Get the description of the tool.
+     */
+    public function getDescription(): string
+    {
+        return $this->definition->getDescription();
+    }
+
+    /**
+     * Get the parameters of the tool.
+     */
+    public function getParameters(): object
+    {
+        return $this->definition->getParameters();
+    }
+
+    /**
      * Validate the tool.
      *
      * @throws ValidationException If the tool is invalid

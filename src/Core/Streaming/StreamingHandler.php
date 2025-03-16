@@ -4,111 +4,20 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Core\Streaming;
 
+use Shelfwood\LMStudio\Core\Event\EventHandler;
+
 class StreamingHandler
 {
-    /**
-     * @var callable|null Callback for when streaming starts
-     */
-    protected $onStart = null;
+    private EventHandler $eventHandler;
 
     /**
-     * @var callable|null Callback for when content is received
+     * @var array Current tool calls being built (indexed by tool call index)
      */
-    protected $onContent = null;
+    private array $currentToolCalls = [];
 
-    /**
-     * @var callable|null Callback for when a tool call is received
-     */
-    protected $onToolCall = null;
-
-    /**
-     * @var callable|null Callback for when streaming ends
-     */
-    protected $onEnd = null;
-
-    /**
-     * @var callable|null Callback for when an error occurs
-     */
-    protected $onError = null;
-
-    /**
-     * @var string Buffer for accumulated content
-     */
-    protected $buffer = '';
-
-    /**
-     * @var array Accumulated tool calls
-     */
-    protected $toolCalls = [];
-
-    /**
-     * @var array Current tool call being built
-     */
-    protected $currentToolCall = null;
-
-    /**
-     * @var bool Whether streaming has started
-     */
-    protected $started = false;
-
-    /**
-     * Set callback for when streaming starts.
-     *
-     * @param  callable  $callback  Function to call when streaming starts
-     */
-    public function onStart(callable $callback): self
+    public function __construct()
     {
-        $this->onStart = $callback;
-
-        return $this;
-    }
-
-    /**
-     * Set callback for when content is received.
-     *
-     * @param  callable  $callback  Function to call when content is received
-     */
-    public function onContent(callable $callback): self
-    {
-        $this->onContent = $callback;
-
-        return $this;
-    }
-
-    /**
-     * Set callback for when a tool call is received.
-     *
-     * @param  callable  $callback  Function to call when a tool call is received
-     */
-    public function onToolCall(callable $callback): self
-    {
-        $this->onToolCall = $callback;
-
-        return $this;
-    }
-
-    /**
-     * Set callback for when streaming ends.
-     *
-     * @param  callable  $callback  Function to call when streaming ends
-     */
-    public function onEnd(callable $callback): self
-    {
-        $this->onEnd = $callback;
-
-        return $this;
-    }
-
-    /**
-     * Set callback for when an error occurs.
-     *
-     * @param  callable  $callback  Function to call when an error occurs
-     */
-    public function onError(callable $callback): self
-    {
-        $this->onError = $callback;
-
-        return $this;
+        $this->eventHandler = new EventHandler;
     }
 
     /**
@@ -118,170 +27,88 @@ class StreamingHandler
      */
     public function handleChunk(array $chunk): void
     {
-        // Check if this is the first chunk
-        if (! $this->started) {
-            $this->started = true;
+        // Trigger start event on first chunk
+        if (! $this->eventHandler->hasBeenTriggered('stream_start')) {
+            $this->eventHandler->trigger('stream_start');
+        }
 
-            if ($this->onStart) {
-                call_user_func($this->onStart);
+        try {
+            // Handle content
+            if (isset($chunk['choices'][0]['delta']['content'])) {
+                $content = $chunk['choices'][0]['delta']['content'];
+                $this->eventHandler->trigger('stream_content', $content);
             }
-        }
 
-        // Process content
-        if (isset($chunk['choices'][0]['delta']['content'])) {
-            $content = $chunk['choices'][0]['delta']['content'];
-            $this->buffer .= $content;
-
-            if ($this->onContent) {
-                call_user_func($this->onContent, $content, $this->buffer, $this->isComplete($chunk));
+            // Handle tool calls
+            if (isset($chunk['choices'][0]['delta']['tool_calls'])) {
+                $this->processToolCalls($chunk['choices'][0]['delta']['tool_calls']);
             }
-        }
 
-        // Process tool calls
-        if (isset($chunk['choices'][0]['delta']['tool_calls'])) {
-            $this->processToolCalls($chunk, $chunk['choices'][0]['delta']['tool_calls']);
-        }
+            // Handle completion
+            if ($this->isComplete($chunk)) {
+                $this->eventHandler->trigger('stream_end');
+                $this->reset();
+            }
+        } catch (\Exception $e) {
+            $this->eventHandler->trigger('stream_error', $e);
 
-        // Check if complete
-        if ($this->isComplete($chunk) && $this->onEnd) {
-            call_user_func($this->onEnd, $this->buffer, $this->toolCalls);
+            throw $e;
         }
     }
 
     /**
-     * Handle an error during streaming.
+     * Process tool calls from a chunk.
      *
-     * @param  \Throwable  $error  The error that occurred
+     * @param  array  $toolCalls  The tool calls data
      */
-    public function handleError(\Throwable $error): void
+    private function processToolCalls(array $toolCalls): void
     {
-        if ($this->onError) {
-            call_user_func($this->onError, $error, $this->buffer, $this->toolCalls);
-        }
-    }
+        foreach ($toolCalls as $toolCall) {
+            $index = $toolCall['index'];
 
-    /**
-     * Process tool call deltas from a chunk.
-     *
-     * @param  array  $chunk  The full chunk data
-     * @param  array  $toolCallDeltas  The tool call deltas
-     */
-    protected function processToolCalls(array $chunk, array $toolCallDeltas): void
-    {
-        foreach ($toolCallDeltas as $index => $delta) {
-            // Initialize tool call if it doesn't exist
-            if (! isset($this->toolCalls[$index])) {
-                $this->toolCalls[$index] = [
-                    'id' => $delta['id'] ?? '',
-                    'type' => $delta['type'] ?? 'function',
+            // Initialize or update tool call
+            if (! isset($this->currentToolCalls[$index])) {
+                $this->currentToolCalls[$index] = [
+                    'id' => $toolCall['id'] ?? '',
+                    'type' => $toolCall['type'] ?? 'function',
                     'function' => [
-                        'name' => $delta['function']['name'] ?? '',
-                        'arguments' => $delta['function']['arguments'] ?? '',
+                        'name' => $toolCall['function']['name'] ?? '',
+                        'arguments' => $toolCall['function']['arguments'] ?? '',
                     ],
                 ];
             } else {
-                $currentToolCall = &$this->toolCalls[$index]['function'];
-
-                if (isset($delta['function']['name'])) {
-                    $currentToolCall['name'] .= $delta['function']['name'];
+                if (isset($toolCall['function']['name'])) {
+                    $this->currentToolCalls[$index]['function']['name'] .= $toolCall['function']['name'];
                 }
 
-                if (isset($delta['function']['arguments'])) {
-                    $currentToolCall['arguments'] .= $delta['function']['arguments'];
+                if (isset($toolCall['function']['arguments'])) {
+                    $this->currentToolCalls[$index]['function']['arguments'] .= $toolCall['function']['arguments'];
                 }
             }
 
-            // Only process the tool call if this is the final chunk
-            if ($this->isToolCallComplete($chunk)) {
-                try {
-                    $currentToolCall = &$this->toolCalls[$index]['function'];
-
-                    // Try to parse arguments as JSON if they're a string
-                    if (isset($currentToolCall['arguments']) && is_string($currentToolCall['arguments'])) {
-                        try {
-                            $parsedArguments = json_decode($currentToolCall['arguments'], true, 512, JSON_THROW_ON_ERROR);
-
-                            if (is_array($parsedArguments)) {
-                                $currentToolCall['arguments'] = $parsedArguments;
-                            }
-                        } catch (\JsonException $e) {
-                            error_log(sprintf(
-                                '[WARNING] StreamingHandler: Invalid JSON arguments for tool call index %d: %s. Arguments: %s',
-                                $index,
-                                $e->getMessage(),
-                                $currentToolCall['arguments']
-                            ));
-
-                            continue;
-                        }
-                    }
-
-                    // Only trigger callback for complete and valid tool calls
-                    if ($this->onToolCall &&
-                        isset($currentToolCall['name']) &&
-                        ! empty($currentToolCall['name']) &&
-                        isset($currentToolCall['arguments'])) {
-
-                        call_user_func(
-                            $this->onToolCall,
-                            $this->toolCalls[$index],
-                            $index,
-                            true
-                        );
-                    }
-                } catch (\Throwable $e) {
-                    error_log(sprintf(
-                        '[ERROR] StreamingHandler: Error processing tool call: %s. Tool call data: %s',
-                        $e->getMessage(),
-                        json_encode($this->toolCalls[$index])
-                    ));
-                }
-            }
+            // Emit tool call delta event
+            $this->eventHandler->trigger('stream_tool_call', [
+                'tool_call' => $this->currentToolCalls[$index],
+                'index' => $index,
+            ]);
         }
-    }
-
-    /**
-     * Check if a chunk indicates a complete tool call.
-     *
-     * @param  array  $chunk  The chunk data
-     * @return bool Whether the tool call is complete
-     */
-    protected function isToolCallComplete(array $chunk): bool
-    {
-        return isset($chunk['choices'][0]['finish_reason']) && $chunk['choices'][0]['finish_reason'] === 'tool_calls'
-            || isset($chunk['choices'][0]['delta']['tool_calls'][0]['function']['arguments']);
     }
 
     /**
      * Check if a chunk indicates the completion of streaming.
-     *
-     * @param  array  $chunk  The chunk data
-     * @return bool Whether streaming is complete
      */
-    protected function isComplete(array $chunk): bool
+    private function isComplete(array $chunk): bool
     {
         return isset($chunk['choices'][0]['finish_reason']) &&
                $chunk['choices'][0]['finish_reason'] !== null;
     }
 
     /**
-     * Get the accumulated content buffer.
-     *
-     * @return string The content buffer
+     * Get the current tool calls being built.
      */
-    public function getBuffer(): string
+    public function getCurrentToolCalls(): array
     {
-        return $this->buffer;
-    }
-
-    /**
-     * Get the accumulated tool calls.
-     *
-     * @return array The tool calls
-     */
-    public function getToolCalls(): array
-    {
-        return $this->toolCalls;
+        return $this->currentToolCalls;
     }
 
     /**
@@ -289,20 +116,18 @@ class StreamingHandler
      */
     public function reset(): self
     {
-        $this->buffer = '';
-        $this->resetToolCalls();
-        $this->started = false;
+        $this->currentToolCalls = [];
+        $this->eventHandler->resetTriggeredEvents();
 
         return $this;
     }
 
     /**
-     * Reset the accumulated tool calls.
+     * Register an event handler.
      */
-    public function resetToolCalls(): self
+    public function on(string $event, callable $callback): self
     {
-        $this->toolCalls = [];
-        $this->started = false;
+        $this->eventHandler->on($event, $callback);
 
         return $this;
     }

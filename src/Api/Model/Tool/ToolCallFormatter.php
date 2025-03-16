@@ -12,7 +12,18 @@ class ToolCallFormatter
 
     public function formatSystemPrompt(array $tools): string
     {
-        $toolsJson = json_encode($tools, JSON_PRETTY_PRINT);
+        $formattedTools = array_map(function ($tool) {
+            return [
+                'type' => 'function',
+                'function' => [
+                    'name' => $tool->getName(),
+                    'description' => $tool->getDescription(),
+                    'parameters' => $tool->getParameters()->toArray(),
+                ],
+            ];
+        }, $tools);
+
+        $toolsJson = json_encode($formattedTools, JSON_PRETTY_PRINT);
 
         return <<<EOT
 You are a helpful assistant that can use tools to help answer questions.
