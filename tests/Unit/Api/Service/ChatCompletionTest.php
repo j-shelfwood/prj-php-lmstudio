@@ -2,10 +2,15 @@
 
 declare(strict_types=1);
 
+namespace Tests\Unit\Api\Service;
+
+use Mockery;
 use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
 use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
@@ -70,15 +75,14 @@ describe('ChatCompletion', function (): void {
 
         // Create tool parameters
         $parameters = new ToolParameters;
-        $parameters->addProperty('location', new ToolParameter('string', 'The location to get weather for'));
+        $parameters->addProperty('location', new ToolParameter('string', 'The location to get the weather for'));
         $parameters->addRequired('location');
 
-        // Create tool definition
-        $definition = new ToolDefinition(
-            'get_weather',
-            'Get the weather for a location',
-            $parameters
-        );
+        $toolDefinition = new ToolDefinition('get_weather', 'Get the weather for a location', $parameters);
+        $tool = new Tool(ToolType::FUNCTION, $toolDefinition);
+
+        // Expected tools array structure
+        $expectedToolsArray = [$tool->toArray()];
 
         // Mock the API response
         $apiResponse = [
@@ -116,17 +120,39 @@ describe('ChatCompletion', function (): void {
         // Set up the mock to expect a POST request with the correct data
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with('/api/v0/chat/completions', Mockery::on(function ($data) {
-                return $data['model'] === 'qwen2.5-7b-instruct'
-                    && is_array($data['messages'])
-                    && is_array($data['tools'])
-                    && $data['tools'][0]['type'] === 'function'
-                    && $data['tools'][0]['function']['name'] === 'get_weather';
+            ->with('/api/v0/chat/completions', Mockery::on(function ($data) use ($expectedToolsArray) {
+                // Basic checks
+                if ($data['model'] !== 'qwen2.5-7b-instruct') {
+                    return false;
+                }
+
+                if (! is_array($data['messages'])) {
+                    return false;
+                }
+
+                if (! isset($data['tools']) || ! is_array($data['tools'])) {
+                    return false;
+                }
+
+                if (count($data['tools']) !== count($expectedToolsArray)) {
+                    return false;
+                }
+
+                // Compare tools structure using JSON encoding to handle stdClass vs array for properties
+                $actualToolsJson = json_encode($data['tools']);
+                $expectedToolsJson = json_encode($expectedToolsArray);
+
+                // Use JSON_THROW_ON_ERROR if needed, but basic check should suffice here
+                if ($actualToolsJson === false || $expectedToolsJson === false) {
+                    return false;
+                }
+
+                return $actualToolsJson === $expectedToolsJson;
             }))
             ->andReturn($apiResponse);
 
         // Call the createCompletion method
-        $response = $this->chatService->createCompletion('qwen2.5-7b-instruct', $messages, [$definition]);
+        $response = $this->chatService->createCompletion('qwen2.5-7b-instruct', $messages, [$tool]);
 
         // Assert the response is a ChatCompletionResponse
         expect($response)->toBeInstanceOf(ChatCompletionResponse::class);
@@ -140,9 +166,11 @@ describe('ChatCompletion', function (): void {
         // Assert the content is correct
         expect($response->getContent())->toBe('I will check the weather in London.');
         expect($response->hasToolCalls())->toBeTrue();
-        expect($response->getToolCalls())->toHaveCount(1);
-        expect($response->getToolCalls()[0]->getType())->toBe('function');
-        expect($response->getToolCalls()[0]->getFunction()->getName())->toBe('get_weather');
-        expect($response->getToolCalls()[0]->getFunction()->getArguments())->toBe('{"location":"London"}');
+        $toolCalls = $response->getToolCalls();
+        expect($toolCalls)->toHaveCount(1);
+        expect($toolCalls[0])->toBeInstanceOf(ToolCall::class);
+        expect($toolCalls[0]->id)->toBe('call_123');
+        expect($toolCalls[0]->name)->toBe('get_weather');
+        expect($toolCalls[0]->arguments)->toBe(['location' => 'London']);
     });
 });

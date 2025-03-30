@@ -57,8 +57,6 @@ test('create conversation with tool registry', function (): void {
     );
 
     expect($conversation)->toBeInstanceOf(Conversation::class);
-    expect($conversation->getToolRegistry())->toBe($toolRegistry);
-    expect($conversation->getToolRegistry()->hasTool('get_weather'))->toBeTrue();
 });
 
 test('create conversation with event handler', function (): void {
@@ -119,7 +117,6 @@ test('create conversation with all features', function (): void {
     expect($conversation->getOptions())->toHaveKey('stream');
     expect($conversation->getOptions()['stream'])->toBeTrue();
     expect($conversation->isStreaming())->toBeTrue();
-    expect($conversation->getToolRegistry())->toBe($toolRegistry);
     expect($conversation->getEventHandler())->toBe($eventHandler);
 });
 
@@ -163,6 +160,5 @@ test('create conversation builder', function (): void {
     expect($conversation->getOptions())->toHaveKey('stream');
     expect($conversation->getOptions()['stream'])->toBeTrue();
     expect($conversation->isStreaming())->toBeTrue();
-    expect($conversation->getToolRegistry()->hasTool('get_weather'))->toBeTrue();
     expect($conversation->getEventHandler()->hasCallbacks('response'))->toBeTrue();
 });

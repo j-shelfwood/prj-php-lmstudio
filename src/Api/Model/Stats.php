@@ -54,36 +54,4 @@ class Stats
             'stop_reason' => $this->stopReason,
         ];
     }
-
-    /**
-     * Get the tokens per second.
-     */
-    public function getTokensPerSecond(): float
-    {
-        return $this->tokensPerSecond;
-    }
-
-    /**
-     * Get the time to first token in seconds.
-     */
-    public function getTimeToFirstToken(): float
-    {
-        return $this->timeToFirstToken;
-    }
-
-    /**
-     * Get the total generation time in seconds.
-     */
-    public function getGenerationTime(): float
-    {
-        return $this->generationTime;
-    }
-
-    /**
-     * Get the reason for stopping.
-     */
-    public function getStopReason(): string
-    {
-        return $this->stopReason;
-    }
 }

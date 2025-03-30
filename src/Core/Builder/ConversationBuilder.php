@@ -9,8 +9,8 @@ use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
-use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
+use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 
 /**
  * Builder for creating and configuring Conversation instances.
@@ -114,6 +114,18 @@ class ConversationBuilder
     }
 
     /**
+     * Set a tool registry for the conversation.
+     *
+     * @param  ToolRegistry  $registry  The tool registry
+     */
+    public function withToolRegistry(ToolRegistry $registry): self
+    {
+        $this->toolRegistry = $registry;
+
+        return $this;
+    }
+
+    /**
      * Set a tool executor for the conversation.
      *
      * @param  ToolExecutor  $executor  The tool executor
@@ -133,6 +145,18 @@ class ConversationBuilder
     public function onToolCall(callable $callback): self
     {
         $this->eventHandler->on('tool_call', $callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a tool is executed.
+     *
+     * @param  callable  $callback  The callback function
+     */
+    public function onToolExecuted(callable $callback): self
+    {
+        $this->eventHandler->on('tool_executed', $callback);
 
         return $this;
     }
@@ -213,7 +237,7 @@ class ConversationBuilder
             $this->withStreaming(true);
         }
 
-        $this->streamingHandler->on('stream_tool_call', function ($data) use ($callback) {
+        $this->streamingHandler->on('stream_tool_call', function ($data) use ($callback): void {
             $callback($data['tool_call'], $data['index']);
         });
 
@@ -260,7 +284,7 @@ class ConversationBuilder
             $this->withStreaming(true);
         }
 
-        $this->streamingHandler->on('stream_tool_call', function ($data) use ($callback) {
+        $this->streamingHandler->on('stream_tool_call', function ($data) use ($callback): void {
             $callback($data['tool_call'], $data['index']);
         });
 
@@ -290,17 +314,27 @@ class ConversationBuilder
     }
 
     /**
+     * Add a system message to the conversation.
+     *
+     * @param  string  $content  The system message content
+     */
+    public function withSystemMessage(string $content): self
+    {
+        $this->eventHandler->on('conversation_build', function (Conversation $conversation) use ($content): void {
+            $conversation->addSystemMessage($content);
+        });
+
+        return $this;
+    }
+
+    /**
      * Build the conversation.
      */
     public function build(): Conversation
     {
-        // Add tools to options if any are registered
-        if ($this->toolRegistry->hasTools()) {
-            $toolsArray = $this->toolRegistry->getToolsArray();
-            if (!empty($toolsArray)) {
-                $this->options['tools'] = $toolsArray;
-            }
-        }
+        // We no longer add tools to options here
+        // Tools will be handled directly by the Conversation class
+        // This avoids duplication issues with the tools array
 
         return new Conversation(
             $this->chatService,

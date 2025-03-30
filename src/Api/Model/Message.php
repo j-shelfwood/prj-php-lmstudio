@@ -10,17 +10,6 @@ use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 
 class Message
 {
-    private Role $role;
-
-    private ?string $content;
-
-    /** @var ToolCall[]|null */
-    private ?array $toolCalls;
-
-    private ?string $toolCallId;
-
-    private ?string $name;
-
     /**
      * @param  Role  $role  The role of the message
      * @param  string|null  $content  The content of the message
@@ -29,18 +18,12 @@ class Message
      * @param  string|null  $name  The name of the function
      */
     public function __construct(
-        Role $role,
-        ?string $content = null,
-        ?array $toolCalls = null,
-        ?string $toolCallId = null,
-        ?string $name = null
+        public readonly Role $role,
+        public readonly ?string $content = null,
+        public readonly ?array $toolCalls = null,
+        public readonly ?string $toolCallId = null,
+        public readonly ?string $name = null
     ) {
-        $this->role = $role;
-        $this->content = $content;
-        $this->toolCalls = $toolCalls;
-        $this->toolCallId = $toolCallId;
-        $this->name = $name;
-
         $this->validate();
     }
 
@@ -108,48 +91,6 @@ class Message
         }
 
         return $data;
-    }
-
-    /**
-     * Get the role of the message.
-     */
-    public function getRole(): Role
-    {
-        return $this->role;
-    }
-
-    /**
-     * Get the content of the message.
-     */
-    public function getContent(): ?string
-    {
-        return $this->content;
-    }
-
-    /**
-     * Get the tool calls in the message.
-     *
-     * @return ToolCall[]|null
-     */
-    public function getToolCalls(): ?array
-    {
-        return $this->toolCalls;
-    }
-
-    /**
-     * Get the tool call ID.
-     */
-    public function getToolCallId(): ?string
-    {
-        return $this->toolCallId;
-    }
-
-    /**
-     * Get the name of the function.
-     */
-    public function getName(): ?string
-    {
-        return $this->name;
     }
 
     /**

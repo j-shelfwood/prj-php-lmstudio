@@ -7,6 +7,7 @@ namespace Shelfwood\LMStudio\Api\Client;
 use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
 use Shelfwood\LMStudio\Api\Contract\HttpClientInterface;
 use Shelfwood\LMStudio\Api\Exception\ApiException;
+use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
 
 class ApiClient implements ApiClientInterface
 {
@@ -68,7 +69,7 @@ class ApiClient implements ApiClientInterface
      *
      * @param  string  $endpoint  API endpoint
      * @param  array  $data  Request data
-     * @param  callable  $callback  Callback function to handle each chunk of data
+     * @param  callable(ChatCompletionChunk): void  $callback  Callback function to handle each parsed chunk
      * @param  array  $headers  Additional headers
      *
      * @throws ApiException If the request fails
@@ -113,7 +114,7 @@ class ApiClient implements ApiClientInterface
      * @param  string  $method  HTTP method
      * @param  string  $endpoint  API endpoint
      * @param  array  $data  Request data
-     * @param  callable  $callback  Callback function to handle each chunk of data
+     * @param  callable(ChatCompletionChunk): void  $callback  Callback function to handle each parsed chunk
      * @param  array  $headers  Additional headers
      *
      * @throws ApiException If the request fails

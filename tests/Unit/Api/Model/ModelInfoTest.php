@@ -23,15 +23,15 @@ describe('ToolExecutionHandler', function (): void {
         $model = ModelInfo::fromArray($data);
 
         expect($model)->toBeInstanceOf(ModelInfo::class);
-        expect($model->getId())->toBe('model1');
-        expect($model->getObject())->toBe('model');
-        expect($model->getType())->toBe(ModelType::LLM);
-        expect($model->getPublisher())->toBe('publisher1');
-        expect($model->getArch())->toBe('arch1');
-        expect($model->getCompatibilityType())->toBe('compat1');
-        expect($model->getQuantization())->toBe('quant1');
-        expect($model->getState())->toBe(ModelState::LOADED);
-        expect($model->getMaxContextLength())->toBe(4096);
+        expect($model->id)->toBe('model1');
+        expect($model->object)->toBe('model');
+        expect($model->type)->toBe(ModelType::LLM);
+        expect($model->publisher)->toBe('publisher1');
+        expect($model->arch)->toBe('arch1');
+        expect($model->compatibilityType)->toBe('compat1');
+        expect($model->quantization)->toBe('quant1');
+        expect($model->state)->toBe(ModelState::LOADED);
+        expect($model->maxContextLength)->toBe(4096);
     });
 
     test('model info can check if model is loaded', function (): void {
@@ -76,14 +76,14 @@ describe('ToolExecutionHandler', function (): void {
             4096
         );
 
-        expect($model->getId())->toBe('model1');
-        expect($model->getObject())->toBe('model');
-        expect($model->getType())->toBe(ModelType::LLM);
-        expect($model->getPublisher())->toBe('publisher1');
-        expect($model->getArch())->toBe('arch1');
-        expect($model->getCompatibilityType())->toBe('compat1');
-        expect($model->getQuantization())->toBe('quant1');
-        expect($model->getState())->toBe(ModelState::LOADED);
-        expect($model->getMaxContextLength())->toBe(4096);
+        expect($model->id)->toBe('model1');
+        expect($model->object)->toBe('model');
+        expect($model->type)->toBe(ModelType::LLM);
+        expect($model->publisher)->toBe('publisher1');
+        expect($model->arch)->toBe('arch1');
+        expect($model->compatibilityType)->toBe('compat1');
+        expect($model->quantization)->toBe('quant1');
+        expect($model->state)->toBe(ModelState::LOADED);
+        expect($model->maxContextLength)->toBe(4096);
     });
 });

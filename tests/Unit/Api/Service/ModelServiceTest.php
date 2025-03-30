@@ -41,15 +41,15 @@ describe('ModelService', function (): void {
 
         // Check the first model
         expect($models[0])->toBeInstanceOf(ModelInfo::class);
-        expect($models[0]->getId())->toBe('qwen2.5-7b-instruct');
-        expect($models[0]->getObject())->toBe('model');
-        expect($models[0]->getType())->toBe(ModelType::LLM);
-        expect($models[0]->getPublisher())->toBe('lmstudio-community');
-        expect($models[0]->getArch())->toBe('qwen2');
-        expect($models[0]->getCompatibilityType())->toBe('gguf');
-        expect($models[0]->getQuantization())->toBe('Q8_0');
-        expect($models[0]->getState())->toBe(ModelState::LOADED);
-        expect($models[0]->getMaxContextLength())->toBe(32768);
+        expect($models[0]->id)->toBe('qwen2.5-7b-instruct');
+        expect($models[0]->object)->toBe('model');
+        expect($models[0]->type)->toBe(ModelType::LLM);
+        expect($models[0]->publisher)->toBe('lmstudio-community');
+        expect($models[0]->arch)->toBe('qwen2');
+        expect($models[0]->compatibilityType)->toBe('gguf');
+        expect($models[0]->quantization)->toBe('Q8_0');
+        expect($models[0]->state)->toBe(ModelState::LOADED);
+        expect($models[0]->maxContextLength)->toBe(32768);
     });
 
     test('get model returns expected model', function (): void {
@@ -78,14 +78,14 @@ describe('ModelService', function (): void {
 
         // Assert the model is correctly parsed
         expect($model)->toBeInstanceOf(ModelInfo::class);
-        expect($model->getId())->toBe('qwen2.5-7b-instruct');
-        expect($model->getObject())->toBe('model');
-        expect($model->getType())->toBe(ModelType::LLM);
-        expect($model->getPublisher())->toBe('lmstudio-community');
-        expect($model->getArch())->toBe('qwen2');
-        expect($model->getCompatibilityType())->toBe('gguf');
-        expect($model->getQuantization())->toBe('Q8_0');
-        expect($model->getState())->toBe(ModelState::LOADED);
-        expect($model->getMaxContextLength())->toBe(32768);
+        expect($model->id)->toBe('qwen2.5-7b-instruct');
+        expect($model->object)->toBe('model');
+        expect($model->type)->toBe(ModelType::LLM);
+        expect($model->publisher)->toBe('lmstudio-community');
+        expect($model->arch)->toBe('qwen2');
+        expect($model->compatibilityType)->toBe('gguf');
+        expect($model->quantization)->toBe('Q8_0');
+        expect($model->state)->toBe(ModelState::LOADED);
+        expect($model->maxContextLength)->toBe(32768);
     });
 });

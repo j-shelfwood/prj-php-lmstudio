@@ -8,21 +8,16 @@ class ToolParameters
 {
     private string $type = 'object';
 
-    /** @var array<string, ToolParameter> */
-    private array $properties;
-
-    /** @var string[] */
-    private array $required;
-
     /**
      * @param  array<string, ToolParameter>  $properties
      * @param  string[]  $required
      */
-    public function __construct(array $properties = [], array $required = [])
-    {
-        $this->properties = $properties;
-        $this->required = $required;
-    }
+    public function __construct(
+        /** @var array<string, ToolParameter> */
+        private array $properties = [],
+        /** @var string[] */
+        private array $required = []
+    ) {}
 
     public function addProperty(string $name, ToolParameter $parameter): self
     {
@@ -42,9 +37,15 @@ class ToolParameters
 
     public function toArray(): array
     {
+        $propertiesObject = [];
+
+        foreach ($this->properties as $name => $parameter) {
+            $propertiesObject[$name] = $parameter->toArray();
+        }
+
         return [
             'type' => $this->type,
-            'properties' => array_map(fn (ToolParameter $p) => $p->toArray(), $this->properties),
+            'properties' => (object) $propertiesObject,
             'required' => $this->required,
         ];
     }

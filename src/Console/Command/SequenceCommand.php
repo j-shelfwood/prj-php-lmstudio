@@ -4,19 +4,14 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Console\Command;
 
-use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
 use Shelfwood\LMStudio\Api\Enum\Role;
-use Shelfwood\LMStudio\Api\Model\Message;
-use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Model\Tool;
-use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
-use Shelfwood\LMStudio\Api\Service\ChatService;
-use Shelfwood\LMStudio\Api\Service\CompletionService;
-use Shelfwood\LMStudio\Api\Service\EmbeddingService;
-use Shelfwood\LMStudio\Api\Service\ModelService;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
+use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\LMStudioFactory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputOption;
+use Throwable;
 
 class SequenceCommand extends BaseCommand
 {
@@ -26,54 +21,53 @@ class SequenceCommand extends BaseCommand
 
     private array $stepStartTimes = [];
 
-    private ChatService $chatService;
+    private ?\Shelfwood\LMStudio\Api\Service\ModelService $modelService = null;
 
-    private CompletionService $completionService;
-
-    private ModelService $modelService;
-
-    private EmbeddingService $embeddingService;
+    private ?\Shelfwood\LMStudio\Api\Service\EmbeddingService $embeddingService = null;
 
     private string $modelId;
 
     private string $embeddingModel;
+
+    private ?Conversation $conversation = null;
+
+    private ?string $currentStepTitle = null;
 
     public function __construct(LMStudioFactory $factory)
     {
         parent::__construct('sequence');
 
         $this->factory = $factory;
-        $this->chatService = $factory->createChatService();
-        $this->completionService = $factory->createCompletionService();
 
-        $this->setDescription('Run a sequence of API calls to demonstrate all LM Studio API endpoints')
+        $this->setDescription('Run a sequence of API calls to demonstrate LM Studio API endpoints')
             ->addOption(
                 'model',
                 null,
                 InputOption::VALUE_OPTIONAL,
-                'The model to use (defaults to config value)'
+                'The model to use'
             )
             ->addOption(
                 'embedding-model',
                 null,
                 InputOption::VALUE_OPTIONAL,
-                'The embedding model to use'
+                'The embedding model'
             );
     }
 
-    private function startStep(string $step): void
+    private function startStep(string $title): void
     {
-        $this->stepStartTimes[$step] = microtime(true);
-        $this->info("\nStep {$step}");
+        $this->stepStartTimes[$title] = microtime(true);
+        $this->info("\n--- {$title} ---");
     }
 
-    private function endStep(string $step, string $status, ?array $metrics = null): void
+    private function endStep(string $title, string $status, ?array $metrics = null): void
     {
-        $duration = microtime(true) - ($this->stepStartTimes[$step] ?? microtime(true));
-        $this->stepStats[$step] = array_merge([
+        $duration = microtime(true) - ($this->stepStartTimes[$title] ?? microtime(true));
+        $this->stepStats[$title] = array_merge([
             'duration' => round($duration, 2),
             'status' => $status,
         ], $metrics ?? []);
+        $this->info("✓ Step finished ({$status}) - Duration: ".sprintf('%.2fs', $duration));
     }
 
     private function showSummary(): void
@@ -139,19 +133,53 @@ class SequenceCommand extends BaseCommand
 
         try {
             $this->setupModels();
-            $this->runModelTests();
-            $this->runChatTests();
-            $this->runToolTests();
-            $this->runStructuredOutputTest();
-            $this->runCompletionTest();
-            $this->runEmbeddingTest();
-            $this->showSummary();
+
+            // Sequence of tests
+            $this->executeSequenceStep('List Models', [$this, 'runListModels']);
+            $this->executeSequenceStep('Get Model Info', [$this, 'runGetModelInfo']);
+            $this->executeSequenceStep('Basic Chat Completion', [$this, 'runBasicChat']);
+            $this->executeSequenceStep('Basic Chat Completion (Streaming)', [$this, 'runBasicChatStreaming']);
+            $this->executeSequenceStep('Chat Completion with Tools', [$this, 'runChatWithTools']);
+            $this->executeSequenceStep('Chat Completion with Tools (Streaming)', [$this, 'runChatWithToolsStreaming']);
+            // $this->executeSequenceStep('Structured Output (JSON Schema)', [$this, 'runStructuredOutputTest']);
+            // $this->executeSequenceStep('Text Completion', [$this, 'runCompletionTest']);
+            // $this->executeSequenceStep('Text Embedding', [$this, 'runEmbeddingTest']);
+
+            $this->showSummary(); // Optional summary table
 
             return Command::SUCCESS;
-        } catch (\Throwable $e) {
-            $this->error($e->getMessage());
+        } catch (Throwable $e) { // Catch Throwable for broader coverage
+            $this->error("\n🚨 Sequence failed during step: ".($this->currentStepTitle ?? 'Setup'));
+            $this->error('   Error: '.$e->getMessage());
+            $this->line("\n".$e->getTraceAsString()); // Print trace for debugging
 
             return Command::FAILURE;
+        }
+    }
+
+    /**
+     * Helper to run a step with start/end logging and error handling.
+     */
+    private function executeSequenceStep(string $title, callable $callback): void
+    {
+        $this->currentStepTitle = $title;
+        $this->startStep($title);
+        $metrics = [];
+        $status = '✓';
+
+        try {
+            $result = $callback();
+
+            if (is_array($result)) {
+                $metrics = $result;
+            }
+        } catch (Throwable $e) {
+            $status = '❌ Error';
+
+            throw $e;
+        } finally {
+            $this->endStep($title, $status, $metrics);
+            $this->currentStepTitle = null;
         }
     }
 
@@ -161,8 +189,8 @@ class SequenceCommand extends BaseCommand
     private function setupModels(): void
     {
         // Get services
-        $this->modelService = $this->factory->createModelService();
-        $this->embeddingService = $this->factory->createEmbeddingService();
+        $this->modelService = $this->factory->getModelService();
+        $this->embeddingService = $this->factory->getEmbeddingService();
 
         // Get models
         $this->modelId = $this->option('model') ?: getenv('LMSTUDIO_DEFAULT_MODEL') ?: 'qwen2.5-7b-instruct';
@@ -172,287 +200,343 @@ class SequenceCommand extends BaseCommand
         $this->info("Using embedding model: {$this->embeddingModel}\n");
     }
 
-    /**
-     * Run model-related tests (Steps 1-2).
-     */
-    private function runModelTests(): void
+    // --- Individual Step Methods ---
+
+    private function runListModels(): array
     {
-        // Step 1: List models
-        $this->startStep('1: Listing available models');
         $modelResponse = $this->modelService->listModels();
         $models = $modelResponse->getModels();
-        $this->info("\nAvailable models:");
+        $this->info('Available models:');
 
         foreach ($models as $model) {
-            $this->line(" - {$model->getId()} ({$model->getState()->value})");
+            $this->line(" - {$model->id} ({$model->state->value})");
         }
-        $this->endStep('1', '✓', [
-            'details' => sprintf('%d models found', count($models)),
-        ]);
 
-        // Step 2: Get model info
-        $this->startStep('2: Getting model info');
+        return ['details' => sprintf('%d models found', count($models))];
+    }
+
+    private function runGetModelInfo(): array
+    {
         $modelInfo = $this->modelService->getModel($this->modelId);
-        $this->info("\nModel details:");
-        $this->line(" - ID: {$modelInfo->getId()}");
-        $this->line(" - Type: {$modelInfo->getType()->value}");
-        $this->line(" - State: {$modelInfo->getState()->value}");
-        $this->line(" - Max context: {$modelInfo->getMaxContextLength()}");
-        $this->endStep('2', '✓', [
-            'details' => 'Model info retrieved successfully',
-        ]);
+        $this->info("Model details for '{$this->modelId}':");
+        $this->line(" - Type: {$modelInfo->type->value}");
+        $this->line(" - State: {$modelInfo->state->value}");
+        $this->line(" - Max context: {$modelInfo->maxContextLength}");
+
+        return ['details' => 'Model info retrieved'];
+    }
+
+    private function runBasicChat(): array
+    {
+        $this->conversation = $this->factory->createConversation($this->modelId);
+        $this->conversation->addSystemMessage('You are a helpful assistant.');
+        $this->conversation->addUserMessage('What is the capital of France?');
+        $responseContent = $this->conversation->getResponse();
+        $this->info("Response: {$responseContent}");
+
+        // Assuming usage is attached to the conversation or response somehow if needed
+        return ['details' => 'Chat completion successful'];
     }
 
     /**
-     * Run basic chat completion tests (Steps 3-31).
+     * REFACTORED: Run basic chat completion using streaming.
      */
-    private function runChatTests(): void
+    private function runBasicChatStreaming(): array
     {
-        // Step 3: Basic chat completion
-        $this->startStep('3: Basic chat completion (non-streaming)');
-        $messages = [
-            new Message(Role::SYSTEM, 'You are a helpful assistant.'),
-            new Message(Role::USER, 'What is the capital of France?'),
-        ];
-        /** @var ChatCompletionResponse $response */
-        $response = $this->chatService->createCompletion($this->modelId, $messages);
-        $this->info("\nResponse: {$response->getContent()}");
-        $this->endStep('3', '✓', [
-            'tokens' => $response->usage->totalTokens,
-            'details' => 'Chat completion successful',
-        ]);
+        $this->conversation = $this->factory->createStreamingConversation($this->modelId);
+        $this->conversation->addSystemMessage('You are a helpful assistant.');
+        $this->conversation->addUserMessage('Describe quantum physics in simple terms.');
 
-        // Step 31: Basic chat completion (streaming)
-        $this->startStep('31: Basic chat completion (streaming)');
+        $handler = $this->conversation->getStreamingHandler();
+
+        if (! $handler) {
+            throw new \RuntimeException('Streaming handler missing from conversation.');
+        }
+
         $fullContent = '';
-        $this->chatService->createCompletionStream(
-            $this->modelId,
-            $messages,
-            function ($chunk) use (&$fullContent): void {
-                if (isset($chunk['choices'][0]['delta']['content'])) {
-                    $content = $chunk['choices'][0]['delta']['content'];
-                    $this->output->write($content);
-                    $fullContent .= $content;
-                }
+        $isComplete = false;
+        $errorOccurred = null;
+
+        $this->info('Streaming Response:');
+
+        // --- Register Event Listeners on the Handler ---
+        $handler->on('stream_content', function ($content) use (&$fullContent): void {
+            $this->output->write($content); // Write content as it arrives
+            $fullContent .= $content;
+        });
+
+        $handler->on('stream_end', function ($finalToolCalls = null, ?object $lastChunk = null) use (&$isComplete): void {
+            $this->output->writeln(''); // Newline after final content
+            $this->info('  [Stream Event: Ended]');
+            $isComplete = true;
+            // TODO: Capture token usage from $lastChunk if available and needed for metrics
+        });
+
+        $handler->on('stream_error', function (Throwable $error) use (&$isComplete, &$errorOccurred): void {
+            $this->output->writeln('');
+            $this->error('  [Stream Error]: '.$error->getMessage());
+            $errorOccurred = $error;
+            $isComplete = true; // End processing on error
+        });
+
+        // --- Initiate the Stream ---
+        // This call now returns immediately (void).
+        $this->conversation->initiateStreamingResponse();
+
+        // --- Wait for Stream Completion (Simulated for Console) ---
+        // In a real async context (e.g., web server), you wouldn't block like this.
+        // This loop simulates waiting for the stream events to set $isComplete.
+        $startTime = microtime(true);
+        $timeout = 30; // seconds timeout
+
+        while (! $isComplete) {
+            usleep(50000); // Sleep briefly (50ms) to avoid pegging CPU
+
+            if ((microtime(true) - $startTime) > $timeout) {
+                $this->error('\n[Stream Timeout]');
+                $errorOccurred = new \RuntimeException('Stream timed out after '.$timeout.' seconds');
+
+                break; // Exit loop on timeout
             }
-        );
-        $this->endStep('31', '✓', [
-            'details' => 'Streaming chat completion successful',
-        ]);
+        }
+
+        if ($errorOccurred) {
+            // Rethrow or return error details for executeSequenceStep
+            throw $errorOccurred; // Let the main handler catch and report
+        }
+
+        return ['details' => 'Streaming chat successful', 'tokens' => 'N/A']; // TODO: Extract tokens
     }
 
-    /**
-     * Run tool-based chat completion tests (Steps 4-41).
-     */
-    private function runToolTests(): void
+    private function runChatWithTools(): array
     {
-        // Step 4: Chat completion with tools (non-streaming)
-        $this->startStep('4: Chat completion with tools (non-streaming)');
+        $this->conversation = $this->factory->createConversation($this->modelId);
+        $weatherToolName = 'get_city_weather';
 
-        // Create a conversation builder
-        $builder = $this->factory->createConversationBuilder($this->modelId)
-            ->withTool(
-                'get_current_time',
-                function () {
-                    return date('Y-m-d H:i:s');
-                },
-                [
-                    'type' => 'object',
-                    'properties' => [],
-                    'required' => [],
-                ],
-                'Get the current server time. Use this tool whenever asked about the current time.'
-            )
-            ->onToolCall(function ($event): void {
-                $this->info("\n🔧 Tool called: {$event['name']}");
-                $this->line('   Arguments: '.json_encode($event['arguments']));
-            })
-            ->onResponse(function ($response): void {
-                $this->info("\n📝 Response received");
-                $this->line("   Tokens: {$response->usage->totalTokens}");
-            })
-            ->onError(function ($error): void {
-                $this->error("\n❌ Error: {$error->getMessage()}");
-            });
-
-        // Build and use the conversation
-        $conversation = $builder->build();
-        $conversation->addSystemMessage('You are a helpful assistant. You MUST use the get_current_time tool whenever asked about time. Do not try to explain that you cannot access the current time - you have a tool for that. Always use the tool and provide the exact time.');
-        $conversation->addUserMessage('What is the current time? Please also tell me what you can do with this time information.');
-        $response = $conversation->getResponse();
-        $this->info("\nResponse: ".$response);
-
-        $this->endStep('4', '✓', [
-            'details' => 'Chat completion with tools successful',
-        ]);
-
-        // Step 41: Chat completion with tools (streaming)
-        $this->startStep('41: Chat completion with tools (streaming)');
-
-        // Create a streaming conversation builder
-        $streamingBuilder = $this->factory->createConversationBuilder($this->modelId)
-            ->withStreaming()
-            ->withTool(
-                'get_current_time',
-                function () {
-                    return date('Y-m-d H:i:s');
-                },
-                [
-                    'type' => 'object',
-                    'properties' => [],
-                    'required' => [],
-                ],
-                'Get the current server time. Use this tool whenever asked about the current time.'
-            )
-            ->onStreamStart(function (): void {
-                $this->info("\n🌊 Streaming started");
-            })
-            ->onStreamContent(function ($content): void {
-                $this->output->write($content);
-            })
-            ->onStreamToolCall(function ($toolCall, $index): void {
-                $this->info("\n🔧 Tool call received for index {$index}");
-                $this->line("   Name: {$toolCall['function']['name']}");
-                $this->line("   Arguments: {$toolCall['function']['arguments']}");
-            })
-            ->onStreamEnd(function (): void {
-                $this->info("\n🏁 Streaming ended");
-            })
-            ->onStreamError(function ($error): void {
-                $this->error("\n❌ Streaming error: {$error->getMessage()}");
-            });
-
-        // Build and use the streaming conversation
-        $streamingConversation = $streamingBuilder->build();
-        $streamingConversation->addSystemMessage('You are a helpful assistant. You MUST use the get_current_time tool whenever asked about time. Do not try to explain that you cannot access the current time - you have a tool for that. Always use the tool and provide the exact time.');
-        $streamingConversation->addUserMessage('What time will it be in 2 hours from now? Please use the current time to calculate this.');
-        $streamingConversation->getStreamingResponse();
-
-        $this->endStep('41', '✓', [
-            'details' => 'Streaming chat completion with tools successful',
-        ]);
-    }
-
-    /**
-     * Run structured output test (Step 5).
-     */
-    private function runStructuredOutputTest(): void
-    {
-        $this->startStep('5: Chat completion with structured output');
-        $messages = [
-            new Message(Role::SYSTEM, 'You are a helpful assistant that always responds in valid JSON format according to the provided schema. Do not include any explanatory text outside the JSON. The response MUST use "city_name" (not "city") for the city name field.'),
-            new Message(Role::USER, 'Give me information about Paris.'),
-        ];
-
-        $jsonSchema = [
+        // CORRECTED: Manually define parameters array matching JSON schema
+        $weatherToolParams = [
             'type' => 'object',
             'properties' => [
-                'city_name' => [
+                'city' => [
                     'type' => 'string',
-                    'description' => 'The name of the city',
+                    'description' => 'The city name',
                 ],
-                'country' => [
+                'unit' => [
                     'type' => 'string',
-                    'description' => 'The country where the city is located',
-                ],
-                'population' => [
-                    'type' => 'number',
-                    'description' => 'The approximate population of the city',
-                ],
-                'notable_features' => [
-                    'type' => 'array',
-                    'items' => [
-                        'type' => 'string',
-                    ],
-                    'description' => 'Famous landmarks and features in the city',
-                ],
-                'famous_for' => [
-                    'type' => 'array',
-                    'items' => [
-                        'type' => 'string',
-                    ],
-                    'description' => 'What the city is famous for',
+                    'description' => 'Temperature unit (celsius or fahrenheit)',
+                    'enum' => ['celsius', 'fahrenheit'],
                 ],
             ],
-            'required' => ['city_name', 'country', 'notable_features'],
+            'required' => ['city'],
         ];
 
-        $responseFormat = new ResponseFormat(ResponseFormatType::JSON_SCHEMA, $jsonSchema);
-        $response = $this->chatService->createCompletion($this->modelId, $messages, [
-            'response_format' => $responseFormat,
-        ]);
+        $weatherToolCallback = function (array $args) use ($weatherToolName): string {
+            $city = $args['city'] ?? 'N/A';
+            $unit = $args['unit'] ?? 'celsius';
+            $temp = rand(5, 25).($unit === 'celsius' ? 'C' : 'F');
+            $this->info("  [Tool Executing: {$weatherToolName}(city={$city}, unit={$unit})] -> Returning: {$temp}");
 
-        $this->info('Structured response:');
-        $this->line($response->getContent());
+            return json_encode(['temperature' => $temp]);
+        };
 
-        // Pretty print the JSON
-        $jsonData = json_decode($response->getContent(), true);
+        $this->conversation->getToolRegistry()->registerTool(
+            $weatherToolName,
+            $weatherToolCallback,
+            $weatherToolParams, // Use defined array
+            'Get the weather for a city'
+        );
 
-        if (json_last_error() === JSON_ERROR_NONE) {
-            $this->info('Parsed data:');
-            $this->line(' - City: '.($jsonData['city_name'] ?? 'N/A'));
-            $this->line(' - Country: '.($jsonData['country'] ?? 'N/A'));
+        $this->conversation->addSystemMessage('You MUST use tools. Get the weather for London.');
+        $this->conversation->addUserMessage('How is the weather in London? Use the tool.');
+        $this->info('Sending request, expecting tool use...');
+        $finalResponse = $this->conversation->getResponse();
+        $this->info("Final Response: {$finalResponse}");
 
-            if (isset($jsonData['population'])) {
-                $this->line(" - Population: {$jsonData['population']}");
-            }
+        return ['details' => 'Chat with tools successful', 'tokens' => 'N/A'];
+    }
 
-            if (isset($jsonData['notable_features']) && is_array($jsonData['notable_features'])) {
-                $this->line(' - Notable Features: '.implode(', ', $jsonData['notable_features']));
+    /**
+     * REFACTORED: Run chat completion with tools using streaming.
+     */
+    private function runChatWithToolsStreaming(): array
+    {
+        $this->conversation = $this->factory->createStreamingConversation($this->modelId);
+        $weatherToolName = 'get_city_weather_streaming'; // CORRECTED: Ensure defined
+
+        // CORRECTED: Manually define parameters array matching JSON schema
+        $weatherToolParams = [
+            'type' => 'object',
+            'properties' => [
+                'city' => [
+                    'type' => 'string',
+                    'description' => 'The city name',
+                ],
+                'unit' => [
+                    'type' => 'string',
+                    'description' => 'Temperature unit (celsius or fahrenheit)',
+                    'enum' => ['celsius', 'fahrenheit'],
+                ],
+            ],
+            'required' => ['city'],
+        ];
+
+        $weatherToolCallback = function (array $args) use ($weatherToolName): string {
+            $city = $args['city'] ?? 'N/A';
+            $unit = $args['unit'] ?? 'celsius';
+            $temp = rand(5, 25).($unit === 'celsius' ? 'C' : 'F');
+            $this->info("  [Tool Executing: {$weatherToolName}(city={$city}, unit={$unit})] -> Returning: {$temp}");
+
+            return json_encode(['temperature' => $temp]);
+        };
+
+        $this->conversation->getToolRegistry()->registerTool(
+            $weatherToolName,
+            $weatherToolCallback,
+            $weatherToolParams, // Use defined array
+            'Get the weather for a city (streaming context)'
+        );
+
+        $this->conversation->addSystemMessage('You MUST use tools. Get the weather for Paris.');
+        $this->conversation->addUserMessage('Whats the weather like in Paris right now? Please use the tool.');
+
+        // --- Setup Streaming Handler and State ---
+        $handler = $this->conversation->getStreamingHandler();
+
+        if (! $handler) {
+            throw new \RuntimeException('Streaming handler missing from conversation.');
+        }
+
+        $initialStreamComplete = false;
+        $finalResponseReceived = false;
+        $streamError = null;
+        $finalToolCalls = null; // To store tool calls from stream_end
+        $finalResponseContent = ''; // To store final textual response
+
+        $this->info('Initiating streaming request with tools...');
+
+        // --- Register Event Listeners ---
+        $handler->on('stream_content', function ($content) use (&$finalResponseContent): void {
+            $this->output->write($content); // Keep writing to console
+            $finalResponseContent .= $content; // Accumulate content
+        });
+
+        $handler->on('stream_tool_call_start', fn ($idx) => $this->info("  [Tool Call Start: {$idx}]"));
+        $handler->on('stream_tool_call_end', fn ($idx, ToolCall $call) => $this->info("  [Tool Call Assembled: {$idx} - {$call->name}]"));
+
+        $handler->on('stream_end', function ($tools) use (&$initialStreamComplete, &$finalToolCalls): void {
+            $this->output->writeln('');
+            $this->info('  [Stream Event: Initial Stream Ended]');
+
+            if (! empty($tools) && is_array($tools)) {
+                $this->info('  Tool calls received: '.count($tools));
+                $finalToolCalls = $tools; // Store the tool calls
             } else {
-                $this->line(' - Notable Features: N/A');
+                $this->info('  No tool calls received in stream.');
             }
+            $initialStreamComplete = true;
+        });
 
-            if (isset($jsonData['famous_for']) && is_array($jsonData['famous_for'])) {
-                $this->line(' - Famous For: '.implode(', ', $jsonData['famous_for']));
+        $handler->on('stream_error', function (Throwable $error) use (&$initialStreamComplete, &$streamError): void {
+            $this->output->writeln('');
+            $this->error('  [Stream Error]: '.$error->getMessage());
+            $streamError = $error;
+            $initialStreamComplete = true; // End processing
+        });
+
+        // --- Initiate the First Stream ---
+        $this->conversation->initiateStreamingResponse();
+
+        // --- Wait for Initial Stream to Complete (Simulated) ---
+        $startTime = microtime(true);
+        $timeout = 30; // seconds
+
+        while (! $initialStreamComplete) {
+            usleep(50000);
+
+            if ((microtime(true) - $startTime) > $timeout) {
+                $streamError = new \RuntimeException('Initial stream timed out after '.$timeout.' seconds');
+
+                break;
             }
         }
 
-        $this->endStep('5', '✓', [
-            'tokens' => $response->getUsage()->totalTokens,
-            'details' => 'Structured output chat completion successful',
-        ]);
+        // Handle potential errors from the initial stream
+        if ($streamError) {
+            throw $streamError;
+        }
+
+        // --- Post-Stream Processing ---
+        if (! empty($finalToolCalls)) {
+            $this->info("\n--- Executing Tools ---");
+
+            try {
+                // Execute tools and add results to conversation history
+                $toolResults = $this->conversation->executeToolCalls($finalToolCalls);
+                $this->info('Tool execution finished.');
+                // Optionally display $toolResults
+
+                $this->info("\n--- Initiating Final Response Stream ---");
+
+                // Reset state for the second stream
+                $initialStreamComplete = false; // Re-use this flag for the second stream
+                $streamError = null;           // Reset error state
+                $finalResponseContent = '';   // Clear accumulated content
+
+                // Re-register/ensure 'stream_content' accumulates to $finalResponseContent
+                // The existing handler setup should work if $finalResponseContent is captured by reference/scope
+
+                // Initiate the SECOND stream to get the final textual response
+                $this->conversation->initiateStreamingResponse();
+
+                // --- Wait for SECOND Stream to Complete (Simulated) ---
+                $startTime = microtime(true);
+                $timeout = 30; // seconds
+
+                while (! $initialStreamComplete) {
+                    usleep(50000);
+
+                    if ((microtime(true) - $startTime) > $timeout) {
+                        $streamError = new \RuntimeException('Final response stream timed out after '.$timeout.' seconds');
+
+                        break;
+                    }
+                }
+
+                // Handle potential errors from the final stream
+                if ($streamError) {
+                    throw $streamError;
+                }
+
+                $this->info('Final Model Response (from stream): '.$finalResponseContent);
+                $finalResponseReceived = true;
+
+            } catch (Throwable $e) {
+                $this->error("\nError during tool execution or final response fetch: ".$e->getMessage());
+
+                // Decide how to handle - maybe let executeSequenceStep catch it
+                throw $e;
+            }
+        } else {
+            $this->info("\nNo tool calls detected. Assuming stream content is the final response.");
+            // If no tools were called, the content from the initial stream is the final answer.
+            // Note: $fullContent wasn't captured in this refactored version, need to rely on Conversation history or re-add listener
+            $lastMessage = end($this->conversation->getMessages());
+
+            if ($lastMessage && $lastMessage->role === Role::ASSISTANT) {
+                $finalResponseContent = $lastMessage->content ?? '';
+                $this->info('Final Response (from stream): '.$finalResponseContent);
+            }
+            $finalResponseReceived = true; // Mark as complete even without tools
+        }
+
+        // Could add another wait loop here if the getResponse() call was async, but it's synchronous
+
+        return ['details' => 'Streaming with tools successful', 'tokens' => 'N/A']; // TODO: Extract tokens
     }
 
-    /**
-     * Run text completion test (Step 6).
-     */
-    private function runCompletionTest(): void
-    {
-        $this->startStep('6: Text completion');
-        $prompt = 'The capital of France is';
+    // Add placeholders for other tests if uncommented
+    // private function runStructuredOutputTest(): array { $this->info("Test not implemented."); return []; }
+    // private function runCompletionTest(): array { $this->info("Test not implemented."); return []; }
+    // private function runEmbeddingTest(): array { $this->info("Test not implemented."); return []; }
 
-        $response = $this->completionService->createCompletion($this->modelId, $prompt, [
-            'max_tokens' => 10,
-        ]);
-
-        $this->info('Prompt: '.$prompt);
-        $this->info('Completion: '.$response->getChoices()[0]['text']);
-        $this->endStep('6', '✓', [
-            'tokens' => $response->usage['total_tokens'] ?? 0,
-            'details' => 'Text completion successful',
-        ]);
-    }
-
-    /**
-     * Run embedding test (Step 7).
-     */
-    private function runEmbeddingTest(): void
-    {
-        $this->startStep('7: Embeddings');
-        $text = 'The quick brown fox jumps over the lazy dog.';
-
-        $response = $this->embeddingService->createEmbedding($this->embeddingModel, $text);
-
-        // Get the first embedding from the data array
-        $embedding = $response->data[0]['embedding'] ?? [];
-        $dimensions = count($embedding);
-
-        $this->info('Text: '.$text);
-        $this->info("Embedding dimensions: $dimensions");
-        $this->info('First 5 values: '.implode(', ', array_slice($embedding, 0, 5)));
-        $this->endStep('7', '✓', [
-            'details' => 'Embedding generation successful',
-        ]);
-    }
 }

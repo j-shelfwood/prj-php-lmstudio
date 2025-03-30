@@ -25,13 +25,15 @@ class EventHandler
      * @param  string  $event  The event name
      * @param  callable  $handler  The handler function
      */
-    public function on(string $event, callable $handler): void
+    public function on(string $event, callable $handler): self
     {
         if (! isset($this->handlers[$event])) {
             $this->handlers[$event] = [];
         }
 
         $this->handlers[$event][] = $handler;
+
+        return $this;
     }
 
     /**

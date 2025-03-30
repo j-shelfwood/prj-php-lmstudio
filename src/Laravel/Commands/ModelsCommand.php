@@ -25,11 +25,11 @@ class ModelsCommand extends Command
 
             foreach ($models as $model) {
                 $status = $model->isLoaded() ? '<fg=green>loaded</>' : '<fg=yellow>not loaded</>';
-                $this->line(" - <fg=white>{$model->getId()}</> ({$status})");
+                $this->line(" - <fg=white>{$model->id}</> ({$status})");
 
                 if ($model->isLoaded()) {
-                    $this->line("   Type: {$model->getType()->value}");
-                    $this->line("   Context length: {$model->getMaxContextLength()}");
+                    $this->line("   Type: {$model->type->value}");
+                    $this->line("   Context length: {$model->maxContextLength}");
                 }
             }
 

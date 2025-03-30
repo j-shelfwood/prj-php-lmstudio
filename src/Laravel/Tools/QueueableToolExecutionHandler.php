@@ -69,11 +69,11 @@ class QueueableToolExecutionHandler extends ToolExecutor
 
     public function execute(ToolCall $toolCall): mixed
     {
-        if ($this->shouldQueueTool($toolCall->getName())) {
+        if ($this->shouldQueueTool($toolCall->name)) {
             $job = new ExecuteToolJob(
-                $toolCall->getName(),
-                $toolCall->getArguments(),
-                $toolCall->getId()
+                $toolCall->name,
+                $toolCall->arguments,
+                $toolCall->id
             );
 
             if ($this->queueConnection) {
@@ -83,9 +83,9 @@ class QueueableToolExecutionHandler extends ToolExecutor
             Queue::dispatch($job);
 
             Event::dispatch('lmstudio.tool.queued', [
-                $toolCall->getName(),
-                $toolCall->getArguments(),
-                $toolCall->getId(),
+                $toolCall->name,
+                $toolCall->arguments,
+                $toolCall->id,
             ]);
 
             return null;

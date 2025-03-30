@@ -50,28 +50,4 @@ class RuntimeInfo
             'supported_formats' => $this->supportedFormats,
         ];
     }
-
-    /**
-     * Get the runtime name.
-     */
-    public function getName(): string
-    {
-        return $this->name;
-    }
-
-    /**
-     * Get the runtime version.
-     */
-    public function getVersion(): string
-    {
-        return $this->version;
-    }
-
-    /**
-     * Get the supported formats.
-     */
-    public function getSupportedFormats(): array
-    {
-        return $this->supportedFormats;
-    }
 }

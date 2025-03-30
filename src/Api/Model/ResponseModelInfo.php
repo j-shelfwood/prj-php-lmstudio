@@ -54,36 +54,4 @@ class ResponseModelInfo
             'context_length' => $this->contextLength,
         ];
     }
-
-    /**
-     * Get the model architecture.
-     */
-    public function getArch(): string
-    {
-        return $this->arch;
-    }
-
-    /**
-     * Get the quantization level.
-     */
-    public function getQuant(): string
-    {
-        return $this->quant;
-    }
-
-    /**
-     * Get the model format.
-     */
-    public function getFormat(): string
-    {
-        return $this->format;
-    }
-
-    /**
-     * Get the context length.
-     */
-    public function getContextLength(): int
-    {
-        return $this->contextLength;
-    }
 }

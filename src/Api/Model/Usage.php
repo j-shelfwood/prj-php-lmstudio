@@ -46,28 +46,4 @@ class Usage
             'total_tokens' => $this->totalTokens,
         ];
     }
-
-    /**
-     * Get the number of tokens in the prompt.
-     */
-    public function getPromptTokens(): int
-    {
-        return $this->promptTokens;
-    }
-
-    /**
-     * Get the number of tokens in the completion.
-     */
-    public function getCompletionTokens(): int
-    {
-        return $this->completionTokens;
-    }
-
-    /**
-     * Get the total number of tokens.
-     */
-    public function getTotalTokens(): int
-    {
-        return $this->totalTokens;
-    }
 }

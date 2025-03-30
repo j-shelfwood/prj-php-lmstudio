@@ -22,35 +22,32 @@ class ToolExecutor
      */
     public function execute(ToolCall $toolCall): mixed
     {
-        $name = $toolCall->getName();
-        $arguments = $toolCall->getArguments();
-
         $this->eventHandler->trigger('tool.executing', [
-            'name' => $name,
-            'arguments' => $arguments,
-            'id' => $toolCall->getId(),
+            'name' => $toolCall->name,
+            'arguments' => $toolCall->arguments,
+            'id' => $toolCall->id,
         ]);
 
         try {
-            if (! $this->registry->hasTool($name)) {
-                throw new \RuntimeException("Tool '{$name}' not found");
+            if (! $this->registry->hasTool($toolCall->name)) {
+                throw new \RuntimeException("Tool '{$toolCall->name}' not found");
             }
 
-            $result = $this->registry->executeTool($name, $arguments);
+            $result = $this->registry->executeTool($toolCall->name, $toolCall->arguments);
 
             $this->eventHandler->trigger('tool.executed', [
-                'name' => $name,
-                'arguments' => $arguments,
-                'id' => $toolCall->getId(),
+                'name' => $toolCall->name,
+                'arguments' => $toolCall->arguments,
+                'id' => $toolCall->id,
                 'result' => $result,
             ]);
 
             return $result;
         } catch (\Throwable $e) {
             $this->eventHandler->trigger('tool.error', [
-                'name' => $name,
-                'arguments' => $arguments,
-                'id' => $toolCall->getId(),
+                'name' => $toolCall->name,
+                'arguments' => $toolCall->arguments,
+                'id' => $toolCall->id,
                 'error' => $e,
             ]);
 
@@ -70,9 +67,9 @@ class ToolExecutor
 
         foreach ($toolCalls as $toolCall) {
             try {
-                $results[$toolCall->getId()] = $this->execute($toolCall);
+                $results[$toolCall->id] = $this->execute($toolCall);
             } catch (\Throwable $e) {
-                $results[$toolCall->getId()] = ['error' => $e->getMessage()];
+                $results[$toolCall->id] = ['error' => $e->getMessage()];
             }
         }
 

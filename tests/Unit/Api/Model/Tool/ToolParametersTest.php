@@ -4,83 +4,61 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Api\Model\Tool;
 
-use PHPUnit\Framework\TestCase;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 
-class ToolParametersTest extends TestCase
-{
-    public function test_can_create_empty_tool_parameters(): void
-    {
-        $parameters = new ToolParameters;
+it('can create empty tool parameters', function (): void {
+    $parameters = new ToolParameters;
 
-        $array = $parameters->toArray();
+    $array = $parameters->toArray();
 
-        $this->assertSame([
-            'type' => 'object',
-            'properties' => [],
-            'required' => [],
-        ], $array);
-    }
+    expect($array['type'])->toBe('object')
+        ->and((array) $array['properties'])->toBe([])
+        ->and($array['required'])->toBe([]);
+});
 
-    public function test_can_add_properties(): void
-    {
-        $parameters = new ToolParameters;
-        $parameter = new ToolParameter('string', 'A test parameter');
+it('can add properties', function (): void {
+    $parameters = new ToolParameters;
+    $parameter = new ToolParameter('string', 'A test parameter');
 
-        $parameters->addProperty('test', $parameter);
+    $parameters->addProperty('test', $parameter);
 
-        $array = $parameters->toArray();
+    $array = $parameters->toArray();
 
-        $this->assertSame([
-            'type' => 'object',
-            'properties' => [
-                'test' => [
-                    'type' => 'string',
-                    'description' => 'A test parameter',
-                ],
-            ],
-            'required' => [],
-        ], $array);
-    }
+    $expectedPropertiesArray = ['test' => ['type' => 'string', 'description' => 'A test parameter']];
 
-    public function test_can_add_required_properties(): void
-    {
-        $parameters = new ToolParameters;
-        $parameter = new ToolParameter('string', 'A test parameter');
+    expect($array['type'])->toBe('object')
+        ->and((array) $array['properties'])->toBe($expectedPropertiesArray)
+        ->and($array['required'])->toBe([]);
+});
 
-        $parameters
-            ->addProperty('test', $parameter)
-            ->addRequired('test');
+it('can add required properties', function (): void {
+    $parameters = new ToolParameters;
+    $parameter = new ToolParameter('string', 'A test parameter');
 
-        $array = $parameters->toArray();
+    $parameters
+        ->addProperty('test', $parameter)
+        ->addRequired('test');
 
-        $this->assertSame([
-            'type' => 'object',
-            'properties' => [
-                'test' => [
-                    'type' => 'string',
-                    'description' => 'A test parameter',
-                ],
-            ],
-            'required' => ['test'],
-        ], $array);
-    }
+    $array = $parameters->toArray();
 
-    public function test_does_not_duplicate_required_properties(): void
-    {
-        $parameters = new ToolParameters;
+    $expectedPropertiesArray = ['test' => ['type' => 'string', 'description' => 'A test parameter']];
 
-        $parameters
-            ->addRequired('test')
-            ->addRequired('test');
+    expect($array['type'])->toBe('object')
+        ->and((array) $array['properties'])->toBe($expectedPropertiesArray)
+        ->and($array['required'])->toBe(['test']);
+});
 
-        $array = $parameters->toArray();
+it('does not duplicate required properties', function (): void {
+    $parameters = new ToolParameters;
 
-        $this->assertSame([
-            'type' => 'object',
-            'properties' => [],
-            'required' => ['test'],
-        ], $array);
-    }
-}
+    $parameters
+        ->addRequired('test')
+        ->addRequired('test');
+
+    $array = $parameters->toArray();
+
+    expect($array['type'])->toBe('object')
+        ->and((array) $array['properties'])->toBe([])
+        ->and($array['required'])->toBe(['test']);
+});

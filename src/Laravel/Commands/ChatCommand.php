@@ -53,7 +53,7 @@ class ChatCommand extends Command
             $modelExists = false;
 
             foreach ($models as $availableModel) {
-                if ($availableModel->getId() === $model) {
+                if ($availableModel->id === $model) {
                     $modelExists = true;
 
                     if (! $availableModel->isLoaded()) {

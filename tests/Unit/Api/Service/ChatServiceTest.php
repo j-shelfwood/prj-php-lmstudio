@@ -6,12 +6,15 @@ namespace Tests\Unit\Api\Service;
 
 use Mockery;
 use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
+use Shelfwood\LMStudio\Api\Enum\FinishReason;
 use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
 use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Exception\ValidationException;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
@@ -97,12 +100,13 @@ describe('StreamingHandler', function (): void {
         $parameters->addProperty('location', new ToolParameter('string', 'The location to get weather for'));
         $parameters->addRequired('location');
 
-        // Create tool definition
-        $definition = new ToolDefinition(
-            'get_weather',
-            'Get the weather for a location',
-            $parameters
-        );
+        // Create tool definition and tool object
+        $toolDefinition = new ToolDefinition('get_weather', 'Get the weather for a location', $parameters);
+        $tool = new Tool(ToolType::FUNCTION, $toolDefinition);
+
+        // Expected arrays based on models
+        $expectedMessagesArray = array_map(fn (Message $m) => $m->toArray(), $messages);
+        $expectedToolsArray = [$tool->toArray()];
 
         // Mock the API response
         $apiResponse = [
@@ -140,31 +144,57 @@ describe('StreamingHandler', function (): void {
         // Set up the mock to expect a POST request with the correct data
         $this->apiClient->shouldReceive('post')
             ->once()
-            ->with('/api/v0/chat/completions', Mockery::on(function ($data) {
-                return $data['model'] === 'test-model'
-                    && is_array($data['messages'])
-                    && is_array($data['tools'])
-                    && $data['tools'][0]['type'] === 'function'
-                    && $data['tools'][0]['function']['name'] === 'get_weather';
+            ->with('/api/v0/chat/completions', Mockery::on(function ($data) use ($expectedMessagesArray, $expectedToolsArray) {
+                // Basic checks
+                if ($data['model'] !== 'test-model') {
+                    return false;
+                }
+
+                if ($data['messages'] !== $expectedMessagesArray) {
+                    return false;
+                }
+
+                if (! isset($data['tools']) || ! is_array($data['tools'])) {
+                    return false;
+                } // Check tools exist
+
+                if (count($data['tools']) !== count($expectedToolsArray)) {
+                    return false;
+                } // Check count
+
+                // Compare tools structure using JSON encoding
+                $actualToolsJson = json_encode($data['tools']);
+                $expectedToolsJson = json_encode($expectedToolsArray);
+
+                if ($actualToolsJson === false || $expectedToolsJson === false) {
+                    return false;
+                }
+
+                return $actualToolsJson === $expectedToolsJson;
             }))
             ->andReturn($apiResponse);
 
         // Call the createCompletion method
-        $response = $this->chatService->createCompletion('test-model', $messages, [$definition]);
+        $response = $this->chatService->createCompletion('test-model', $messages, [$tool]);
 
         // Assert the response is correct
+        expect($response)->toBeInstanceOf(ChatCompletionResponse::class);
         expect($response->id)->toBe('chatcmpl-123');
         expect($response->created)->toBe(1677858242);
         expect($response->model)->toBe('test-model');
-        expect($response->choices)->toHaveCount(1);
-        expect($response->choices[0]->index)->toBe(0);
-        expect($response->choices[0]->message['role'])->toBe('assistant');
-        expect($response->choices[0]->message['content'])->toBe('I will check the weather in London.');
-        expect($response->choices[0]->message['tool_calls'])->toHaveCount(1);
-        expect($response->choices[0]->message['tool_calls'][0]['id'])->toBe('call_123');
-        expect($response->choices[0]->message['tool_calls'][0]['type'])->toBe('function');
-        expect($response->choices[0]->message['tool_calls'][0]['function']['name'])->toBe('get_weather');
-        expect($response->choices[0]->message['tool_calls'][0]['function']['arguments'])->toBe('{"location":"London"}');
+        expect($response->getChoices())->toHaveCount(1);
+        $choice = $response->getChoices()[0];
+        expect($choice->index)->toBe(0);
+        expect($choice->finishReason)->toBe(FinishReason::TOOL_CALLS);
+        expect($choice->message)->toBeInstanceOf(Message::class);
+        expect($choice->message->role)->toBe(Role::ASSISTANT);
+        expect($choice->message->content)->toBe('I will check the weather in London.');
+        expect($choice->message->toolCalls)->toHaveCount(1);
+        $toolCall = $choice->message->toolCalls[0];
+        expect($toolCall)->toBeInstanceOf(ToolCall::class);
+        expect($toolCall->id)->toBe('call_123');
+        expect($toolCall->name)->toBe('get_weather');
+        expect($toolCall->arguments)->toBe(['location' => 'London']);
     });
 
     test('create completion validates model', function (): void {
@@ -244,7 +274,8 @@ describe('StreamingHandler', function (): void {
         expect($response->model)->toBe('test-model');
         expect($response->choices)->toHaveCount(1);
         expect($response->choices[0]->index)->toBe(0);
-        expect($response->choices[0]->message['role'])->toBe('assistant');
-        expect($response->choices[0]->message['content'])->toBe('{"location":"London","temperature":20}');
+        expect($response->choices[0]->message->role)->toBe(Role::ASSISTANT);
+        expect($response->choices[0]->message->content)->toBe('{"location":"London","temperature":20}');
+        expect($response->choices[0]->finishReason)->toBe(FinishReason::STOP);
     });
 });

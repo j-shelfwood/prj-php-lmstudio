@@ -14,9 +14,20 @@ use Shelfwood\LMStudio\Core\Builder\ConversationBuilder;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
+use Shelfwood\LMStudio\Core\Tool\ToolConfigService;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
-use Shelfwood\LMStudio\Core\Tool\ToolService;
+use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
+
+// Define constants for Laravel classes if they exist, otherwise null
+// This avoids hard errors if Laravel integration isn't used/installed.
+if (! defined('LARAVEL_QUEUEABLE_BUILDER_CLASS')) {
+    define('LARAVEL_QUEUEABLE_BUILDER_CLASS', class_exists('Shelfwood\\LMStudio\\Laravel\\Conversation\\QueueableConversationBuilder') ? 'Shelfwood\\LMStudio\\Laravel\\Conversation\\QueueableConversationBuilder' : null);
+}
+
+if (! defined('LARAVEL_STREAMING_HANDLER_CLASS')) {
+    define('LARAVEL_STREAMING_HANDLER_CLASS', class_exists('Shelfwood\\LMStudio\\Laravel\\Core\\Streaming\\LaravelStreamingHandler') ? 'Shelfwood\\LMStudio\\Laravel\\Core\\Streaming\\LaravelStreamingHandler' : null);
+}
 
 class LMStudioFactory
 {
@@ -24,44 +35,36 @@ class LMStudioFactory
 
     private array $defaultHeaders;
 
-    /**
-     * @var string The API key for LMStudio
-     */
     protected string $apiKey;
 
-    /**
-     * @var HttpClient|null The HTTP client instance
-     */
+    // Single instances of core components
     protected ?HttpClient $httpClient = null;
 
-    /**
-     * @var ApiClient|null The API client instance
-     */
     protected ?ApiClient $apiClient = null;
 
-    /**
-     * @var ModelService|null The model service instance
-     */
     protected ?ModelService $modelService = null;
 
-    /**
-     * @var ChatService|null The chat service instance
-     */
     protected ?ChatService $chatService = null;
 
-    /**
-     * @var ToolService|null The tool service instance
-     */
-    protected ?ToolService $toolService = null;
+    protected ?CompletionService $completionService = null;
 
-    /**
-     * @var ToolExecutor|null The tool executor instance
-     */
-    protected ?ToolExecutor $toolExecutor = null;
+    protected ?EmbeddingService $embeddingService = null;
+
+    protected ToolRegistry $toolRegistry;
+
+    protected EventHandler $eventHandler;
+
+    protected ToolExecutor $toolExecutor;
+
+    protected ToolConfigService $toolConfigService;
+
+    // Cache for ExpressionLanguage
+    private ?ExpressionLanguage $expressionLanguage = null;
 
     /**
      * @param  string  $baseUrl  The base URL of the API
      * @param  array  $defaultHeaders  Default headers to include in all requests
+     * @param  string  $apiKey  The API key for LMStudio
      */
     public function __construct(
         string $baseUrl,
@@ -71,10 +74,20 @@ class LMStudioFactory
         $this->baseUrl = $baseUrl;
         $this->defaultHeaders = $defaultHeaders;
         $this->apiKey = $apiKey;
+
+        // Initialize core components ONCE
+        $this->toolRegistry = new ToolRegistry;
+        $this->eventHandler = $this->createEventHandler();
+        $this->toolExecutor = new ToolExecutor($this->toolRegistry, $this->eventHandler);
+        $this->toolConfigService = $this->createToolConfigService(
+            $this->toolRegistry,
+            $this->toolExecutor,
+            $this->eventHandler
+        );
     }
 
     /**
-     * Get the HTTP client instance.
+     * Get the HTTP client instance. Lazy loaded.
      *
      * @return HttpClient The HTTP client instance
      */
@@ -88,7 +101,7 @@ class LMStudioFactory
     }
 
     /**
-     * Get the API client instance.
+     * Get the API client instance. Lazy loaded.
      *
      * @return ApiClient The API client instance
      */
@@ -102,7 +115,7 @@ class LMStudioFactory
     }
 
     /**
-     * Get the model service instance.
+     * Get the model service instance. Lazy loaded.
      *
      * @return ModelService The model service instance
      */
@@ -116,7 +129,7 @@ class LMStudioFactory
     }
 
     /**
-     * Get the chat service instance.
+     * Get the chat service instance. Lazy loaded.
      *
      * @return ChatService The chat service instance
      */
@@ -130,103 +143,198 @@ class LMStudioFactory
     }
 
     /**
-     * Get the tool service instance.
+     * Get the completion service instance. Lazy loaded.
+     *
+     * @return CompletionService The completion service instance
      */
-    public function getToolService(): ToolService
+    public function getCompletionService(): CompletionService
     {
-        if ($this->toolService === null) {
-            $this->toolService = $this->createToolService();
+        if ($this->completionService === null) {
+            $this->completionService = $this->createCompletionService();
         }
 
-        return $this->toolService;
+        return $this->completionService;
     }
 
     /**
-     * Get the tool executor instance.
+     * Get the embedding service instance. Lazy loaded.
+     *
+     * @return EmbeddingService The embedding service instance
+     */
+    public function getEmbeddingService(): EmbeddingService
+    {
+        if ($this->embeddingService === null) {
+            $this->embeddingService = $this->createEmbeddingService();
+        }
+
+        return $this->embeddingService;
+    }
+
+    /**
+     * Get the single tool executor instance.
      */
     public function getToolExecutor(): ToolExecutor
     {
-        if ($this->toolExecutor === null) {
-            $this->toolExecutor = $this->createToolExecutor();
-        }
-
         return $this->toolExecutor;
     }
 
     /**
-     * Create a tool service instance.
+     * Get the single tool config service instance.
      */
-    public function createToolService(): ToolService
+    public function getToolConfigService(): ToolConfigService
     {
-        return new ToolService(
-            new ToolRegistry,
-            [] // Empty initial configurations
-        );
+        return $this->toolConfigService;
     }
 
     /**
-     * Create a tool executor instance.
+     * Create the single tool config service instance.
+     * Called only from the constructor.
      */
-    public function createToolExecutor(): ToolExecutor
-    {
-        return new ToolExecutor(
-            $this->getToolService()->getToolRegistry(),
-            $this->createEventHandler()
-        );
+    protected function createToolConfigService(
+        ToolRegistry $toolRegistry,
+        ToolExecutor $toolExecutor,
+        EventHandler $eventHandler // Kept parameter for consistency
+    ): ToolConfigService {
+        // Define standard tools here
+        $toolConfigurations = [
+            // Echo tool
+            'echo' => [
+                'callback' => function (array $args) {
+                    return $args['message'] ?? 'No message provided';
+                },
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'message' => [
+                            'type' => 'string',
+                            'description' => 'The message to echo back',
+                        ],
+                    ],
+                    'required' => ['message'],
+                ],
+                'description' => 'Echoes back the message provided',
+            ],
+            // Current time tool
+            'get_current_time' => [
+                'callback' => function () {
+                    return date('Y-m-d H:i:s');
+                },
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [],
+                    'required' => [],
+                ],
+                'description' => 'Get the current server time. Use this whenever asked about the current time.',
+            ],
+            // Calculator tool - SAFE IMPLEMENTATION
+            'calculate' => [
+                'callback' => function (array $args) {
+                    $expression = $args['expression'] ?? '';
+
+                    if (empty($expression)) {
+                        throw new \InvalidArgumentException('Mathematical expression cannot be empty.');
+                    }
+
+                    if ($this->expressionLanguage === null) {
+                        $this->expressionLanguage = new ExpressionLanguage(null, [
+                            // Providers can be added here if needed
+                        ]);
+                    }
+
+                    try {
+                        $result = $this->expressionLanguage->evaluate($expression);
+
+                        if (! is_scalar($result) && $result !== null) {
+                            throw new \RuntimeException('Calculation result is not a scalar value.');
+                        }
+
+                        return [
+                            'expression' => $expression,
+                            'result' => $result,
+                        ];
+                    } catch (\Symfony\Component\ExpressionLanguage\SyntaxError $e) {
+                        throw new \InvalidArgumentException('Syntax error in expression: '.$e->getMessage());
+                    } catch (\Exception $e) {
+                        throw new \InvalidArgumentException('Error evaluating expression: '.$e->getMessage());
+                    }
+                },
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'expression' => [
+                            'type' => 'string',
+                            'description' => 'The mathematical expression to evaluate (e.g., "2 + 2 * (3/4)"). Supports basic arithmetic operators +, -, *, / and parentheses.',
+                        ],
+                    ],
+                    'required' => ['expression'],
+                ],
+                'description' => 'Calculate the result of a mathematical expression.',
+            ],
+        ];
+
+        // Pass pre-created instances; EventHandler is passed but might not be used by ToolConfigService directly
+        return new ToolConfigService($toolRegistry, $toolExecutor, $toolConfigurations, $eventHandler);
     }
 
     /**
-     * Create an API client.
-     */
-    public function createApiClient(): ApiClient
-    {
-        return new ApiClient(
-            $this->getHttpClient(),
-            $this->baseUrl,
-            $this->defaultHeaders
-        );
-    }
-
-    /**
-     * Create a model service.
-     */
-    public function createModelService(): ModelService
-    {
-        return new ModelService($this->createApiClient());
-    }
-
-    /**
-     * Create a chat service.
-     */
-    public function createChatService(): ChatService
-    {
-        return new ChatService($this->createApiClient());
-    }
-
-    /**
-     * Create a completion service.
-     */
-    public function createCompletionService(): CompletionService
-    {
-        return new CompletionService($this->createApiClient());
-    }
-
-    /**
-     * Create an embedding service.
-     */
-    public function createEmbeddingService(): EmbeddingService
-    {
-        return new EmbeddingService($this->createApiClient());
-    }
-
-    /**
-     * Create a conversation.
+     * Create an API client instance.
      *
-     * @param  string  $model  The model to use
-     * @param  array  $options  Additional options
-     * @param  ToolRegistry|null  $toolRegistry  The tool registry
-     * @param  EventHandler|null  $eventHandler  The event handler
-     * @param  bool  $streaming  Whether to enable streaming
+     * @internal Used by service creation methods.
+     */
+    protected function createApiClient(): ApiClient
+    {
+        return new ApiClient($this->getHttpClient(), $this->baseUrl, $this->defaultHeaders);
+    }
+
+    /**
+     * Create a model service instance.
+     *
+     * @internal Used by getModelService.
+     */
+    protected function createModelService(): ModelService
+    {
+        return new ModelService($this->getApiClient());
+    }
+
+    /**
+     * Create a chat service instance.
+     *
+     * @internal Used by getChatService.
+     */
+    protected function createChatService(): ChatService
+    {
+        return new ChatService($this->getApiClient());
+    }
+
+    /**
+     * Create a completion service instance.
+     *
+     * @internal Use getCompletionService() for external access.
+     */
+    protected function createCompletionService(): CompletionService
+    {
+        return new CompletionService($this->getApiClient());
+    }
+
+    /**
+     * Create an embedding service instance.
+     *
+     * @internal Use getEmbeddingService() for external access.
+     */
+    protected function createEmbeddingService(): EmbeddingService
+    {
+        return new EmbeddingService($this->getApiClient());
+    }
+
+    /**
+     * Create a new conversation instance.
+     *
+     * @param  string  $model  The model ID to use for the conversation.
+     * @param  array  $options  Additional options for the conversation (e.g., temperature).
+     * @param  ToolRegistry|null  $toolRegistry  Optional specific ToolRegistry. Defaults to the factory's configured one.
+     * @param  EventHandler|null  $eventHandler  Optional specific EventHandler. Defaults to the factory's one.
+     * @param  bool  $streaming  Whether to enable streaming mode.
+     * @return Conversation The created conversation instance.
      */
     public function createConversation(
         string $model,
@@ -235,88 +343,107 @@ class LMStudioFactory
         ?EventHandler $eventHandler = null,
         bool $streaming = false
     ): Conversation {
-        $eventHandler = $eventHandler ?? $this->createEventHandler();
-        $toolRegistry = $toolRegistry ?? $this->getToolService()->getToolRegistry();
+        // Ensure the correct singletons are used if specific ones aren't provided
+        $registry = $toolRegistry ?? $this->toolRegistry;
+        $handler = $eventHandler ?? $this->eventHandler;
+        $executor = $this->toolExecutor; // Always use the factory's executor
+        $streamingHandler = null;
 
+        // Prepare options, adding stream=true if needed
+        $finalOptions = $options;
+
+        if ($streaming) {
+            $streamingHandler = $this->createStreamingHandler($handler);
+            // Ensure stream option is explicitly set for the API call
+            $finalOptions['stream'] = true;
+        }
+
+        // Pass the correct dependencies to the Conversation
         return new Conversation(
-            $this->getChatService(),
+            $this->getChatService(), // Pass the ChatService instance
             $model,
-            $options,
-            $toolRegistry,
-            $eventHandler,
-            $streaming,
-            $streaming ? $this->createStreamingHandler() : null,
-            new ToolExecutor($toolRegistry, $eventHandler)
+            $finalOptions, // Use the potentially modified options
+            $registry,
+            $handler,
+            $streaming, // Pass the boolean flag
+            $streamingHandler, // Pass the created handler or null
+            $executor
         );
     }
 
     /**
-     * Create a conversation builder.
+     * Create a new conversation builder instance.
      *
-     * @param  string  $model  The model to use
+     * @param  string  $model  The model ID to use for the conversation.
+     * @return ConversationBuilder The created conversation builder instance.
      */
     public function createConversationBuilder(string $model): ConversationBuilder
     {
-        return new ConversationBuilder(
-            $this->getChatService(),
-            $model
-        );
+        $builder = new ConversationBuilder($this->getChatService(), $model);
+
+        // Inject components using existing methods
+        $builder->withToolRegistry($this->toolRegistry)
+            ->withToolExecutor($this->toolExecutor);
+
+        return $builder;
     }
 
     /**
-     * Create a queueable conversation builder.
+     * Create a new queueable conversation builder instance (Requires Laravel context).
      *
-     * @param  string  $model  The model to use
-     * @param  bool|null  $queueToolsByDefault  Whether to queue tool executions by default
+     * @param  string  $model  The model ID to use.
+     * @param  bool|null  $queueToolsByDefault  Whether tools should be queued by default.
+     * @return object|null An instance of QueueableConversationBuilder or null if class doesn't exist.
+     *
+     * @throws \RuntimeException If the required Laravel class is not available.
      */
-    public function createQueueableConversationBuilder(string $model, ?bool $queueToolsByDefault = null): \Shelfwood\LMStudio\Laravel\Conversation\QueueableConversationBuilder
+    public function createQueueableConversationBuilder(string $model, ?bool $queueToolsByDefault = null): ?object
     {
-        if (! class_exists(\Shelfwood\LMStudio\Laravel\Conversation\QueueableConversationBuilder::class)) {
-            throw new \RuntimeException('Laravel integration is not available. Make sure you have the Laravel package installed.');
+        $builderClass = LARAVEL_QUEUEABLE_BUILDER_CLASS;
+
+        if ($builderClass === null) {
+            throw new \RuntimeException('QueueableConversationBuilder requires Laravel integration classes.');
+        }
+        $builder = new $builderClass($this->getChatService(), $model);
+
+        // Assume builder has these methods
+        $builder->withToolRegistry($this->toolRegistry)
+            ->withToolExecutor($this->toolExecutor);
+
+        if (method_exists($builder, 'queueToolsByDefault') && $queueToolsByDefault !== null) {
+            $builder->queueToolsByDefault($queueToolsByDefault);
         }
 
-        return new \Shelfwood\LMStudio\Laravel\Conversation\QueueableConversationBuilder(
-            $this->getChatService(),
-            $model,
-            $queueToolsByDefault
-        );
+        return $builder;
     }
 
     /**
-     * Create a new streaming conversation instance.
+     * Create a streaming conversation instance.
      *
-     * @param  string  $model  The model to use
-     * @param  array  $options  The options for the conversation
-     * @return Conversation The streaming conversation instance
+     * @param  string  $model  The model to use for the conversation.
+     * @param  array  $options  Optional parameters for the conversation.
+     * @return Conversation The created streaming conversation instance.
      */
     public function createStreamingConversation(string $model, array $options = []): Conversation
     {
-        $options['stream'] = true;
-
-        return new Conversation($this->getChatService(), $model, $options);
+        // Call createConversation correctly, setting streaming flag to true (5th arg)
+        return $this->createConversation($model, $options, null, null, true);
     }
 
     /**
-     * Create a new streaming conversation builder instance.
-     *
-     * @param  string  $model  The model to use
-     * @return ConversationBuilder The streaming conversation builder instance
+     * Create a new streaming handler instance.
+     * Can be overridden if custom handler logic is needed.
      */
-    public function createStreamingConversationBuilder(string $model): ConversationBuilder
+    public function createStreamingHandler(?EventHandler $eventHandler = null): StreamingHandler
     {
-        return (new ConversationBuilder($this->getChatService(), $model))->withStreaming();
+        $handlerToUse = $eventHandler ?? $this->eventHandler;
+
+        return new StreamingHandler($handlerToUse);
     }
 
     /**
-     * Create a streaming handler.
-     */
-    public function createStreamingHandler(): StreamingHandler
-    {
-        return new StreamingHandler;
-    }
-
-    /**
-     * Create an event handler.
+     * Create the single event handler instance.
+     * Called only from the constructor.
      */
     protected function createEventHandler(): EventHandler
     {
@@ -324,18 +451,32 @@ class LMStudioFactory
     }
 
     /**
-     * Create a new Laravel streaming handler instance.
+     * Create a Laravel streaming handler (requires Laravel).
      *
-     * @return \Shelfwood\LMStudio\Laravel\Streaming\LaravelStreamingHandler The Laravel streaming handler instance
+     * @return object|null An instance of LaravelStreamingHandler or null if class doesn't exist.
      *
-     * @throws RuntimeException If the Laravel package is not installed
+     * @throws \RuntimeException If the required Laravel class is not available.
      */
-    public function createLaravelStreamingHandler(): object
+    public function createLaravelStreamingHandler(): ?object
     {
-        if (! class_exists('Shelfwood\LMStudio\Laravel\Streaming\LaravelStreamingHandler')) {
-            throw new \RuntimeException('The Laravel package must be installed to use this method.');
+        $handlerClass = LARAVEL_STREAMING_HANDLER_CLASS;
+
+        if ($handlerClass === null) {
+            throw new \RuntimeException('LaravelStreamingHandler requires Laravel integration classes.');
         }
 
-        return new \Shelfwood\LMStudio\Laravel\Streaming\LaravelStreamingHandler;
+        return new $handlerClass($this->eventHandler);
+    }
+
+    // ADDED: Public getter for ToolRegistry
+    public function getToolRegistry(): ToolRegistry
+    {
+        return $this->toolRegistry;
+    }
+
+    // ADDED: Public getter for EventHandler
+    public function getEventHandler(): EventHandler
+    {
+        return $this->eventHandler;
     }
 }

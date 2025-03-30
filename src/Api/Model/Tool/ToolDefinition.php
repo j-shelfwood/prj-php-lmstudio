@@ -6,33 +6,11 @@ namespace Shelfwood\LMStudio\Api\Model\Tool;
 
 class ToolDefinition
 {
-    private string $name;
-
-    private string $description;
-
-    private ToolParameters $parameters;
-
-    public function __construct(string $name, string $description, ToolParameters $parameters)
-    {
-        $this->name = $name;
-        $this->description = $description;
-        $this->parameters = $parameters;
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
-    }
-
-    public function getDescription(): string
-    {
-        return $this->description;
-    }
-
-    public function getParameters(): ToolParameters
-    {
-        return $this->parameters;
-    }
+    public function __construct(
+        public readonly string $name,
+        public readonly string $description,
+        public readonly ToolParameters $parameters
+    ) {}
 
     public function toArray(): array
     {

@@ -10,18 +10,18 @@ describe('Message', function (): void {
         $message = new Message(Role::USER, 'Hello, world!');
 
         expect($message)->toBeInstanceOf(Message::class);
-        expect($message->getRole())->toBe(Role::USER);
-        expect($message->getContent())->toBe('Hello, world!');
-        expect($message->getToolCallId())->toBeNull();
+        expect($message->role)->toBe(Role::USER);
+        expect($message->content)->toBe('Hello, world!');
+        expect($message->toolCallId)->toBeNull();
     });
 
     test('message can be created with role, content, and tool call id', function (): void {
         $message = new Message(Role::TOOL, 'The weather is sunny.', null, 'call_123');
 
         expect($message)->toBeInstanceOf(Message::class);
-        expect($message->getRole())->toBe(Role::TOOL);
-        expect($message->getContent())->toBe('The weather is sunny.');
-        expect($message->getToolCallId())->toBe('call_123');
+        expect($message->role)->toBe(Role::TOOL);
+        expect($message->content)->toBe('The weather is sunny.');
+        expect($message->toolCallId)->toBe('call_123');
     });
 
     test('message can be converted to array', function (): void {
@@ -56,9 +56,9 @@ describe('Message', function (): void {
         $message = Message::fromArray($array);
 
         expect($message)->toBeInstanceOf(Message::class);
-        expect($message->getRole())->toBe(Role::USER);
-        expect($message->getContent())->toBe('Hello, world!');
-        expect($message->getToolCallId())->toBeNull();
+        expect($message->role)->toBe(Role::USER);
+        expect($message->content)->toBe('Hello, world!');
+        expect($message->toolCallId)->toBeNull();
     });
 
     test('message with tool call id can be created from array', function (): void {
@@ -71,8 +71,8 @@ describe('Message', function (): void {
         $message = Message::fromArray($array);
 
         expect($message)->toBeInstanceOf(Message::class);
-        expect($message->getRole())->toBe(Role::TOOL);
-        expect($message->getContent())->toBe('The weather is sunny.');
-        expect($message->getToolCallId())->toBe('call_123');
+        expect($message->role)->toBe(Role::TOOL);
+        expect($message->content)->toBe('The weather is sunny.');
+        expect($message->toolCallId)->toBe('call_123');
     });
 });

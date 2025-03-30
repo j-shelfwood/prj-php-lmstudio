@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Api\Contract;
 
+use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
+
 interface ApiClientInterface
 {
     /**
@@ -34,7 +36,7 @@ interface ApiClientInterface
      *
      * @param  string  $endpoint  API endpoint
      * @param  array  $data  Request data
-     * @param  callable  $callback  Callback function to handle each chunk of data
+     * @param  callable(ChatCompletionChunk): void  $callback  Callback function to handle each parsed chunk
      * @param  array  $headers  Additional headers
      *
      * @throws \Shelfwood\LMStudio\Exception\ApiException If the request fails

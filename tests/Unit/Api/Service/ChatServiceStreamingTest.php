@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+namespace Tests\Unit\Api\Service;
+
+use Mockery;
 use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
 use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
 use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Exception\ValidationException;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
@@ -57,19 +61,21 @@ describe('ToolExecutionHandler', function (): void {
     test('create completion stream with tools', function (): void {
         // Create test messages
         $messages = [
-            Message::forUser('What\'s the weather like in London?'),
+            new Message(Role::USER, 'What\'s the weather like in London?'),
         ];
 
         // Create tool parameters
         $parameters = new ToolParameters;
         $parameters->addProperty('location', new ToolParameter('string', 'The location to get weather for'));
+        $parameters->addRequired('location'); // Ensure required is added
 
-        // Create tool definition
-        $definition = new ToolDefinition(
-            'get_weather',
-            'Get the weather for a location',
-            $parameters
-        );
+        // Create tool definition and tool object
+        $toolDefinition = new ToolDefinition('get_weather', 'Get the weather for a location', $parameters);
+        $tool = new Tool(ToolType::FUNCTION, $toolDefinition);
+
+        // Expected arrays based on models
+        $expectedMessagesArray = array_map(fn (Message $m) => $m->toArray(), $messages);
+        $expectedToolsArray = [$tool->toArray()];
 
         // Mock the API response chunks
         $chunks = [
@@ -104,35 +110,38 @@ describe('ToolExecutionHandler', function (): void {
         // Set up the mock to expect a POST request with the correct data
         $this->apiClient->shouldReceive('postStream')
             ->once()
-            ->with('/api/v0/chat/completions', [
-                'model' => 'test-model',
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => 'What\'s the weather like in London?',
-                    ],
-                ],
-                'stream' => true,
-                'tools' => [
-                    [
-                        'type' => 'function',
-                        'function' => [
-                            'name' => 'get_weather',
-                            'description' => 'Get the weather for a location',
-                            'parameters' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'location' => [
-                                        'type' => 'string',
-                                        'description' => 'The location to get weather for',
-                                    ],
-                                ],
-                                'required' => [],
-                            ],
-                        ],
-                    ],
-                ],
-            ], Mockery::type('callable'))
+            ->with('/api/v0/chat/completions', Mockery::on(function ($data) use ($expectedMessagesArray, $expectedToolsArray) {
+                // Basic checks
+                if ($data['model'] !== 'test-model') {
+                    return false;
+                }
+
+                if (! isset($data['stream']) || $data['stream'] !== true) {
+                    return false;
+                }
+
+                if ($data['messages'] !== $expectedMessagesArray) {
+                    return false;
+                }
+
+                if (! isset($data['tools']) || ! is_array($data['tools'])) {
+                    return false;
+                } // Check tools exist
+
+                if (count($data['tools']) !== count($expectedToolsArray)) {
+                    return false;
+                } // Check count
+
+                // Compare tools structure using JSON encoding
+                $actualToolsJson = json_encode($data['tools']);
+                $expectedToolsJson = json_encode($expectedToolsArray);
+
+                if ($actualToolsJson === false || $expectedToolsJson === false) {
+                    return false;
+                }
+
+                return $actualToolsJson === $expectedToolsJson;
+            }), Mockery::type('callable'))
             ->andReturnUsing(function ($endpoint, $data, $callback) use ($chunks): void {
                 foreach ($chunks as $chunk) {
                     $callback($chunk);
@@ -146,7 +155,7 @@ describe('ToolExecutionHandler', function (): void {
         };
 
         // Call the createCompletionStream method
-        $this->chatService->createCompletionStream('test-model', $messages, $callback, [$definition]);
+        $this->chatService->createCompletionStream('test-model', $messages, $callback, [$tool]); // Pass the Tool object
 
         // Assert that we received the expected chunks
         expect($receivedChunks)->toHaveCount(1);

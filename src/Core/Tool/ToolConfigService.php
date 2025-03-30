@@ -4,24 +4,39 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Core\Tool;
 
-use Shelfwood\LMStudio\Api\Model\Tool;
+use Shelfwood\LMStudio\Core\Event\EventHandler;
 
 /**
- * Service for managing tool registrations and configurations.
+ * Service for centralizing tool configuration and providing consistent access to tools.
  */
-class ToolService
+class ToolConfigService
 {
     private ToolRegistry $toolRegistry;
 
-    /**
-     * @var array<string, array> Map of tool configurations
-     */
-    private array $toolConfigurations;
+    private ToolExecutor $toolExecutor;
 
-    public function __construct(ToolRegistry $toolRegistry, array $toolConfigurations = [])
-    {
+    private array $toolConfigurations = [];
+
+    /**
+     * Create a new ToolConfigService instance.
+     *
+     * @param ToolRegistry $toolRegistry The pre-configured tool registry.
+     * @param ToolExecutor $toolExecutor The pre-configured tool executor.
+     * @param array $toolConfigurations Initial array of tool configurations.
+     * @param EventHandler|null $eventHandler Optional EventHandler, currently unused here but kept for future consistency.
+     */
+    public function __construct(
+        ToolRegistry $toolRegistry,
+        ToolExecutor $toolExecutor,
+        array $toolConfigurations = [],
+        ?EventHandler $eventHandler = null
+    ) {
         $this->toolRegistry = $toolRegistry;
+        $this->toolExecutor = $toolExecutor;
         $this->toolConfigurations = $toolConfigurations;
+
+        // Register all configured tools immediately
+        $this->registerConfiguredTools();
     }
 
     /**
@@ -36,11 +51,6 @@ class ToolService
 
     /**
      * Register a tool from its configuration.
-     *
-     * @param  string  $name  The name of the tool
-     * @param  array  $config  The tool configuration
-     *
-     * @throws \InvalidArgumentException If the configuration is invalid
      */
     private function registerToolFromConfig(string $name, array $config): void
     {
@@ -48,7 +58,7 @@ class ToolService
             throw new \InvalidArgumentException("Invalid callback for tool '{$name}'");
         }
 
-        $parameters = $config['parameters'] ?? ['properties' => [], 'required' => []];
+        $parameters = $config['parameters'] ?? ['type' => 'object', 'properties' => [], 'required' => []];
         $description = $config['description'] ?? null;
 
         $this->toolRegistry->registerTool(
@@ -61,11 +71,6 @@ class ToolService
 
     /**
      * Add a tool configuration.
-     *
-     * @param  string  $name  The name of the tool
-     * @param  callable  $callback  The callback to execute when the tool is called
-     * @param  array  $parameters  The function parameters schema
-     * @param  string|null  $description  The description of the tool
      */
     public function addToolConfiguration(
         string $name,
@@ -79,6 +84,9 @@ class ToolService
             'description' => $description,
         ];
 
+        // Register the tool immediately
+        $this->registerToolFromConfig($name, $this->toolConfigurations[$name]);
+
         return $this;
     }
 
@@ -91,9 +99,17 @@ class ToolService
     }
 
     /**
-     * Get all registered tools.
-     *
-     * @return Tool[]
+     * Get the tool executor.
+     */
+    public function getToolExecutor(): ToolExecutor
+    {
+        return $this->toolExecutor;
+    }
+
+    /**
+     * Get all registered tools as Tool objects.
+     * @deprecated Use getToolRegistry()->getTools() directly.
+     * @return array<string, \Shelfwood\LMStudio\Api\Model\Tool>
      */
     public function getTools(): array
     {
@@ -102,8 +118,6 @@ class ToolService
 
     /**
      * Get all tool configurations.
-     *
-     * @return array<string, array>
      */
     public function getToolConfigurations(): array
     {

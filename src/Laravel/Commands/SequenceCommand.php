@@ -13,6 +13,8 @@ use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Model\Tool;
 use Shelfwood\LMStudio\LMStudioFactory;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 
 class SequenceCommand extends Command
 {
@@ -59,7 +61,7 @@ class SequenceCommand extends Command
             $this->info('Available models:');
 
             foreach ($models as $model) {
-                $this->line(" - {$model->getId()} ({$model->getState()->value})");
+                $this->line(" - {$model->id} ({$model->state->value})");
             }
 
             return count($models).' models found';
@@ -69,10 +71,10 @@ class SequenceCommand extends Command
         $this->runStep(2, 'Getting model info', function () use ($modelService, $model) {
             $modelInfo = $modelService->getModel($model);
             $this->info('Model details:');
-            $this->line(" - ID: {$modelInfo->getId()}");
-            $this->line(" - Type: {$modelInfo->getType()->value}");
-            $this->line(" - State: {$modelInfo->getState()->value}");
-            $this->line(" - Max context: {$modelInfo->getMaxContextLength()}");
+            $this->line(" - ID: {$modelInfo->id}");
+            $this->line(" - Type: {$modelInfo->type->value}");
+            $this->line(" - State: {$modelInfo->state->value}");
+            $this->line(" - Max context: {$modelInfo->maxContextLength}");
 
             return 'Model info retrieved successfully';
         });
@@ -98,15 +100,11 @@ class SequenceCommand extends Command
 
             $weatherTool = new Tool(
                 ToolType::FUNCTION,
-                [
-                    'name' => 'get_current_time',
-                    'description' => 'Get the current server time',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [],
-                        'required' => [],
-                    ],
-                ]
+                new ToolDefinition(
+                    'get_current_time',
+                    'Get the current server time',
+                    new ToolParameters([], [])
+                )
             );
 
             $response = $chatService->createCompletion($model, $messages, [

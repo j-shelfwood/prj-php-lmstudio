@@ -12,19 +12,14 @@ use Shelfwood\LMStudio\Api\Exception\ValidationException;
  */
 class ResponseFormat
 {
-    private ResponseFormatType $type;
-
-    private ?array $jsonSchema;
-
     /**
      * @param  ResponseFormatType  $type  The type of the response format
      * @param  array|null  $jsonSchema  The JSON schema definition (required when type is json_schema)
      */
-    public function __construct(ResponseFormatType $type, ?array $jsonSchema = null)
-    {
-        $this->type = $type;
-        $this->jsonSchema = $jsonSchema;
-
+    public function __construct(
+        public readonly ResponseFormatType $type,
+        public readonly ?array $jsonSchema = null
+    ) {
         $this->validate();
     }
 
@@ -55,22 +50,6 @@ class ResponseFormat
         }
 
         return $data;
-    }
-
-    /**
-     * Get the type of the response format.
-     */
-    public function getType(): ResponseFormatType
-    {
-        return $this->type;
-    }
-
-    /**
-     * Get the JSON schema definition.
-     */
-    public function getJsonSchema(): ?array
-    {
-        return $this->jsonSchema;
     }
 
     /**

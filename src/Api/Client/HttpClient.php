@@ -6,6 +6,7 @@ namespace Shelfwood\LMStudio\Api\Client;
 
 use Shelfwood\LMStudio\Api\Contract\HttpClientInterface;
 use Shelfwood\LMStudio\Api\Exception\ApiException;
+use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
 
 class HttpClient implements HttpClientInterface
 {
@@ -91,7 +92,7 @@ class HttpClient implements HttpClientInterface
      * @param  string  $method  HTTP method
      * @param  string  $endpoint  API endpoint
      * @param  array  $data  Request data
-     * @param  callable  $callback  Callback function to handle each chunk of data
+     * @param  callable(ChatCompletionChunk): void  $callback  Callback function to handle each parsed chunk
      * @param  array  $headers  Additional headers
      *
      * @throws ApiException If the request fails
@@ -115,7 +116,7 @@ class HttpClient implements HttpClientInterface
             CURLOPT_WRITEFUNCTION => function ($curl, $data) use ($callback): int {
                 try {
                     $length = strlen($data);
-                    error_log(sprintf('[DEBUG] Received chunk: %d bytes', $length));
+                    // error_log(sprintf('[DEBUG] Received chunk: %d bytes', $length)); // Optional: Keep/remove debug log
 
                     // Append the new data to our buffer
                     $this->buffer->append($data);
@@ -127,8 +128,8 @@ class HttpClient implements HttpClientInterface
                         }
 
                         if ($line === 'data: [DONE]') {
-                            error_log('[DEBUG] Received DONE signal');
-
+                            // error_log('[DEBUG] Received DONE signal'); // Optional: Keep/remove debug log
+                            // DONE signal doesn't need to be passed up typically
                             continue;
                         }
 
@@ -137,20 +138,26 @@ class HttpClient implements HttpClientInterface
                             $jsonData = json_decode($jsonStr, true);
 
                             if (json_last_error() === JSON_ERROR_NONE && $jsonData !== null) {
-                                $callback($jsonData);
+                                // PARSE the raw JSON data into our model object
+                                $chunkObject = ChatCompletionChunk::fromArray($jsonData);
+                                // CALL the callback with the PARSED object
+                                $callback($chunkObject);
                             } else {
-                                error_log(sprintf('[WARNING] Invalid JSON in data: %s', $jsonStr));
+                                error_log(sprintf('[WARNING] Invalid JSON in data line: %s', $line));
+                                // Optionally, trigger an error event or throw?
+                                // For now, just logging the warning.
                             }
                         }
                     }
 
-                    // Clear processed data from buffer
-                    $this->buffer->clear();
+                    // The buffer handles partial lines automatically, no need to clear here
 
                     return $length;
                 } catch (\Throwable $e) {
-                    error_log(sprintf('[ERROR] Stream processing error: %s', $e->getMessage()));
-
+                    // Log the error, but don't stop the stream if possible
+                    error_log(sprintf('[ERROR] Exception during stream processing callback: %s', $e->getMessage()));
+                    // Decide if the stream should terminate. Returning 0 or -1 might abort.
+                    // Returning $length allows curl to continue.
                     return $length;
                 }
             },

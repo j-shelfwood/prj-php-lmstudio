@@ -114,17 +114,17 @@ class ToolRegistry
     /**
      * Get all registered tools as an array for API requests.
      *
-     * @return array The tools array
+     * @return array The tools array, suitable for JSON serialization.
      */
-    public function getToolsArray(): array
+    public function getToolsAsArray(): array
     {
         return array_values(array_map(fn (Tool $tool) => $tool->toArray(), $this->tools));
     }
 
     /**
-     * Get all registered tools.
+     * Get all registered tools as Tool objects.
      *
-     * @return Tool[]
+     * @return Tool[] An array of Tool objects.
      */
     public function getTools(): array
     {
