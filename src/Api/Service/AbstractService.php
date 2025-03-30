@@ -9,10 +9,10 @@ use Shelfwood\LMStudio\Api\Contract\ServiceInterface;
 
 abstract class AbstractService implements ServiceInterface
 {
-    protected ApiClientInterface $apiClient;
+    protected readonly ApiClientInterface $apiClient;
 
     /**
-     * @param ApiClientInterface $apiClient The API client
+     * @param  ApiClientInterface  $apiClient  The API client
      */
     public function __construct(ApiClientInterface $apiClient)
     {
@@ -21,8 +21,6 @@ abstract class AbstractService implements ServiceInterface
 
     /**
      * Get the API client.
-     *
-     * @return ApiClientInterface
      */
     public function getApiClient(): ApiClientInterface
     {

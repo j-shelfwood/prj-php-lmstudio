@@ -27,7 +27,7 @@ test('create conversation with streaming', function (): void {
     expect($conversation->getOptions()['temperature'])->toBe(0.7);
     expect($conversation->getOptions())->toHaveKey('stream');
     expect($conversation->getOptions()['stream'])->toBeTrue();
-    expect($conversation->isStreaming())->toBeTrue();
+    expect($conversation->streaming)->toBeTrue();
 });
 
 test('create conversation with tool registry', function (): void {
@@ -73,8 +73,8 @@ test('create conversation with event handler', function (): void {
     );
 
     expect($conversation)->toBeInstanceOf(Conversation::class);
-    expect($conversation->getEventHandler())->toBe($eventHandler);
-    expect($conversation->getEventHandler()->hasCallbacks('response'))->toBeTrue();
+    expect($conversation->eventHandler)->toBe($eventHandler);
+    expect($conversation->eventHandler->hasCallbacks('response'))->toBeTrue();
 });
 
 test('create conversation with all features', function (): void {
@@ -116,8 +116,8 @@ test('create conversation with all features', function (): void {
     expect($conversation->getOptions()['temperature'])->toBe(0.7);
     expect($conversation->getOptions())->toHaveKey('stream');
     expect($conversation->getOptions()['stream'])->toBeTrue();
-    expect($conversation->isStreaming())->toBeTrue();
-    expect($conversation->getEventHandler())->toBe($eventHandler);
+    expect($conversation->streaming)->toBeTrue();
+    expect($conversation->eventHandler)->toBe($eventHandler);
 });
 
 test('create conversation builder', function (): void {
@@ -159,6 +159,6 @@ test('create conversation builder', function (): void {
     expect($conversation->getOptions()['temperature'])->toBe(0.7);
     expect($conversation->getOptions())->toHaveKey('stream');
     expect($conversation->getOptions()['stream'])->toBeTrue();
-    expect($conversation->isStreaming())->toBeTrue();
-    expect($conversation->getEventHandler()->hasCallbacks('response'))->toBeTrue();
+    expect($conversation->streaming)->toBeTrue();
+    expect($conversation->eventHandler->hasCallbacks('response'))->toBeTrue();
 });

@@ -53,32 +53,32 @@ test('factory provides embedding service', function () use (&$factory): void {
     expect($factory->getEmbeddingService())->toBe($service);
 });
 
-// --- Tests for Core Component Singletons ---
+// --- Tests for Core Component Singletons (Accessed via public readonly properties) ---
 
 test('factory provides singleton tool registry', function () use (&$factory): void {
-    $registry1 = $factory->getToolRegistry();
-    $registry2 = $factory->getToolRegistry();
+    $registry1 = $factory->toolRegistry; // Access directly
+    $registry2 = $factory->toolRegistry;
     expect($registry1)->toBeInstanceOf(ToolRegistry::class);
     expect($registry2)->toBe($registry1); // Check for same instance
 });
 
 test('factory provides singleton event handler', function () use (&$factory): void {
-    $handler1 = $factory->getEventHandler();
-    $handler2 = $factory->getEventHandler();
+    $handler1 = $factory->eventHandler; // Access directly
+    $handler2 = $factory->eventHandler;
     expect($handler1)->toBeInstanceOf(EventHandler::class);
     expect($handler2)->toBe($handler1);
 });
 
 test('factory provides singleton tool executor', function () use (&$factory): void {
-    $executor1 = $factory->getToolExecutor();
-    $executor2 = $factory->getToolExecutor();
+    $executor1 = $factory->toolExecutor; // Access directly
+    $executor2 = $factory->toolExecutor;
     expect($executor1)->toBeInstanceOf(ToolExecutor::class);
     expect($executor2)->toBe($executor1);
 });
 
 test('factory provides singleton tool config service', function () use (&$factory): void {
-    $configService1 = $factory->getToolConfigService();
-    $configService2 = $factory->getToolConfigService();
+    $configService1 = $factory->toolConfigService; // Access directly
+    $configService2 = $factory->toolConfigService;
     expect($configService1)->toBeInstanceOf(ToolConfigService::class);
     expect($configService2)->toBe($configService1);
 });
@@ -91,13 +91,13 @@ test('create conversation uses correct dependencies and defaults', function () u
     expect($conversation)->toBeInstanceOf(Conversation::class);
     expect($conversation->getModel())->toBe('test-model');
     expect($conversation->getOptions())->toBe([]); // Default options
-    expect($conversation->isStreaming())->toBeFalse();
-    // expect($conversation->getStreamingHandler())->toBeNull(); // Assuming getter exists
+    expect($conversation->streaming)->toBeFalse(); // Access readonly property
+    expect($conversation->streamingHandler)->toBeNull(); // Access readonly property
 
-    // Verify it received the factory's singleton instances via getters on Conversation
-    expect($conversation->getToolRegistry())->toBe($factory->getToolRegistry());
-    expect($conversation->getEventHandler())->toBe($factory->getEventHandler());
-    expect($conversation->getToolExecutor())->toBe($factory->getToolExecutor());
+    // Verify it received the factory's singleton instances via readonly properties
+    expect($conversation->toolRegistry)->toBe($factory->toolRegistry); // Access readonly properties
+    expect($conversation->eventHandler)->toBe($factory->eventHandler);
+    expect($conversation->toolExecutor)->toBe($factory->toolExecutor);
 });
 
 test('create conversation with options passes them correctly', function () use (&$factory): void {
@@ -108,7 +108,7 @@ test('create conversation with options passes them correctly', function () use (
     expect($conversation->getModel())->toBe('test-model-options');
     // Check base options are merged, stream option is NOT added here
     expect($conversation->getOptions())->toBe($options);
-    expect($conversation->isStreaming())->toBeFalse();
+    expect($conversation->streaming)->toBeFalse(); // Access readonly property
 });
 
 test('create streaming conversation sets up correctly', function () use (&$factory): void {
@@ -120,18 +120,17 @@ test('create streaming conversation sets up correctly', function () use (&$facto
     expect($conversation->getModel())->toBe('test-model-stream');
     // Verify base options are kept AND stream option is added
     expect($conversation->getOptions())->toBe(['temperature' => 0.9, 'stream' => true]);
-    expect($conversation->isStreaming())->toBeTrue();
+    expect($conversation->streaming)->toBeTrue(); // Access readonly property
 
-    // Verify StreamingHandler instance and its dependency via Conversation getters (assuming they exist)
-    $streamingHandler = $conversation->getStreamingHandler();
-    expect($streamingHandler)->toBeInstanceOf(\Shelfwood\LMStudio\Core\Streaming\StreamingHandler::class);
+    // Verify StreamingHandler instance and its dependency via readonly properties
+    expect($conversation->streamingHandler)->toBeInstanceOf(\Shelfwood\LMStudio\Core\Streaming\StreamingHandler::class); // Access readonly property
     // Assuming StreamingHandler has a getter for EventHandler - REMOVED this check as it's not essential here
-    // expect($streamingHandler->getEventHandler())->toBe($factory->getEventHandler());
+    // expect($streamingHandler->getEventHandler())->toBe($factory->eventHandler); // Check against factory readonly property
 
-    // Verify other core dependencies via Conversation getters (assuming they exist)
-    expect($conversation->getToolRegistry())->toBe($factory->getToolRegistry());
-    expect($conversation->getEventHandler())->toBe($factory->getEventHandler());
-    expect($conversation->getToolExecutor())->toBe($factory->getToolExecutor());
+    // Verify other core dependencies via readonly properties
+    expect($conversation->toolRegistry)->toBe($factory->toolRegistry); // Access readonly properties
+    expect($conversation->eventHandler)->toBe($factory->eventHandler);
+    expect($conversation->toolExecutor)->toBe($factory->toolExecutor);
 });
 
 // --- Tests for ConversationBuilder Creation ---

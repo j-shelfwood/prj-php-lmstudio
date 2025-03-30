@@ -12,7 +12,7 @@ use Shelfwood\LMStudio\Core\Event\EventHandler;
 
 class StreamingHandler
 {
-    private EventHandler $eventHandler;
+    private readonly EventHandler $eventHandler;
 
     /**
      * @var array<int, array{id: ?string, type: ?string, function_name: string, function_arguments: string}> Accumulator for tool call fragments, indexed by tool call index
@@ -27,7 +27,7 @@ class StreamingHandler
     /**
      * Handle a parsed streaming chunk.
      *
-     * @param ChatCompletionChunk $chunk The parsed chunk object
+     * @param  ChatCompletionChunk  $chunk  The parsed chunk object
      */
     public function handleChunk(ChatCompletionChunk $chunk): void
     {
@@ -39,7 +39,8 @@ class StreamingHandler
         try {
             // We expect only one choice in most streaming scenarios
             $choice = $chunk->choices[0] ?? null;
-            if (!$choice) {
+
+            if (! $choice) {
                 return; // Or trigger a warning/error?
             }
 
@@ -65,6 +66,7 @@ class StreamingHandler
         } catch (\Exception $e) {
             $this->eventHandler->trigger('stream_error', $e, $chunk);
             $this->reset(); // Reset state on error
+
             throw $e; // Re-throw after triggering event
         }
     }
@@ -72,8 +74,8 @@ class StreamingHandler
     /**
      * Process tool call deltas from a chunk.
      *
-     * @param ToolCallDelta[] $toolCallDeltas The tool call deltas from the parsed chunk
-     * @param ChatCompletionChunk $parentChunk The parent chunk for context
+     * @param  ToolCallDelta[]  $toolCallDeltas  The tool call deltas from the parsed chunk
+     * @param  ChatCompletionChunk  $parentChunk  The parent chunk for context
      */
     private function processToolCallDeltas(array $toolCallDeltas, ChatCompletionChunk $parentChunk): void
     {
@@ -81,7 +83,7 @@ class StreamingHandler
             $index = $delta->index;
 
             // Initialize accumulator for this index if it's the first fragment
-            if (!isset($this->currentToolCallFragments[$index])) {
+            if (! isset($this->currentToolCallFragments[$index])) {
                 $this->currentToolCallFragments[$index] = [
                     'id' => $delta->id, // ID usually comes first
                     'type' => $delta->type, // Type usually comes first
@@ -95,6 +97,7 @@ class StreamingHandler
             if ($delta->functionName !== null) {
                 $this->currentToolCallFragments[$index]['function_name'] .= $delta->functionName;
             }
+
             if ($delta->functionArguments !== null) {
                 $this->currentToolCallFragments[$index]['function_arguments'] .= $delta->functionArguments;
             }
@@ -112,6 +115,7 @@ class StreamingHandler
     private function assembleCompleteToolCalls(): array
     {
         $completeToolCalls = [];
+
         foreach ($this->currentToolCallFragments as $index => $fragments) {
             try {
                 // Use ToolCall::fromArray structure, but construct manually from fragments
@@ -127,11 +131,12 @@ class StreamingHandler
 
                 $this->eventHandler->trigger('stream_tool_call_end', $index, $toolCall);
 
-            } catch (\JsonException | \InvalidArgumentException $e) {
-                 // If assembly fails (e.g., invalid args JSON), trigger an error and skip this tool call
-                 $this->eventHandler->trigger('stream_tool_call_assembly_error', $index, $fragments, $e);
+            } catch (\JsonException|\InvalidArgumentException $e) {
+                // If assembly fails (e.g., invalid args JSON), trigger an error and skip this tool call
+                $this->eventHandler->trigger('stream_tool_call_assembly_error', $index, $fragments, $e);
             }
         }
+
         return $completeToolCalls;
     }
 
@@ -151,6 +156,7 @@ class StreamingHandler
     {
         $this->currentToolCallFragments = [];
         $this->eventHandler->resetTriggeredEvents();
+
         return $this;
     }
 
@@ -160,6 +166,7 @@ class StreamingHandler
     public function on(string $event, callable $callback): self
     {
         $this->eventHandler->on($event, $callback);
+
         return $this;
     }
 }

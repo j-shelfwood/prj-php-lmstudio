@@ -24,11 +24,20 @@ describe('ExecuteToolJob', function (): void {
             'test-connection'
         );
 
-        expect($job->getToolName())->toBe('test-tool');
-        expect($job->getParameters())->toBe(['arg' => 'value']);
-        expect($job->getToolCallId())->toBe('test-id');
-        expect($job->tries)->toBe(5);
-        expect($job->timeout)->toBe(60);
+        // Use reflection to access protected properties
+        $reflection = new \ReflectionClass($job);
+        $toolNameProp = $reflection->getProperty('toolName');
+        $toolNameProp->setAccessible(true);
+        $paramsProp = $reflection->getProperty('parameters');
+        $paramsProp->setAccessible(true);
+        $toolCallIdProp = $reflection->getProperty('toolCallId');
+        $toolCallIdProp->setAccessible(true);
+
+        expect($toolNameProp->getValue($job))->toBe('test-tool');
+        expect($paramsProp->getValue($job))->toBe(['arg' => 'value']);
+        expect($toolCallIdProp->getValue($job))->toBe('test-id');
+        expect($job->tries)->toBe(5); // Public readonly
+        expect($job->timeout)->toBe(60); // Public readonly
     });
 
     test('job constructor sets default values correctly', function (): void {

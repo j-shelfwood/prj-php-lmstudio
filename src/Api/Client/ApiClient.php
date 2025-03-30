@@ -11,7 +11,7 @@ use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
 
 class ApiClient implements ApiClientInterface
 {
-    private HttpClientInterface $httpClient;
+    private readonly HttpClientInterface $httpClient;
 
     private string $baseUrl;
 

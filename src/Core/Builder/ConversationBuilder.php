@@ -17,7 +17,7 @@ use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
  */
 class ConversationBuilder
 {
-    private ChatService $chatService;
+    private readonly ChatService $chatService;
 
     private string $model;
 

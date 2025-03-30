@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Api\Service;
 
-use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
-use Shelfwood\LMStudio\Api\Enum\Role;
 use Shelfwood\LMStudio\Api\Exception\ValidationException;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
@@ -15,13 +13,6 @@ use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
 
 class ChatService extends AbstractService
 {
-    private ApiClientInterface $client;
-
-    public function __construct(ApiClientInterface $client)
-    {
-        $this->client = $client;
-    }
-
     /**
      * Create a chat completion.
      *
@@ -64,7 +55,7 @@ class ChatService extends AbstractService
             $data = array_merge($data, $options);
         }
 
-        $response = $this->client->post('/api/v0/chat/completions', $data);
+        $response = $this->apiClient->post('/api/v0/chat/completions', $data);
 
         return ChatCompletionResponse::fromArray($response);
     }
@@ -119,7 +110,7 @@ class ChatService extends AbstractService
         // Ensure stream is always true
         $data['stream'] = true;
 
-        $this->client->postStream('/api/v0/chat/completions', $data, $callback);
+        $this->apiClient->postStream('/api/v0/chat/completions', $data, $callback);
     }
 
     /**

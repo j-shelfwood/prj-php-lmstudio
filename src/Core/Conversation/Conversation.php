@@ -19,23 +19,23 @@ use Throwable;
 
 class Conversation implements ConversationInterface
 {
-    private ChatService $chatService;
+    private readonly ChatService $chatService;
 
-    private string $model;
+    private readonly string $model;
 
     private array $messages = [];
 
     private array $options;
 
-    private ToolRegistry $toolRegistry;
+    public readonly ToolRegistry $toolRegistry;
 
-    private EventHandler $eventHandler;
+    public readonly EventHandler $eventHandler;
 
-    private bool $streaming;
+    public readonly bool $streaming;
 
-    private ?StreamingHandler $streamingHandler;
+    public readonly ?StreamingHandler $streamingHandler;
 
-    private ?ToolExecutor $toolExecutor;
+    public readonly ?ToolExecutor $toolExecutor;
 
     /**
      * @param  ChatService  $chatService  The chat service
@@ -113,38 +113,6 @@ class Conversation implements ConversationInterface
     public function getMessages(): array
     {
         return $this->messages;
-    }
-
-    /**
-     * Get the tool registry.
-     */
-    public function getToolRegistry(): ToolRegistry
-    {
-        return $this->toolRegistry;
-    }
-
-    /**
-     * Get the tool executor instance, if available.
-     */
-    public function getToolExecutor(): ?ToolExecutor
-    {
-        return $this->toolExecutor;
-    }
-
-    /**
-     * Get the streaming handler instance, if available.
-     */
-    public function getStreamingHandler(): ?StreamingHandler
-    {
-        return $this->streamingHandler;
-    }
-
-    /**
-     * Get the event handler.
-     */
-    public function getEventHandler(): EventHandler
-    {
-        return $this->eventHandler;
     }
 
     /**
@@ -362,9 +330,17 @@ class Conversation implements ConversationInterface
             // Use array key exists for potentially null results
             $resultData = array_key_exists($toolCallId, $results) ? $results[$toolCallId] : ['error' => 'Execution result missing'];
 
-            $resultContent = is_string($resultData)
-                ? $resultData
-                : json_encode($resultData, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT); // Ensure valid JSON
+            // Format the result content appropriately for the API
+            if (is_array($resultData)) {
+                // If the tool returned an array, JSON encode it.
+                $resultContent = json_encode($resultData, JSON_UNESCAPED_SLASHES);
+            } elseif (is_scalar($resultData) || is_null($resultData)) {
+                // If scalar (string, int, float, bool) or null, cast to string.
+                $resultContent = (string) $resultData;
+            } else {
+                // Fallback for objects or other types (might need adjustment)
+                $resultContent = json_encode($resultData, JSON_UNESCAPED_SLASHES);
+            }
 
             // Use the static factory method for clarity
             $this->addMessage(Message::forToolResponse($resultContent, $toolCallId));
@@ -381,13 +357,5 @@ class Conversation implements ConversationInterface
         $this->messages = [];
 
         return $this;
-    }
-
-    /**
-     * Check if streaming is enabled.
-     */
-    public function isStreaming(): bool
-    {
-        return $this->streaming;
     }
 }

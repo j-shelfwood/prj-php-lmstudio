@@ -18,11 +18,11 @@ class QueueableToolExecutionHandler extends ToolExecutor
 
     private ?string $queueConnection = null;
 
-    private bool $queueByDefault;
+    private readonly bool $queueByDefault;
 
-    private ?EventHandler $eventHandler;
+    private readonly ?EventHandler $eventHandler;
 
-    private ?ToolRegistry $toolRegistry;
+    private readonly ?ToolRegistry $toolRegistry;
 
     public function __construct(?bool $queueByDefault = false, ?EventHandler $eventHandler = null)
     {

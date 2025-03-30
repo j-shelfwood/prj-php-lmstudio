@@ -17,15 +17,15 @@ class ExecuteToolJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public readonly int $tries;
 
-    public int $timeout;
+    public readonly int $timeout;
 
-    protected string $toolName;
+    protected readonly string $toolName;
 
-    protected array $parameters;
+    protected readonly array $parameters;
 
-    protected string $toolCallId;
+    protected readonly string $toolCallId;
 
     public function __construct(
         string $toolName,
@@ -48,21 +48,6 @@ class ExecuteToolJob implements ShouldQueue
         $this->toolName = $toolName;
         $this->parameters = $parameters;
         $this->toolCallId = $toolCallId;
-    }
-
-    public function getToolName(): string
-    {
-        return $this->toolName;
-    }
-
-    public function getParameters(): array
-    {
-        return $this->parameters;
-    }
-
-    public function getToolCallId(): string
-    {
-        return $this->toolCallId;
     }
 
     public function handle(ToolRegistry $toolRegistry): void

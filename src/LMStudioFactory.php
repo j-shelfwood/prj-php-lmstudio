@@ -31,11 +31,11 @@ if (! defined('LARAVEL_STREAMING_HANDLER_CLASS')) {
 
 class LMStudioFactory
 {
-    private string $baseUrl;
+    public readonly string $baseUrl;
 
-    private array $defaultHeaders;
+    public readonly array $defaultHeaders;
 
-    protected string $apiKey;
+    protected readonly string $apiKey;
 
     // Single instances of core components
     protected ?HttpClient $httpClient = null;
@@ -50,13 +50,13 @@ class LMStudioFactory
 
     protected ?EmbeddingService $embeddingService = null;
 
-    protected ToolRegistry $toolRegistry;
+    public readonly ToolRegistry $toolRegistry;
 
-    protected EventHandler $eventHandler;
+    public readonly EventHandler $eventHandler;
 
-    protected ToolExecutor $toolExecutor;
+    public readonly ToolExecutor $toolExecutor;
 
-    protected ToolConfigService $toolConfigService;
+    public readonly ToolConfigService $toolConfigService;
 
     // Cache for ExpressionLanguage
     private ?ExpressionLanguage $expressionLanguage = null;
@@ -75,7 +75,7 @@ class LMStudioFactory
         $this->defaultHeaders = $defaultHeaders;
         $this->apiKey = $apiKey;
 
-        // Initialize core components ONCE
+        // Initialize core components ONCE using public readonly properties
         $this->toolRegistry = new ToolRegistry;
         $this->eventHandler = $this->createEventHandler();
         $this->toolExecutor = new ToolExecutor($this->toolRegistry, $this->eventHandler);
@@ -168,22 +168,6 @@ class LMStudioFactory
         }
 
         return $this->embeddingService;
-    }
-
-    /**
-     * Get the single tool executor instance.
-     */
-    public function getToolExecutor(): ToolExecutor
-    {
-        return $this->toolExecutor;
-    }
-
-    /**
-     * Get the single tool config service instance.
-     */
-    public function getToolConfigService(): ToolConfigService
-    {
-        return $this->toolConfigService;
     }
 
     /**
@@ -381,7 +365,7 @@ class LMStudioFactory
     {
         $builder = new ConversationBuilder($this->getChatService(), $model);
 
-        // Inject components using existing methods
+        // Inject components using public readonly properties
         $builder->withToolRegistry($this->toolRegistry)
             ->withToolExecutor($this->toolExecutor);
 
@@ -406,7 +390,7 @@ class LMStudioFactory
         }
         $builder = new $builderClass($this->getChatService(), $model);
 
-        // Assume builder has these methods
+        // Assume builder has these methods, inject using public readonly properties
         $builder->withToolRegistry($this->toolRegistry)
             ->withToolExecutor($this->toolExecutor);
 
@@ -466,17 +450,5 @@ class LMStudioFactory
         }
 
         return new $handlerClass($this->eventHandler);
-    }
-
-    // ADDED: Public getter for ToolRegistry
-    public function getToolRegistry(): ToolRegistry
-    {
-        return $this->toolRegistry;
-    }
-
-    // ADDED: Public getter for EventHandler
-    public function getEventHandler(): EventHandler
-    {
-        return $this->eventHandler;
     }
 }

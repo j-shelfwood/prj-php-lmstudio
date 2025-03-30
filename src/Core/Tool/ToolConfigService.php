@@ -11,19 +11,19 @@ use Shelfwood\LMStudio\Core\Event\EventHandler;
  */
 class ToolConfigService
 {
-    private ToolRegistry $toolRegistry;
+    public readonly ToolRegistry $toolRegistry;
 
-    private ToolExecutor $toolExecutor;
+    public readonly ToolExecutor $toolExecutor;
 
     private array $toolConfigurations = [];
 
     /**
      * Create a new ToolConfigService instance.
      *
-     * @param ToolRegistry $toolRegistry The pre-configured tool registry.
-     * @param ToolExecutor $toolExecutor The pre-configured tool executor.
-     * @param array $toolConfigurations Initial array of tool configurations.
-     * @param EventHandler|null $eventHandler Optional EventHandler, currently unused here but kept for future consistency.
+     * @param  ToolRegistry  $toolRegistry  The pre-configured tool registry.
+     * @param  ToolExecutor  $toolExecutor  The pre-configured tool executor.
+     * @param  array  $toolConfigurations  Initial array of tool configurations.
+     * @param  EventHandler|null  $eventHandler  Optional EventHandler, currently unused here but kept for future consistency.
      */
     public function __construct(
         ToolRegistry $toolRegistry,
@@ -91,24 +91,10 @@ class ToolConfigService
     }
 
     /**
-     * Get the tool registry.
-     */
-    public function getToolRegistry(): ToolRegistry
-    {
-        return $this->toolRegistry;
-    }
-
-    /**
-     * Get the tool executor.
-     */
-    public function getToolExecutor(): ToolExecutor
-    {
-        return $this->toolExecutor;
-    }
-
-    /**
      * Get all registered tools as Tool objects.
+     *
      * @deprecated Use getToolRegistry()->getTools() directly.
+     *
      * @return array<string, \Shelfwood\LMStudio\Api\Model\Tool>
      */
     public function getTools(): array
