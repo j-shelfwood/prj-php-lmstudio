@@ -135,6 +135,9 @@ class Conversation implements ConversationInterface
      * Get a standard (non-streaming) response from the model.
      * Handles the two-step process if tools are used.
      *
+     * Note: For streaming conversations, consider using `handleStreamingTurn()`
+     * for a simplified workflow that manages the stream and potential tool calls.
+     *
      * @return string The model's response
      *
      * @throws ApiException If the request fails
@@ -222,6 +225,9 @@ class Conversation implements ConversationInterface
      * Listen to events on the StreamingHandler (obtained via getStreamingHandler())
      * to process the stream and handle tool calls after the stream ends.
      *
+     * For a simpler, managed workflow that handles the entire streaming turn including
+     * tool execution and final response retrieval, use `handleStreamingTurn()`.
+     *
      * @throws ApiException If the API request fails.
      * @throws \RuntimeException If streaming is not enabled or handler is missing.
      */
@@ -277,6 +283,139 @@ class Conversation implements ConversationInterface
 
             throw $e;
         }
+    }
+
+    /**
+     * Handles a complete streaming turn, including initiating the stream,
+     * waiting for its completion, processing potential tool calls,
+     * and returning the final textual response.
+     *
+     * This method simplifies the common streaming workflow. User-defined listeners
+     * attached to the StreamingHandler *before* calling this method will still fire.
+     *
+     * @param  int  $timeout  The maximum time in seconds to wait for the initial stream to complete.
+     * @return string The final textual response from the assistant.
+     *
+     * @throws \RuntimeException If streaming is not enabled, handler is missing, or the turn times out.
+     * @throws Throwable If an error occurs during streaming, tool execution, or the final API call.
+     */
+    public function handleStreamingTurn(int $timeout = 60): string
+    {
+        if (! $this->streaming) {
+            throw new \RuntimeException('Streaming is not enabled for this conversation. Cannot handle streaming turn.');
+        }
+
+        if ($this->streamingHandler === null) {
+            throw new \RuntimeException('Streaming handler is required for streaming responses. Cannot handle streaming turn.');
+        }
+
+        $turnComplete = false;
+        $turnError = null;
+        $receivedToolCalls = null;
+        $finalContent = ''; // Initialize final content
+
+        $handler = $this->streamingHandler;
+
+        // --- Temporary internal listeners for this turn ---
+        $internalStreamEndListener = function ($tools) use (&$turnComplete, &$receivedToolCalls): void {
+            // Ensure $tools is an array, even if empty, before checking emptiness
+            $receivedToolCalls = (is_array($tools) && ! empty($tools)) ? $tools : null;
+            $turnComplete = true;
+        };
+        $internalStreamErrorListener = function (Throwable $error) use (&$turnComplete, &$turnError): void {
+            $turnError = $error;
+            $turnComplete = true;
+        };
+
+        // Attach temporary listeners
+        // Note: We assume EventHandler allows multiple listeners per event.
+        // If it overwrites, this approach needs adjustment or reliance on handler reset.
+        $handler->on('stream_end', $internalStreamEndListener);
+        $handler->on('stream_error', $internalStreamErrorListener);
+
+        try {
+            // Initiate the streaming response
+            $this->initiateStreamingResponse();
+
+            // Wait loop for stream completion or timeout
+            $startTime = microtime(true);
+
+            while (! $turnComplete) {
+                usleep(50000); // 50ms sleep to prevent busy-waiting
+
+                if ((microtime(true) - $startTime) > $timeout) {
+                    throw new \RuntimeException("Streaming turn timed out after {$timeout} seconds during initial stream.");
+                }
+            }
+
+            // --- Cleanup temporary listeners (Best effort) ---
+            // If EventHandler lacks removal, they persist but reset() in initiateStreamingResponse helps.
+            // It's crucial that initiateStreamingResponse resets the handler state.
+
+            // Check for stream errors captured by the internal listener
+            if ($turnError !== null) {
+                throw $turnError; // Rethrow the captured stream error
+            }
+
+            // --- Process Tool Calls (if received) ---
+            if ($receivedToolCalls !== null) {
+                // Tools were called by the model during the stream
+                try {
+                    // Execute tools and update history (adds tool messages)
+                    $this->executeToolCalls($receivedToolCalls);
+
+                    // --- Second API Call (Needed after tool results) ---
+                    // Prepare options for the non-streaming call, explicitly removing/setting 'stream' to false
+                    $finalCallOptions = $this->options;
+                    $finalCallOptions['stream'] = false;
+
+                    // Directly call createCompletion for the final response
+                    $finalResponse = $this->chatService->createCompletion(
+                        $this->model,
+                        $this->messages, // History now includes tool results
+                        null, // No tools needed for final answer
+                        null,
+                        $finalCallOptions // Use options with 'stream' => false
+                    );
+
+                    if (empty($finalResponse->choices)) {
+                        $finalContent = '';
+                    } else {
+                        $finalChoice = $finalResponse->choices[0];
+                        $finalContent = $finalChoice->message->content ?? '';
+
+                        // Add final assistant response to history
+                        if (! empty($finalContent)) {
+                            $this->addMessage(new Message(Role::ASSISTANT, $finalContent));
+                        }
+                    }
+                } catch (Throwable $e) {
+                    // Handle errors during tool execution or the second API call
+                    $this->eventHandler->trigger('error', $e); // Trigger general error
+
+                    throw $e; // Rethrow the specific error
+                }
+            } else {
+                // No tools were called. Retrieve content from the last assistant message.
+                // The StreamingHandler should have added the assistant message with content.
+                $lastMessage = ! empty($this->messages) ? end($this->messages) : null;
+
+                if ($lastMessage && $lastMessage->role === Role::ASSISTANT && $lastMessage->toolCalls === null) {
+                    $finalContent = $lastMessage->content ?? '';
+                } else {
+                    $finalContent = ''; // Default to empty or consider logging a warning
+                }
+            }
+        } catch (Throwable $e) {
+            // Trigger general conversation error if not already handled
+            if ($turnError === null || $e !== $turnError) {
+                $this->eventHandler->trigger('error', $e);
+            }
+
+            throw $e; // Rethrow exception caught during the process
+        }
+
+        return $finalContent;
     }
 
     /**
