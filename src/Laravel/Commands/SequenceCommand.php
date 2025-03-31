@@ -12,9 +12,9 @@ use Shelfwood\LMStudio\Api\Exception\ApiException;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Model\Tool;
-use Shelfwood\LMStudio\LMStudioFactory;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
+use Shelfwood\LMStudio\LMStudioFactory;
 
 class SequenceCommand extends Command
 {

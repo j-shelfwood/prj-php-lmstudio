@@ -23,8 +23,10 @@ class Conversation implements ConversationInterface
 
     private readonly string $model;
 
+    /** @var list<Message> */
     private array $messages = [];
 
+    /** @var array<string, mixed> */
     private array $options;
 
     public readonly ToolRegistry $toolRegistry;
@@ -40,7 +42,7 @@ class Conversation implements ConversationInterface
     /**
      * @param  ChatService  $chatService  The chat service
      * @param  string  $model  The model to use
-     * @param  array  $options  Additional options
+     * @param  array<string, mixed>  $options  Additional options
      * @param  ToolRegistry  $toolRegistry  The tool registry
      * @param  EventHandler  $eventHandler  The event handler
      * @param  bool  $streaming  Whether to enable streaming
@@ -108,7 +110,7 @@ class Conversation implements ConversationInterface
     /**
      * Get all messages in the conversation.
      *
-     * @return Message[]
+     * @return list<Message>
      */
     public function getMessages(): array
     {
@@ -125,6 +127,8 @@ class Conversation implements ConversationInterface
 
     /**
      * Get the conversation options.
+     *
+     * @return array<string, mixed>
      */
     public function getOptions(): array
     {
@@ -293,13 +297,13 @@ class Conversation implements ConversationInterface
      * This method simplifies the common streaming workflow. User-defined listeners
      * attached to the StreamingHandler *before* calling this method will still fire.
      *
-     * @param  int  $timeout  The maximum time in seconds to wait for the initial stream to complete.
+     * @param  int|null  $timeout  Optional timeout in seconds. If null, uses the 'stream_timeout' option (default 60s).
      * @return string The final textual response from the assistant.
      *
      * @throws \RuntimeException If streaming is not enabled, handler is missing, or the turn times out.
      * @throws Throwable If an error occurs during streaming, tool execution, or the final API call.
      */
-    public function handleStreamingTurn(int $timeout = 60): string
+    public function handleStreamingTurn(?int $timeout = null): string
     {
         if (! $this->streaming) {
             throw new \RuntimeException('Streaming is not enabled for this conversation. Cannot handle streaming turn.');
@@ -309,10 +313,14 @@ class Conversation implements ConversationInterface
             throw new \RuntimeException('Streaming handler is required for streaming responses. Cannot handle streaming turn.');
         }
 
+        // Determine timeout: Use argument if provided, else check options, else default to 60
+        $effectiveTimeout = $timeout ?? $this->options['stream_timeout'] ?? 60;
+
         $turnComplete = false;
         $turnError = null;
         $receivedToolCalls = null;
         $finalContent = ''; // Initialize final content
+        $accumulatedContent = ''; // Variable to accumulate content during the stream
 
         $handler = $this->streamingHandler;
 
@@ -326,12 +334,17 @@ class Conversation implements ConversationInterface
             $turnError = $error;
             $turnComplete = true;
         };
+        // New listener to accumulate content
+        $internalContentListener = function (string $content) use (&$accumulatedContent): void {
+            $accumulatedContent .= $content;
+        };
 
         // Attach temporary listeners
         // Note: We assume EventHandler allows multiple listeners per event.
         // If it overwrites, this approach needs adjustment or reliance on handler reset.
         $handler->on('stream_end', $internalStreamEndListener);
         $handler->on('stream_error', $internalStreamErrorListener);
+        $handler->on('stream_content', $internalContentListener); // Attach the content listener
 
         try {
             // Initiate the streaming response
@@ -343,8 +356,8 @@ class Conversation implements ConversationInterface
             while (! $turnComplete) {
                 usleep(50000); // 50ms sleep to prevent busy-waiting
 
-                if ((microtime(true) - $startTime) > $timeout) {
-                    throw new \RuntimeException("Streaming turn timed out after {$timeout} seconds during initial stream.");
+                if ((microtime(true) - $startTime) > $effectiveTimeout) {
+                    throw new \RuntimeException("Streaming turn timed out after {$effectiveTimeout} seconds during initial stream.");
                 }
             }
 
@@ -396,15 +409,8 @@ class Conversation implements ConversationInterface
                     throw $e; // Rethrow the specific error
                 }
             } else {
-                // No tools were called. Retrieve content from the last assistant message.
-                // The StreamingHandler should have added the assistant message with content.
-                $lastMessage = ! empty($this->messages) ? end($this->messages) : null;
-
-                if ($lastMessage && $lastMessage->role === Role::ASSISTANT && $lastMessage->toolCalls === null) {
-                    $finalContent = $lastMessage->content ?? '';
-                } else {
-                    $finalContent = ''; // Default to empty or consider logging a warning
-                }
+                // No tools were called. Use the content accumulated by the internal listener.
+                $finalContent = $accumulatedContent;
             }
         } catch (Throwable $e) {
             // Trigger general conversation error if not already handled
@@ -425,7 +431,7 @@ class Conversation implements ConversationInterface
      * or internally by getResponse().
      *
      * @param  ToolCall[]  $toolCalls  Array of ToolCall objects to execute.
-     * @return array Map of tool call IDs to their results (or error messages).
+     * @return array<string, mixed> Map of tool call IDs to their results (or error messages).
      *
      * @throws \RuntimeException If ToolExecutor is unavailable.
      */

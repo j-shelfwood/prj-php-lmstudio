@@ -4,17 +4,30 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Api\Client;
 
+use CurlHandle;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Shelfwood\LMStudio\Api\Contract\HttpClientInterface;
 use Shelfwood\LMStudio\Api\Exception\ApiException;
+
+// Define the type for cURL handles
 use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
 
 class HttpClient implements HttpClientInterface
 {
     private StreamBuffer $buffer;
 
-    public function __construct()
+    private LoggerInterface $logger;
+
+    /**
+     * Constructor with optional Logger injection.
+     *
+     * @param  LoggerInterface|null  $logger  PSR-3 Logger instance. Defaults to NullLogger.
+     */
+    public function __construct(?LoggerInterface $logger = null)
     {
         $this->buffer = new StreamBuffer;
+        $this->logger = $logger ?? new NullLogger;
     }
 
     /**
@@ -22,15 +35,19 @@ class HttpClient implements HttpClientInterface
      *
      * @param  string  $method  HTTP method
      * @param  string  $endpoint  API endpoint
-     * @param  array  $data  Request data
-     * @param  array  $headers  Additional headers
-     * @return array Response data
+     * @param  array<string, mixed>  $data  Request data
+     * @param  array<string, string>  $headers  Additional headers
+     * @return array<string, mixed> Response data
      *
      * @throws ApiException If the request fails
      */
     public function request(string $method, string $endpoint, array $data = [], array $headers = []): array
     {
-        $curl = curl_init();
+        $curl = $this->_curlInit();
+
+        if (! $curl) {
+            throw new ApiException('Failed to initialize cURL');
+        }
 
         $options = [
             CURLOPT_URL => $endpoint,
@@ -56,25 +73,37 @@ class HttpClient implements HttpClientInterface
 
         // Add request body for POST, PUT, etc.
         if ($method !== 'GET' && ! empty($data)) {
-            $options[CURLOPT_POSTFIELDS] = json_encode($data);
+            $jsonData = json_encode($data);
+
+            if ($jsonData === false) {
+                throw new ApiException('Failed to encode request data to JSON: '.json_last_error_msg());
+            }
+            $options[CURLOPT_POSTFIELDS] = $jsonData;
         }
 
-        curl_setopt_array($curl, $options);
+        $this->_curlSetoptArray($curl, $options);
 
-        $response = $this->curlExec($curl);
-        $err = $this->curlError($curl);
-        $statusCode = $this->curlGetInfo($curl, CURLINFO_HTTP_CODE);
+        $response = $this->_curlExec($curl);
+        $err = $this->_curlError($curl);
+        $statusCode = $this->_curlGetInfo($curl, CURLINFO_HTTP_CODE);
 
-        curl_close($curl);
+        $this->_curlClose($curl);
 
         if ($err) {
             throw new ApiException('cURL Error: '.$err);
         }
 
+        // Ensure response is a string before decoding
+        if (! is_string($response)) {
+            // Handle cases where curl_exec might return true or false
+            throw new ApiException('cURL execution did not return a string response.');
+        }
+
         $responseData = json_decode($response, true);
 
         if ($statusCode >= 400) {
-            $errorMessage = $this->extractErrorMessage($responseData);
+            $errorData = is_array($responseData) ? $responseData : []; // Ensure array for error extraction
+            $errorMessage = $this->extractErrorMessage($errorData);
 
             throw new ApiException('API Error: '.$errorMessage, $statusCode, null, $responseData);
         }
@@ -83,7 +112,8 @@ class HttpClient implements HttpClientInterface
             throw new ApiException('Invalid JSON response: '.json_last_error_msg());
         }
 
-        return $responseData;
+        // Ensure the returned value is an array
+        return is_array($responseData) ? $responseData : [];
     }
 
     /**
@@ -91,16 +121,21 @@ class HttpClient implements HttpClientInterface
      *
      * @param  string  $method  HTTP method
      * @param  string  $endpoint  API endpoint
-     * @param  array  $data  Request data
+     * @param  array<string, mixed>  $data  Request data
      * @param  callable(ChatCompletionChunk): void  $callback  Callback function to handle each parsed chunk
-     * @param  array  $headers  Additional headers
+     * @param  array<string, string>  $headers  Additional headers
      *
      * @throws ApiException If the request fails
      */
     public function requestStream(string $method, string $endpoint, array $data, callable $callback, array $headers = []): void
     {
-        $curl = curl_init();
-        error_log('[DEBUG] Initializing stream request to: '.$endpoint);
+        $curl = $this->_curlInit();
+
+        if (! $curl) {
+            throw new ApiException('Failed to initialize cURL');
+        }
+
+        $this->logger->debug('Initializing stream request', ['endpoint' => $endpoint]);
 
         // Reset the buffer for this request
         $this->buffer = new StreamBuffer;
@@ -113,23 +148,25 @@ class HttpClient implements HttpClientInterface
             CURLOPT_TIMEOUT => 0,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_WRITEFUNCTION => function ($curl, $data) use ($callback): int {
+            CURLOPT_WRITEFUNCTION => function ($curlHandle, $streamData) use ($callback): int {
+                $length = 0; // Initialize length
+
                 try {
-                    $length = strlen($data);
-                    // error_log(sprintf('[DEBUG] Received chunk: %d bytes', $length)); // Optional: Keep/remove debug log
+                    if (! is_string($streamData)) {
+                        $this->logger->warning('Non-string data received in stream callback');
 
-                    // Append the new data to our buffer
-                    $this->buffer->append($data);
+                        return 0;
+                    }
+                    $length = strlen($streamData);
 
-                    // Process complete lines from the buffer
+                    $this->buffer->append($streamData);
+
                     while (($line = $this->buffer->readLine()) !== null) {
                         if (empty($line)) {
                             continue;
                         }
 
                         if ($line === 'data: [DONE]') {
-                            // error_log('[DEBUG] Received DONE signal'); // Optional: Keep/remove debug log
-                            // DONE signal doesn't need to be passed up typically
                             continue;
                         }
 
@@ -138,27 +175,20 @@ class HttpClient implements HttpClientInterface
                             $jsonData = json_decode($jsonStr, true);
 
                             if (json_last_error() === JSON_ERROR_NONE && $jsonData !== null) {
-                                // PARSE the raw JSON data into our model object
                                 $chunkObject = ChatCompletionChunk::fromArray($jsonData);
-                                // CALL the callback with the PARSED object
                                 $callback($chunkObject);
                             } else {
-                                error_log(sprintf('[WARNING] Invalid JSON in data line: %s', $line));
-                                // Optionally, trigger an error event or throw?
-                                // For now, just logging the warning.
+                                $this->logger->warning('Invalid JSON in data line', ['line' => $line, 'json_error' => json_last_error_msg()]);
                             }
                         }
                     }
 
-                    // The buffer handles partial lines automatically, no need to clear here
-
                     return $length;
                 } catch (\Throwable $e) {
-                    // Log the error, but don't stop the stream if possible
-                    error_log(sprintf('[ERROR] Exception during stream processing callback: %s', $e->getMessage()));
-                    // Decide if the stream should terminate. Returning 0 or -1 might abort.
-                    // Returning $length allows curl to continue.
-                    return $length;
+                    $this->logger->error('Exception during stream processing callback', ['exception' => $e]);
+
+                    // Ensure $length is defined even if exception occurs before assignment
+                    return $length; // Allow curl to continue, but log the error
                 }
             },
         ];
@@ -179,25 +209,29 @@ class HttpClient implements HttpClientInterface
         // Add request body for POST, PUT, etc.
         if ($method !== 'GET' && ! empty($data)) {
             $jsonData = json_encode($data);
-            error_log(sprintf('[DEBUG] Request payload: %s', $jsonData));
+
+            if ($jsonData === false) {
+                throw new ApiException('Failed to encode stream request data to JSON: '.json_last_error_msg());
+            }
+            $this->logger->debug('Request payload', ['payload' => $jsonData]);
             $options[CURLOPT_POSTFIELDS] = $jsonData;
         }
 
-        curl_setopt_array($curl, $options);
+        $this->_curlSetoptArray($curl, $options);
 
-        error_log('[DEBUG] Starting cURL execution');
-        $this->curlExec($curl);
-        $err = $this->curlError($curl);
-        $errno = curl_errno($curl);
-        $statusCode = $this->curlGetInfo($curl, CURLINFO_HTTP_CODE);
+        $this->logger->debug('Starting cURL execution');
+        $this->_curlExec($curl);
+        $err = $this->_curlError($curl);
+        $errno = $this->_curlErrno($curl);
+        $statusCode = $this->_curlGetInfo($curl, CURLINFO_HTTP_CODE);
 
-        error_log(sprintf('[DEBUG] cURL execution completed (Status: %d)', $statusCode));
+        $this->logger->debug('cURL execution completed', ['status' => $statusCode]);
 
         if ($errno) {
-            error_log(sprintf('[ERROR] cURL Error %d: %s', $errno, $err));
+            $this->logger->error('cURL stream error', ['errno' => $errno, 'error' => $err]);
         }
 
-        curl_close($curl);
+        $this->_curlClose($curl);
 
         if ($err) {
             throw new ApiException('cURL Error: '.$err);
@@ -208,52 +242,94 @@ class HttpClient implements HttpClientInterface
         }
     }
 
+    /**
+     * Extract error message from response data.
+     *
+     * @param  array<string, mixed>  $responseData  Decoded JSON response data
+     * @return string Error message
+     */
     private function extractErrorMessage(array $responseData): string
     {
-        if (isset($responseData['error']['message'])) {
+        // Prioritize LMStudio's specific error format
+        if (isset($responseData['error']['message']) && is_string($responseData['error']['message'])) {
             return $responseData['error']['message'];
         }
 
-        if (isset($responseData['error'])) {
-            return is_string($responseData['error'])
-                ? $responseData['error']
-                : json_encode($responseData['error']);
+        // Fallback: Try common 'message' key
+        if (isset($responseData['message']) && is_string($responseData['message'])) {
+            return $responseData['message'];
         }
 
-        return 'Unknown error';
+        // Fallback: Try common 'error' key (if it's a string)
+        if (isset($responseData['error']) && is_string($responseData['error'])) {
+            return $responseData['error'];
+        }
+
+        // Final fallback: stringify the response
+        return json_encode($responseData) ?: 'Unknown error structure';
+    }
+
+    // --- cURL Wrapper Methods --- (for testability)
+
+    /**
+     * Wrapper for curl_init().
+     *
+     * @return CurlHandle|false
+     */
+    protected function _curlInit()
+    {
+        return curl_init();
     }
 
     /**
-     * Execute a cURL request.
-     *
-     * @param  \CurlHandle  $curl  The cURL resource
-     * @return string|bool The response or false on failure
+     * Wrapper for curl_setopt_array().
      */
-    protected function curlExec(\CurlHandle $curl)
+    protected function _curlSetoptArray(CurlHandle $curl, array $options): bool
+    {
+        return curl_setopt_array($curl, $options);
+    }
+
+    /**
+     * Wrapper for curl_exec().
+     *
+     * @return bool|string
+     */
+    protected function _curlExec(CurlHandle $curl)
     {
         return curl_exec($curl);
     }
 
     /**
-     * Get cURL error message.
-     *
-     * @param  \CurlHandle  $curl  The cURL resource
-     * @return string The error message
+     * Wrapper for curl_error().
      */
-    protected function curlError(\CurlHandle $curl): string
+    protected function _curlError(CurlHandle $curl): string
     {
         return curl_error($curl);
     }
 
     /**
-     * Get cURL info.
-     *
-     * @param  \CurlHandle  $curl  The cURL resource
-     * @param  int  $option  The option to get
-     * @return mixed The info
+     * Wrapper for curl_errno().
      */
-    protected function curlGetInfo(\CurlHandle $curl, int $option)
+    protected function _curlErrno(CurlHandle $curl): int
+    {
+        return curl_errno($curl);
+    }
+
+    /**
+     * Wrapper for curl_getinfo().
+     *
+     * @return mixed
+     */
+    protected function _curlGetInfo(CurlHandle $curl, int $option)
     {
         return curl_getinfo($curl, $option);
+    }
+
+    /**
+     * Wrapper for curl_close().
+     */
+    protected function _curlClose(CurlHandle $curl): void
+    {
+        curl_close($curl);
     }
 }

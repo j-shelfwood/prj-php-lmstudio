@@ -17,6 +17,7 @@ class RuntimeInfo
     public function __construct(
         public readonly string $name,
         public readonly string $version,
+        /** @var list<string> */
         public readonly array $supportedFormats
     ) {}
 

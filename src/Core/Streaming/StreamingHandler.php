@@ -162,6 +162,10 @@ class StreamingHandler
 
     /**
      * Register an event handler.
+     *
+     * @param  string  $event  The event name (e.g., 'stream_content', 'stream_end')
+     * @param  callable(mixed...): void  $callback  The handler function
+     * @return $this
      */
     public function on(string $event, callable $callback): self
     {

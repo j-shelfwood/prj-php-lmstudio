@@ -13,9 +13,9 @@ use Shelfwood\LMStudio\Api\Model\Tool\ToolCallDelta;
 class ChoiceDelta
 {
     /**
-     * @param Role|null $role The role (usually assistant, only in the first relevant chunk)
-     * @param string|null $content Partial or full content string
-     * @param ToolCallDelta[]|null $toolCalls Array of tool call fragments in this chunk
+     * @param  Role|null  $role  The role (usually assistant, only in the first relevant chunk)
+     * @param  string|null  $content  Partial or full content string
+     * @param  ToolCallDelta[]|null  $toolCalls  Array of tool call fragments in this chunk
      */
     public function __construct(
         public readonly ?Role $role,
@@ -26,7 +26,7 @@ class ChoiceDelta
     /**
      * Creates a ChoiceDelta from the raw delta array in a chunk.
      *
-     * @param array $data The delta data (e.g., $chunk['choices'][0]['delta'])
+     * @param  array  $data  The delta data (e.g., $chunk['choices'][0]['delta'])
      */
     public static function fromArray(array $data): self
     {

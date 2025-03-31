@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Laravel\Tools;
 
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Queue;
+use Illuminate\Contracts\Queue\Queue as QueueDispatcherContract;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
@@ -14,32 +13,24 @@ use Shelfwood\LMStudio\Laravel\Jobs\ExecuteToolJob;
 
 class QueueableToolExecutionHandler extends ToolExecutor
 {
-    private array $queueableTools = [];
-
     private ?string $queueConnection = null;
+
+    /** @var array<string, bool> */
+    private array $queueableTools = [];
 
     private readonly bool $queueByDefault;
 
-    private readonly ?EventHandler $eventHandler;
+    private readonly QueueDispatcherContract $queueDispatcher;
 
-    private readonly ?ToolRegistry $toolRegistry;
-
-    public function __construct(?bool $queueByDefault = false, ?EventHandler $eventHandler = null)
-    {
+    public function __construct(
+        ToolRegistry $registry,
+        EventHandler $eventHandler,
+        QueueDispatcherContract $queueDispatcher,
+        ?bool $queueByDefault = false
+    ) {
+        parent::__construct($registry, $eventHandler);
+        $this->queueDispatcher = $queueDispatcher;
         $this->queueByDefault = $queueByDefault ?? false;
-        $this->eventHandler = $eventHandler ?? new EventHandler;
-        $this->toolRegistry = new ToolRegistry;
-
-        parent::__construct($this->toolRegistry, $this->eventHandler);
-
-        // Listen for tool execution events
-        Event::listen('lmstudio.tool.success', function ($result, $toolCallId): void {
-            $this->handleToolSuccess($result, $toolCallId);
-        });
-
-        Event::listen('lmstudio.tool.error', function ($error, $toolCallId): void {
-            $this->handleToolError($error, $toolCallId);
-        });
     }
 
     public function setToolQueueable(string $toolName, bool $queueable): void
@@ -71,21 +62,21 @@ class QueueableToolExecutionHandler extends ToolExecutor
     {
         if ($this->shouldQueueTool($toolCall->name)) {
             $job = new ExecuteToolJob(
-                $toolCall->name,
-                $toolCall->arguments,
-                $toolCall->id
+                toolName: $toolCall->name,
+                parameters: $toolCall->arguments,
+                toolCallId: $toolCall->id
             );
 
             if ($this->queueConnection) {
                 $job->onConnection($this->queueConnection);
             }
 
-            Queue::dispatch($job);
+            $this->queueDispatcher->dispatch($job);
 
-            Event::dispatch('lmstudio.tool.queued', [
-                $toolCall->name,
-                $toolCall->arguments,
-                $toolCall->id,
+            $this->eventHandler->trigger('lmstudio.tool.queued', [
+                'name' => $toolCall->name,
+                'arguments' => $toolCall->arguments,
+                'id' => $toolCall->id,
             ]);
 
             return null;

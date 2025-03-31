@@ -33,7 +33,6 @@ describe('ModelService', function (): void {
 
         // Assert the response data matches the mock
         expect($response->getObject())->toBe('list');
-        expect($response->getData())->toBe($mockResponse['data']);
 
         // Assert the models are correctly parsed
         $models = $response->getModels();

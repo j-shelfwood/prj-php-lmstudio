@@ -23,6 +23,7 @@ class ExecuteToolJob implements ShouldQueue
 
     protected readonly string $toolName;
 
+    /** @var array<string, mixed> */
     protected readonly array $parameters;
 
     protected readonly string $toolCallId;

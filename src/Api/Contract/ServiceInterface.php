@@ -8,8 +8,6 @@ interface ServiceInterface
 {
     /**
      * Get the API client.
-     *
-     * @return ApiClientInterface
      */
     public function getApiClient(): ApiClientInterface;
 }

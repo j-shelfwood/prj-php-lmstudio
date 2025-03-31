@@ -13,10 +13,10 @@ class EmbeddingService extends AbstractService
     /**
      * Create an embedding.
      *
-     * @param string $model The model to use
-     * @param string|array $input The input to embed
-     * @param array $options Additional options
-     * @return EmbeddingResponse
+     * @param  string  $model  The model to use
+     * @param  string|array  $input  The input to embed
+     * @param  array  $options  Additional options
+     *
      * @throws ApiException If the request fails
      * @throws ValidationException If the request is invalid
      */
@@ -36,6 +36,7 @@ class EmbeddingService extends AbstractService
         ], $options);
 
         $response = $this->apiClient->post('/api/v0/embeddings', $data);
+
         return EmbeddingResponse::fromArray($response);
     }
 }

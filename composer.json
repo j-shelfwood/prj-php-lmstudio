@@ -26,6 +26,7 @@
     "php": "^8.2",
     "guzzlehttp/guzzle": "^7.0",
     "illuminate/support": "^10.0|^12.0",
+    "psr/log": "^3.0",
     "symfony/console": "^6.4|^7.0",
     "symfony/dotenv": "^7.2",
     "symfony/expression-language": "^7.2"
@@ -62,9 +63,6 @@
   ],
   "scripts": {
     "test": "vendor/bin/pest",
-    "test-no-laravel": "vendor/bin/pest tests/Feature tests/Unit/Api tests/Unit/Core tests/Unit/LMStudioFactoryStreamingTest.php tests/Unit/LMStudioFactoryTest.php",
-    "test-laravel-fixed": "vendor/bin/pest tests/Unit/Laravel/LMStudioFacadeTest.php tests/Unit/Laravel/LMStudioFactoryLaravelTest.php tests/Unit/Laravel/LaravelStreamingHandlerTest.php tests/Unit/Laravel/QueueableConversationBuilderTest.php tests/Unit/Laravel/QueueableToolExecutionHandlerTest.php tests/Unit/Laravel/ExecuteToolJobTest.php tests/Unit/Laravel/LMStudioServiceProviderTest.php",
-    "test-working": "composer test-no-laravel && composer test-laravel-fixed",
     "test-coverage": "vendor/bin/pest --coverage",
     "format": "vendor/bin/pint",
     "check-style": "vendor/bin/pint --test",

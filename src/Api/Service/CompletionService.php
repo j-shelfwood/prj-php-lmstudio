@@ -13,10 +13,10 @@ class CompletionService extends AbstractService
     /**
      * Create a text completion.
      *
-     * @param string $model The model to use
-     * @param string $prompt The prompt to complete
-     * @param array $options Additional options
-     * @return TextCompletionResponse
+     * @param  string  $model  The model to use
+     * @param  string  $prompt  The prompt to complete
+     * @param  array  $options  Additional options
+     *
      * @throws ApiException If the request fails
      * @throws ValidationException If the request is invalid
      */
@@ -36,6 +36,7 @@ class CompletionService extends AbstractService
         ], $options);
 
         $response = $this->apiClient->post('/api/v0/completions', $data);
+
         return TextCompletionResponse::fromArray($response);
     }
 }

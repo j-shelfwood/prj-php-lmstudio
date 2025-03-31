@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Api\Service;
 
 use Shelfwood\LMStudio\Api\Exception\ValidationException;
+use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
 use Shelfwood\LMStudio\Api\Model\Tool;
@@ -40,9 +41,7 @@ class ChatService extends AbstractService
             $toolsArray = [];
 
             foreach ($tools as $tool) {
-                if ($tool instanceof Tool) {
-                    $toolsArray[] = $tool->toArray();
-                }
+                $toolsArray[] = $tool->toArray();
             }
             $data['tools'] = $toolsArray;
         }
@@ -65,7 +64,7 @@ class ChatService extends AbstractService
      *
      * @param  string  $model  The model to use
      * @param  Message[]  $messages  The messages to send
-     * @param  callable  $callback  The callback to handle streaming data
+     * @param  callable(ChatCompletionChunk): void  $callback  The callback to handle streaming data
      * @param  Tool[]|null  $tools  The tools to use
      * @param  ResponseFormat|null  $responseFormat  The response format
      * @param  array|null  $options  Additional options
@@ -92,9 +91,7 @@ class ChatService extends AbstractService
             $toolsArray = [];
 
             foreach ($tools as $tool) {
-                if ($tool instanceof Tool) {
-                    $toolsArray[] = $tool->toArray();
-                }
+                $toolsArray[] = $tool->toArray();
             }
             $data['tools'] = $toolsArray;
         }
@@ -149,6 +146,8 @@ class ChatService extends AbstractService
 
     /**
      * Validate the callback.
+     *
+     * @param  callable(ChatCompletionChunk): void|null  $callback
      *
      * @throws ValidationException
      */

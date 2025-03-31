@@ -11,16 +11,14 @@ interface ConversationInterface
     /**
      * Add a system message to the conversation.
      *
-     * @param string $content The message content
-     * @return self
+     * @param  string  $content  The message content
      */
     public function addSystemMessage(string $content): self;
 
     /**
      * Add a user message to the conversation.
      *
-     * @param string $content The message content
-     * @return self
+     * @param  string  $content  The message content
      */
     public function addUserMessage(string $content): self;
 
@@ -40,8 +38,6 @@ interface ConversationInterface
 
     /**
      * Clear all messages in the conversation.
-     *
-     * @return self
      */
     public function clearMessages(): self;
 }

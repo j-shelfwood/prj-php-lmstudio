@@ -7,7 +7,6 @@ namespace Shelfwood\LMStudio\Core\Tool;
 use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Model\Tool;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 
 /**
@@ -16,7 +15,7 @@ use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 class ToolRegistry
 {
     /**
-     * @var array<string, callable> Map of tool names to callbacks
+     * @var array<string, callable(array<string, mixed>): mixed> Map of tool names to callbacks
      */
     private array $callbacks = [];
 
@@ -29,34 +28,32 @@ class ToolRegistry
      * Register a tool with the registry.
      *
      * @param  string  $name  The name of the tool
-     * @param  callable  $callback  The callback to execute when the tool is called
-     * @param  array  $parameters  The function parameters schema (array, not ToolParameters object directly)
+     * @param  callable(array<string, mixed>): mixed  $callback  The callback to execute when the tool is called
+     * @param  array<string, mixed>  $parameters  The function parameters schema (array, not ToolParameters object directly)
      * @param  string|null  $description  The description of the tool
      */
     public function registerTool(string $name, callable $callback, array $parameters, ?string $description = null): self
     {
         $this->callbacks[$name] = $callback;
 
-        $toolParameters = new ToolParameters;
-
-        foreach ($parameters['properties'] ?? [] as $paramName => $paramData) {
-            $toolParameters->addProperty(
-                $paramName,
-                new ToolParameter($paramData['type'], $paramData['description'] ?? '')
-            );
+        // Validate and create ToolParameters object from the input array
+        try {
+            $toolParameters = ToolParameters::fromArray($parameters);
+        } catch (\InvalidArgumentException $e) {
+            throw new \InvalidArgumentException("Invalid parameters definition for tool '{$name}': ".$e->getMessage(), 0, $e);
         }
 
-        foreach ($parameters['required'] ?? [] as $required) {
-            $toolParameters->addRequired($required);
-        }
-
+        // Use the validated ToolParameters object to create the definition
         $toolDefinition = new ToolDefinition(
-            $name,
-            $description ?? '',
-            $toolParameters
+            name: $name,
+            description: $description ?? '',
+            parameters: $toolParameters
         );
 
-        $this->tools[$name] = new Tool(ToolType::FUNCTION, $toolDefinition);
+        $this->tools[$name] = new Tool(
+            type: ToolType::FUNCTION,
+            definition: $toolDefinition
+        );
 
         return $this;
     }
@@ -76,7 +73,7 @@ class ToolRegistry
      * Get a tool callback.
      *
      * @param  string  $name  The name of the tool
-     * @return callable|null The tool callback, or null if not found
+     * @return (callable(array<string, mixed>): mixed)|null The tool callback, or null if not found
      */
     public function getCallback(string $name): ?callable
     {
@@ -87,7 +84,7 @@ class ToolRegistry
      * Execute a tool by name.
      *
      * @param  string  $name  The name of the tool
-     * @param  array  $arguments  The arguments to pass to the tool
+     * @param  array<string, mixed>  $arguments  The arguments to pass to the tool
      * @return mixed The result of the tool execution
      *
      * @throws \RuntimeException If the tool is not found

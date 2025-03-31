@@ -10,7 +10,7 @@ namespace Shelfwood\LMStudio\Core\Event;
 class EventHandler
 {
     /**
-     * @var array<string, array<callable>> The registered event handlers
+     * @var array<string, list<callable>> The registered event handlers
      */
     private array $handlers = [];
 
@@ -23,7 +23,7 @@ class EventHandler
      * Register a handler for an event.
      *
      * @param  string  $event  The event name
-     * @param  callable  $handler  The handler function
+     * @param  callable(mixed...): void  $handler  The handler function
      */
     public function on(string $event, callable $handler): self
     {
@@ -70,7 +70,7 @@ class EventHandler
      * Get all callbacks for an event.
      *
      * @param  string  $event  The event name
-     * @return array<callable> The callbacks
+     * @return list<callable> The callbacks
      */
     public function getCallbacks(string $event): array
     {

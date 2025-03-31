@@ -128,13 +128,9 @@ class ChatCompletionResponse
     /**
      * Get the first choice's finish reason.
      */
-    public function getFinishReason(): ?FinishReason
+    public function getFirstChoiceFinishReason(): ?FinishReason
     {
-        if (empty($this->choices)) {
-            return null;
-        }
-
-        return $this->choices[0]->getFinishReason();
+        return $this->choices[0]?->finishReason;
     }
 
     /**

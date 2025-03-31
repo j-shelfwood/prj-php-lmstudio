@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Laravel;
 
 use Illuminate\Support\ServiceProvider;
+use Psr\Log\LoggerInterface;
 use Shelfwood\LMStudio\Laravel\Streaming\LaravelStreamingHandler;
 use Shelfwood\LMStudio\Laravel\Tools\QueueableToolExecutionHandler;
 use Shelfwood\LMStudio\LMStudioFactory;
@@ -24,10 +25,16 @@ class LMStudioServiceProvider extends ServiceProvider
         $this->app->singleton(LMStudioFactory::class, function ($app) {
             $config = $app['config']['lmstudio'];
 
+            // Resolve logger from container if available
+            $logger = $app->bound(LoggerInterface::class) ? $app->make(LoggerInterface::class) : null;
+
+            // Pass base config and logger to factory constructor using named arguments
             return new LMStudioFactory(
-                $config['base_url'] ?? 'http://localhost:1234',
-                $config['headers'] ?? [],
-                $config['api_key'] ?? ''
+                baseUrl: $config['base_url'] ?? 'http://localhost:1234',
+                defaultHeaders: $config['headers'] ?? [],
+                apiKey: $config['api_key'] ?? '',
+                config: $config, // Pass the whole Laravel config array for potential overrides like default_tools
+                logger: $logger // Pass the resolved logger
             );
         });
 
@@ -84,10 +91,10 @@ class LMStudioServiceProvider extends ServiceProvider
                 $configPath => $publishPath,
             ], 'lmstudio-config');
 
-            // Register Laravel-specific commands
+            // Register commands from the core Console directory
             $this->commands([
-                Commands\ChatCommand::class,
-                Commands\SequenceCommand::class,
+                \Shelfwood\LMStudio\Console\Command\ChatCommand::class,
+                \Shelfwood\LMStudio\Console\Command\SequenceCommand::class,
             ]);
         }
     }

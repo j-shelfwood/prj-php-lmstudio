@@ -4,21 +4,19 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Api\Model;
 
-use Shelfwood\LMStudio\Api\Model\Usage;
-
 /**
  * Represents a single chunk received during a streaming chat completion.
  */
 class ChatCompletionChunk
 {
     /**
-     * @param string $id The chunk ID
-     * @param string $object The object type (usually 'chat.completion.chunk')
-     * @param int $created Timestamp of creation
-     * @param string $model The model used
-     * @param ChoiceStreaming[] $choices Array of choices in this chunk (usually just one)
-     * @param string|null $systemFingerprint System fingerprint
-     * @param Usage|null $usage Usage statistics (usually only in the last chunk)
+     * @param  string  $id  The chunk ID
+     * @param  string  $object  The object type (usually 'chat.completion.chunk')
+     * @param  int  $created  Timestamp of creation
+     * @param  string  $model  The model used
+     * @param  ChoiceStreaming[]  $choices  Array of choices in this chunk (usually just one)
+     * @param  string|null  $systemFingerprint  System fingerprint
+     * @param  Usage|null  $usage  Usage statistics (usually only in the last chunk)
      */
     public function __construct(
         public readonly string $id,
@@ -33,11 +31,11 @@ class ChatCompletionChunk
     /**
      * Creates a ChatCompletionChunk from raw chunk data.
      *
-     * @param array $data The raw associative array representing the chunk
+     * @param  array  $data  The raw associative array representing the chunk
      */
     public static function fromArray(array $data): self
     {
-        if (!isset($data['id'], $data['object'], $data['created'], $data['model'], $data['choices'])) {
+        if (! isset($data['id'], $data['object'], $data['created'], $data['model'], $data['choices'])) {
             throw new \InvalidArgumentException('Required fields missing in chat completion chunk data.');
         }
 

@@ -6,6 +6,7 @@ namespace Shelfwood\LMStudio\Api\Exception;
 
 class ToolCallException extends \Exception
 {
+    /** @var array<string, mixed> */
     private array $context;
 
     public function __construct(string $message, array $context = [], ?\Throwable $previous = null)
@@ -27,6 +28,9 @@ class ToolCallException extends \Exception
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $toolCall
+     */
     public static function invalidToolCallFormat(array $toolCall, array $context): self
     {
         return new self(sprintf(
@@ -47,6 +51,9 @@ class ToolCallException extends \Exception
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $chunk
+     */
     public static function streamingToolCallError(string $error, array $chunk, array $context = []): self
     {
         return new self(

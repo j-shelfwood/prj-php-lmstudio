@@ -16,8 +16,10 @@ class SequenceCommand extends BaseCommand
 {
     private readonly LMStudioFactory $factory;
 
+    /** @var array<string, array{duration: float, status: string, tokens?: int|string, details?: string}> */
     private array $stepStats = [];
 
+    /** @var array<string, float> */
     private array $stepStartTimes = [];
 
     private ?\Shelfwood\LMStudio\Api\Service\ModelService $modelService = null;
@@ -59,6 +61,9 @@ class SequenceCommand extends BaseCommand
         $this->info("\n--- {$title} ---");
     }
 
+    /**
+     * @param  array<string, mixed>|null  $metrics
+     */
     private function endStep(string $title, string $status, ?array $metrics = null): void
     {
         $duration = microtime(true) - ($this->stepStartTimes[$title] ?? microtime(true));
@@ -89,6 +94,10 @@ class SequenceCommand extends BaseCommand
         $this->renderTable($headers, $rows);
     }
 
+    /**
+     * @param  list<string>  $headers
+     * @param  list<list<string|int|float>>  $rows
+     */
     private function renderTable(array $headers, array $rows): void
     {
         // Calculate column widths
@@ -191,9 +200,12 @@ class SequenceCommand extends BaseCommand
         $this->modelService = $this->factory->getModelService();
         $this->embeddingService = $this->factory->getEmbeddingService();
 
-        // Get models
-        $this->modelId = $this->option('model') ?: getenv('LMSTUDIO_DEFAULT_MODEL') ?: 'qwen2.5-7b-instruct';
-        $this->embeddingModel = $this->option('embedding-model') ?: getenv('LMSTUDIO_DEFAULT_EMBEDDING_MODEL') ?: 'text-embedding-nomic-embed-text-v1.5';
+        // Fetch options allowing null, then apply fallbacks
+        $modelOption = $this->input->getOption('model'); // Can be string or null
+        $embeddingOption = $this->input->getOption('embedding-model'); // Can be string or null
+
+        $this->modelId = $modelOption ?? getenv('LMSTUDIO_DEFAULT_MODEL') ?: 'qwen2.5-7b-instruct';
+        $this->embeddingModel = $embeddingOption ?? getenv('LMSTUDIO_DEFAULT_EMBEDDING_MODEL') ?: 'text-embedding-nomic-embed-text-v1.5';
 
         $this->info("Using model: {$this->modelId}");
         $this->info("Using embedding model: {$this->embeddingModel}\n");
@@ -399,4 +411,18 @@ class SequenceCommand extends BaseCommand
     }
 
     // @TODO: Add more steps for other endpoints (Embeddings, Completions, Structured Output)
+
+    /**
+     * Execute a tool by name.
+     *
+     * @param  string  $name  The name of the tool
+     * @param  array<string, mixed>  $arguments  The arguments to pass to the tool
+     * @return mixed The result of the tool execution
+     *
+     * @throws \RuntimeException If the tool is not found
+     */
+    private function executeTool(string $name, array $arguments)
+    {
+        // Implementation of executeTool method
+    }
 }

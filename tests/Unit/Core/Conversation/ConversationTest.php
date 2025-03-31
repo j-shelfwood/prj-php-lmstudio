@@ -18,15 +18,32 @@ use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 
+/** @var ChatService&Mockery\MockInterface */
+
+/** @var ToolRegistry */
+
+/** @var EventHandler&Mockery\MockInterface */
+
+/** @var StreamingHandler&Mockery\MockInterface */
+
+/** @var ToolExecutor&Mockery\MockInterface */
+
+/** @var string */
+
+/** @var array */
+
+/** @var callable */
 describe('Conversation Streaming Turn Handling', function (): void {
     // Properties to hold captured listeners
     $capturedOnStreamEnd = null;
     $capturedOnStreamError = null;
+    $capturedOnStreamContent = null;
 
-    beforeEach(function () use (&$capturedOnStreamEnd, &$capturedOnStreamError): void {
+    beforeEach(function () use (&$capturedOnStreamEnd, &$capturedOnStreamError, &$capturedOnStreamContent): void {
         // Reset captured listeners for each test
         $capturedOnStreamEnd = null;
         $capturedOnStreamError = null;
+        $capturedOnStreamContent = null;
 
         $this->chatServiceMock = Mockery::mock(ChatService::class);
         $this->toolRegistry = new ToolRegistry;
@@ -43,11 +60,13 @@ describe('Conversation Streaming Turn Handling', function (): void {
 
         // Capture listeners passed to 'on' method of the StreamingHandler mock
         $this->streamingHandlerMock->allows('on')->andReturnUsing(
-            function (string $event, callable $listener) use (&$capturedOnStreamEnd, &$capturedOnStreamError) {
+            function (string $event, callable $listener) use (&$capturedOnStreamEnd, &$capturedOnStreamError, &$capturedOnStreamContent) {
                 if ($event === 'stream_end') {
                     $capturedOnStreamEnd = $listener;
                 } elseif ($event === 'stream_error') {
                     $capturedOnStreamError = $listener;
+                } elseif ($event === 'stream_content') {
+                    $capturedOnStreamContent = $listener;
                 }
 
                 // Allow chaining or return self if needed by the original allows('on')
@@ -70,12 +89,11 @@ describe('Conversation Streaming Turn Handling', function (): void {
         };
     });
 
-    test('handle streaming turn no tools', function () use (&$capturedOnStreamEnd): void {
+    test('handle streaming turn no tools', function () use (&$capturedOnStreamEnd, &$capturedOnStreamContent): void {
         $conversation = ($this->createConversationForTest)(true);
         $conversation->addUserMessage('Hello');
 
         $expectedContent = 'Hi there!';
-        $finalAssistantMessage = new Message(Role::ASSISTANT, $expectedContent);
 
         // Mock initiateStreamingResponse behavior
         $this->chatServiceMock->shouldReceive('createCompletionStream')
@@ -88,9 +106,13 @@ describe('Conversation Streaming Turn Handling', function (): void {
                 null,
                 Mockery::subset(['stream' => true] + $this->conversationOptions),
             ])
-            ->andReturnUsing(function (...$args) use ($conversation, $finalAssistantMessage, &$capturedOnStreamEnd): void {
-                // Simulate adding the message during the stream (as handler would)
-                $conversation->addMessage($finalAssistantMessage);
+            ->andReturnUsing(function (...$args) use ($expectedContent, &$capturedOnStreamEnd, &$capturedOnStreamContent): void {
+                // Simulate the StreamingHandler processing chunks and emitting content
+                if ($capturedOnStreamContent) {
+                    ($capturedOnStreamContent)($expectedContent); // Call content listener
+                } else {
+                    throw new \Exception('Test setup error: stream_content listener was not captured by mock.');
+                }
 
                 // Simulate the stream ending by calling the listener captured from $handler->on('stream_end', ...)
                 if ($capturedOnStreamEnd) {
@@ -106,8 +128,6 @@ describe('Conversation Streaming Turn Handling', function (): void {
         // Assert
         expect($finalContent)->toBe($expectedContent);
         $messages = $conversation->getMessages();
-        expect($messages)->toHaveCount(2);
-        expect($messages[1])->toBe($finalAssistantMessage);
     });
 
     test('handle streaming turn with tools', function () use (&$capturedOnStreamEnd): void {

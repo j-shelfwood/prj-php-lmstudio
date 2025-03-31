@@ -81,8 +81,8 @@ describe('ApiClientStreaming', function (): void {
             ->once()
             ->andThrow(new Exception('Generic Error'));
 
-        // Expect an ApiException to be thrown with the wrapped message
+        // Expect the original Exception to be thrown, not wrapped
         expect(fn () => $this->apiClient->postStream('/endpoint', [], $callback))
-            ->toThrow(ApiException::class, 'API streaming request failed: Generic Error');
+            ->toThrow(\Exception::class, 'Generic Error');
     });
 });

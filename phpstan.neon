@@ -3,7 +3,6 @@ parameters:
     paths:
         - src
     tmpDir: build/phpstan
-    checkMissingIterableValueType: true
     reportUnmatchedIgnoredErrors: false
     checkMissingCallableSignature: true
     treatPhpDocTypesAsCertain: true

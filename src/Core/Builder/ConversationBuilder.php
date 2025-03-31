@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Core\Builder;
 
+use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCallDelta;
+use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Conversation\Conversation;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
+use Throwable;
 
 /**
  * Builder for creating and configuring Conversation instances.
@@ -21,6 +26,7 @@ class ConversationBuilder
 
     private string $model;
 
+    /** @var array<string, mixed> */
     private array $options = [];
 
     private ToolRegistry $toolRegistry;
@@ -38,13 +44,21 @@ class ConversationBuilder
      *
      * @param  ChatService  $chatService  The chat service
      * @param  string  $model  The model to use
+     * @param  ToolRegistry|null  $toolRegistry  Optional ToolRegistry instance
+     * @param  EventHandler|null  $eventHandler  Optional EventHandler instance
      */
-    public function __construct(ChatService $chatService, string $model)
-    {
+    public function __construct(
+        ChatService $chatService,
+        string $model,
+        ?ToolRegistry $toolRegistry = null,
+        ?EventHandler $eventHandler = null
+    ) {
         $this->chatService = $chatService;
         $this->model = $model;
-        $this->toolRegistry = new ToolRegistry;
-        $this->eventHandler = new EventHandler;
+        // Use provided instances or create new ones
+        $this->toolRegistry = $toolRegistry ?? new ToolRegistry;
+        $this->eventHandler = $eventHandler ?? new EventHandler;
+        // Ensure ToolExecutor uses the correct registry and handler
         $this->toolExecutor = new ToolExecutor($this->toolRegistry, $this->eventHandler);
     }
 
@@ -63,7 +77,7 @@ class ConversationBuilder
     /**
      * Set additional options.
      *
-     * @param  array  $options  Additional options
+     * @param  array<string, mixed>  $options  Additional options
      */
     public function withOptions(array $options): self
     {
@@ -76,8 +90,8 @@ class ConversationBuilder
      * Register a tool function.
      *
      * @param  string  $name  The name of the function
-     * @param  callable  $callback  The function to call
-     * @param  array  $parameters  The function parameters schema
+     * @param  callable(array<string, mixed>): mixed  $callback  The function to call
+     * @param  array<string, mixed>  $parameters  The function parameters schema
      * @param  string|null  $description  The function description
      */
     public function withTool(string $name, callable $callback, array $parameters, ?string $description = null): self
@@ -140,11 +154,11 @@ class ConversationBuilder
     /**
      * Register a callback for when a tool is called.
      *
-     * @param  callable  $callback  The callback function
+     * @param  callable(string, array<string, mixed>, string): void  $callback  (string $toolName, array $arguments, string $toolCallId)
      */
     public function onToolCall(callable $callback): self
     {
-        $this->eventHandler->on('tool_call', $callback);
+        $this->eventHandler->on('tool.executing', $callback);
 
         return $this;
     }
@@ -152,19 +166,19 @@ class ConversationBuilder
     /**
      * Register a callback for when a tool is executed.
      *
-     * @param  callable  $callback  The callback function
+     * @param  callable(string, array<string, mixed>, string, mixed): void  $callback  (string $toolName, array $arguments, string $toolCallId, mixed $result)
      */
     public function onToolExecuted(callable $callback): self
     {
-        $this->eventHandler->on('tool_executed', $callback);
+        $this->eventHandler->on('tool.executed', $callback);
 
         return $this;
     }
 
     /**
-     * Register a callback for when a response is received.
+     * Register a callback for when a response is received (non-streaming).
      *
-     * @param  callable  $callback  The callback function
+     * @param  callable(ChatCompletionResponse): void  $callback
      */
     public function onResponse(callable $callback): self
     {
@@ -176,7 +190,7 @@ class ConversationBuilder
     /**
      * Register a callback for when an error occurs.
      *
-     * @param  callable  $callback  The callback function
+     * @param  callable(Throwable): void  $callback
      */
     public function onError(callable $callback): self
     {
@@ -188,7 +202,7 @@ class ConversationBuilder
     /**
      * Register a callback for when a chunk is received during streaming.
      *
-     * @param  callable  $callback  The callback function
+     * @param  callable(ChatCompletionChunk): void  $callback
      */
     public function onChunk(callable $callback): self
     {
@@ -199,6 +213,8 @@ class ConversationBuilder
 
     /**
      * Register a callback for when streaming starts.
+     *
+     * @param  callable(ChatCompletionChunk): void  $callback
      */
     public function onStreamStart(callable $callback): self
     {
@@ -214,6 +230,8 @@ class ConversationBuilder
 
     /**
      * Register a callback for when content is received during streaming.
+     *
+     * @param  callable(string, ChatCompletionChunk): void  $callback  (string $content, ChatCompletionChunk $chunk)
      */
     public function onStreamContent(callable $callback): self
     {
@@ -228,24 +246,57 @@ class ConversationBuilder
     }
 
     /**
-     * Register a callback for when a tool call is received during streaming.
+     * Register a callback for when a tool call START is received during streaming.
+     *
+     * @param  callable(int, ?string, ?string, ChatCompletionChunk): void  $callback  (int $index, ?string $id, ?string $type, ChatCompletionChunk $chunk)
      */
-    public function onStreamToolCall(callable $callback): self
+    public function onStreamToolCallStart(callable $callback): self
     {
         if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler;
+            $this->streamingHandler = new StreamingHandler($this->eventHandler);
             $this->withStreaming(true);
         }
+        $this->streamingHandler->on('stream_tool_call_start', $callback);
 
-        $this->streamingHandler->on('stream_tool_call', function ($data) use ($callback): void {
-            $callback($data['tool_call'], $data['index']);
-        });
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a tool call DELTA is received during streaming.
+     *
+     * @param  callable(int, ToolCallDelta, ChatCompletionChunk): void  $callback  (int $index, ToolCallDelta $delta, ChatCompletionChunk $chunk)
+     */
+    public function onStreamToolCallDelta(callable $callback): self
+    {
+        if ($this->streamingHandler === null) {
+            $this->streamingHandler = new StreamingHandler($this->eventHandler);
+            $this->withStreaming(true);
+        }
+        $this->streamingHandler->on('stream_tool_call_delta', $callback);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a tool call END (assembly complete/failed) is received during streaming.
+     *
+     * @param  callable(int, ToolCall): void  $callback  (int $index, ToolCall $assembledToolCall)
+     */
+    public function onStreamToolCallEnd(callable $callback): self
+    {
+        if ($this->streamingHandler === null) {
+            $this->streamingHandler = new StreamingHandler($this->eventHandler);
+            $this->withStreaming(true);
+        }
+        $this->streamingHandler->on('stream_tool_call_end', $callback);
 
         return $this;
     }
 
     /**
      * Register a callback for when streaming ends.
+     *
+     * @param  callable(?array<ToolCall>, ChatCompletionChunk): void  $callback  (?array $finalToolCalls, ChatCompletionChunk $chunk)
      */
     public function onStreamEnd(callable $callback): self
     {
@@ -261,6 +312,8 @@ class ConversationBuilder
 
     /**
      * Register a callback for when a streaming error occurs.
+     *
+     * @param  callable(Throwable, ?ChatCompletionChunk): void  $callback  (Throwable $error, ?ChatCompletionChunk $chunk)
      */
     public function onStreamError(callable $callback): self
     {
@@ -270,23 +323,6 @@ class ConversationBuilder
         }
 
         $this->streamingHandler->on('stream_error', $callback);
-
-        return $this;
-    }
-
-    /**
-     * Register a callback for when a tool call delta is received during streaming.
-     */
-    public function onToolCallDelta(callable $callback): self
-    {
-        if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler;
-            $this->withStreaming(true);
-        }
-
-        $this->streamingHandler->on('stream_tool_call', function ($data) use ($callback): void {
-            $callback($data['tool_call'], $data['index']);
-        });
 
         return $this;
     }

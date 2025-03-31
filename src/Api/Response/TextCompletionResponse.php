@@ -14,15 +14,17 @@ class TextCompletionResponse
      * @param  string  $object  The object type
      * @param  int  $created  The timestamp when the completion was created
      * @param  string  $model  The model used for the completion
-     * @param  array  $choices  The choices in the completion
-     * @param  array  $usage  The token usage information
+     * @param  list<array>  $choices  The choices in the completion (raw array data)
+     * @param  array<string, int>  $usage  The token usage information
      */
     public function __construct(
         public readonly string $id,
         public readonly string $object,
         public readonly int $created,
         public readonly string $model,
+        /** @var list<array{index: int, text: string, logprobs: null, finish_reason: string}> */
         public readonly array $choices,
+        /** @var array<string, int> */
         public readonly array $usage,
     ) {}
 
@@ -39,13 +41,15 @@ class TextCompletionResponse
             object: $data['object'] ?? 'text_completion',
             created: $data['created'] ?? time(),
             model: $data['model'] ?? '',
-            choices: $data['choices'] ?? [],
+            choices: $data['choices'] ?? [], // Assign raw choices array directly
             usage: $data['usage'] ?? [],
         );
     }
 
     /**
-     * Get the choices in the completion.
+     * Get the choices in the completion (as raw arrays).
+     *
+     * @return list<array{index: int, text: string, logprobs: null, finish_reason: string}> The choices array.
      */
     public function getChoices(): array
     {
@@ -57,10 +61,7 @@ class TextCompletionResponse
      */
     public function getText(): ?string
     {
-        if (empty($this->choices)) {
-            return null;
-        }
-
+        // Access the 'text' key directly from the first choice array
         return $this->choices[0]['text'] ?? null;
     }
 }

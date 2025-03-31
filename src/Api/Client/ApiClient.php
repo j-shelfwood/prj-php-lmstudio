@@ -15,12 +15,13 @@ class ApiClient implements ApiClientInterface
 
     private string $baseUrl;
 
+    /** @var array<string, string> */
     private array $defaultHeaders;
 
     /**
      * @param  HttpClientInterface  $httpClient  The HTTP client
      * @param  string  $baseUrl  The base URL of the API
-     * @param  array  $defaultHeaders  Default headers to include in all requests
+     * @param  array<string, string>  $defaultHeaders  Default headers to include in all requests
      */
     public function __construct(
         HttpClientInterface $httpClient,
@@ -39,7 +40,7 @@ class ApiClient implements ApiClientInterface
      * Send a GET request to the API.
      *
      * @param  string  $endpoint  API endpoint
-     * @param  array  $headers  Additional headers
+     * @param  array<string, string>  $headers  Additional headers
      * @return array Response data
      *
      * @throws ApiException If the request fails
@@ -54,7 +55,7 @@ class ApiClient implements ApiClientInterface
      *
      * @param  string  $endpoint  API endpoint
      * @param  array  $data  Request data
-     * @param  array  $headers  Additional headers
+     * @param  array<string, string>  $headers  Additional headers
      * @return array Response data
      *
      * @throws ApiException If the request fails
@@ -70,7 +71,7 @@ class ApiClient implements ApiClientInterface
      * @param  string  $endpoint  API endpoint
      * @param  array  $data  Request data
      * @param  callable(ChatCompletionChunk): void  $callback  Callback function to handle each parsed chunk
-     * @param  array  $headers  Additional headers
+     * @param  array<string, string>  $headers  Additional headers
      *
      * @throws ApiException If the request fails
      */
@@ -85,7 +86,7 @@ class ApiClient implements ApiClientInterface
      * @param  string  $method  HTTP method
      * @param  string  $endpoint  API endpoint
      * @param  array  $data  Request data
-     * @param  array  $headers  Additional headers
+     * @param  array<string, string>  $headers  Additional headers
      * @return array Response data
      *
      * @throws ApiException If the request fails
@@ -103,8 +104,6 @@ class ApiClient implements ApiClientInterface
             );
         } catch (ApiException $e) {
             throw $e;
-        } catch (\Exception $e) {
-            throw new ApiException('API request failed: '.$e->getMessage(), 0, $e);
         }
     }
 
@@ -115,7 +114,7 @@ class ApiClient implements ApiClientInterface
      * @param  string  $endpoint  API endpoint
      * @param  array  $data  Request data
      * @param  callable(ChatCompletionChunk): void  $callback  Callback function to handle each parsed chunk
-     * @param  array  $headers  Additional headers
+     * @param  array<string, string>  $headers  Additional headers
      *
      * @throws ApiException If the request fails
      */
@@ -133,8 +132,6 @@ class ApiClient implements ApiClientInterface
             );
         } catch (ApiException $e) {
             throw $e;
-        } catch (\Exception $e) {
-            throw new ApiException('API streaming request failed: '.$e->getMessage(), 0, $e);
         }
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio;
 
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Shelfwood\LMStudio\Api\Client\ApiClient;
 use Shelfwood\LMStudio\Api\Client\HttpClient;
 use Shelfwood\LMStudio\Api\Service\ChatService;
@@ -21,6 +23,7 @@ use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 
 // Define constants for Laravel classes if they exist, otherwise null
 // This avoids hard errors if Laravel integration isn't used/installed.
+/* REMOVED define() blocks
 if (! defined('LARAVEL_QUEUEABLE_BUILDER_CLASS')) {
     define('LARAVEL_QUEUEABLE_BUILDER_CLASS', class_exists('Shelfwood\\LMStudio\\Laravel\\Conversation\\QueueableConversationBuilder') ? 'Shelfwood\\LMStudio\\Laravel\\Conversation\\QueueableConversationBuilder' : null);
 }
@@ -28,14 +31,22 @@ if (! defined('LARAVEL_QUEUEABLE_BUILDER_CLASS')) {
 if (! defined('LARAVEL_STREAMING_HANDLER_CLASS')) {
     define('LARAVEL_STREAMING_HANDLER_CLASS', class_exists('Shelfwood\\LMStudio\\Laravel\\Core\\Streaming\\LaravelStreamingHandler') ? 'Shelfwood\\LMStudio\\Laravel\\Core\\Streaming\\LaravelStreamingHandler' : null);
 }
+*/
 
 class LMStudioFactory
 {
     public readonly string $baseUrl;
 
+    /** @var array<string, string> */
     public readonly array $defaultHeaders;
 
     protected readonly string $apiKey;
+
+    /** @var array<string, mixed>|null */
+    private ?array $customToolConfigurations = null;
+
+    // Optional Logger instance
+    private LoggerInterface $logger;
 
     // Single instances of core components
     protected ?HttpClient $httpClient = null;
@@ -62,27 +73,133 @@ class LMStudioFactory
     private ?ExpressionLanguage $expressionLanguage = null;
 
     /**
+     * Default tool configurations.
+     *
+     * @var array<string, array{callback: string, parameters: array<string, mixed>, description: string|null}>
+     */
+    private static array $defaultToolConfigurations = [
+        // Echo tool
+        'echo' => [
+            'callback' => '__ECHO_CALLBACK__', // Placeholder, actual callable set later
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'message' => [
+                        'type' => 'string',
+                        'description' => 'The message to echo back',
+                    ],
+                ],
+                'required' => ['message'],
+            ],
+            'description' => 'Echoes back the message provided',
+        ],
+        // Current time tool
+        'get_current_time' => [
+            'callback' => '__TIME_CALLBACK__', // Placeholder
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [],
+                'required' => [],
+            ],
+            'description' => 'Get the current server time. Use this whenever asked about the current time.',
+        ],
+        // Calculator tool - SAFE IMPLEMENTATION
+        'calculate' => [
+            'callback' => '__CALCULATE_CALLBACK__', // Placeholder
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'expression' => [
+                        'type' => 'string',
+                        'description' => 'The mathematical expression to evaluate (e.g., "2 + 2 * (3/4)"). Supports basic arithmetic operators +, -, *, / and parentheses.',
+                    ],
+                ],
+                'required' => ['expression'],
+            ],
+            'description' => 'Evaluates a mathematical expression safely.',
+        ],
+    ];
+
+    /**
      * @param  string  $baseUrl  The base URL of the API
-     * @param  array  $defaultHeaders  Default headers to include in all requests
+     * @param  array<string, string>  $defaultHeaders  Default headers to include in all requests
      * @param  string  $apiKey  The API key for LMStudio
+     * @param  array<string, mixed>  $config  Optional configuration array (e.g., ['default_tools' => [...]])
+     * @param  LoggerInterface|null  $logger  Optional PSR-3 Logger
      */
     public function __construct(
         string $baseUrl,
         array $defaultHeaders,
-        string $apiKey
+        string $apiKey,
+        array $config = [], // Add config array
+        ?LoggerInterface $logger = null // Add logger parameter
     ) {
         $this->baseUrl = $baseUrl;
         $this->defaultHeaders = $defaultHeaders;
         $this->apiKey = $apiKey;
+        $this->customToolConfigurations = $config['default_tools'] ?? null; // Store custom tool config
+        $this->logger = $logger ?? new NullLogger; // Store the logger
 
         // Initialize core components ONCE using public readonly properties
         $this->toolRegistry = new ToolRegistry;
         $this->eventHandler = $this->createEventHandler();
-        $this->toolExecutor = new ToolExecutor($this->toolRegistry, $this->eventHandler);
+        $this->toolExecutor = new ToolExecutor(
+            registry: $this->toolRegistry,
+            eventHandler: $this->eventHandler
+        );
+
+        // Determine which tool configurations to use
+        $toolConfigsToUse = $this->customToolConfigurations ?? self::$defaultToolConfigurations;
+
+        // Need to inject the actual callbacks here because they depend on the factory instance ($this)
+        if (isset($toolConfigsToUse['echo']) && $toolConfigsToUse['echo']['callback'] === '__ECHO_CALLBACK__') {
+            $toolConfigsToUse['echo']['callback'] = function (array $args) {
+                return $args['message'] ?? 'No message provided';
+            };
+        }
+
+        if (isset($toolConfigsToUse['get_current_time']) && $toolConfigsToUse['get_current_time']['callback'] === '__TIME_CALLBACK__') {
+            $toolConfigsToUse['get_current_time']['callback'] = function () {
+                return date('Y-m-d H:i:s');
+            };
+        }
+
+        if (isset($toolConfigsToUse['calculate']) && $toolConfigsToUse['calculate']['callback'] === '__CALCULATE_CALLBACK__') {
+            $toolConfigsToUse['calculate']['callback'] = function (array $args) {
+                $expression = $args['expression'] ?? '';
+
+                if (empty($expression)) {
+                    throw new \InvalidArgumentException('Mathematical expression cannot be empty.');
+                }
+
+                if ($this->expressionLanguage === null) {
+                    $this->expressionLanguage = new ExpressionLanguage(null, []);
+                }
+
+                try {
+                    $result = $this->expressionLanguage->evaluate($expression);
+
+                    if (! is_scalar($result) && $result !== null) {
+                        throw new \RuntimeException('Calculation result is not a scalar value.');
+                    }
+
+                    return [
+                        'expression' => $expression,
+                        'result' => $result,
+                    ];
+                } catch (\Symfony\Component\ExpressionLanguage\SyntaxError $e) {
+                    throw new \InvalidArgumentException('Syntax error in expression: '.$e->getMessage());
+                } catch (\Exception $e) {
+                    throw new \InvalidArgumentException('Error evaluating expression: '.$e->getMessage());
+                }
+            };
+        }
+
         $this->toolConfigService = $this->createToolConfigService(
-            $this->toolRegistry,
-            $this->toolExecutor,
-            $this->eventHandler
+            toolRegistry: $this->toolRegistry,
+            toolExecutor: $this->toolExecutor,
+            eventHandler: $this->eventHandler,
+            toolConfigurations: $toolConfigsToUse // Pass the resolved configurations
         );
     }
 
@@ -94,7 +211,8 @@ class LMStudioFactory
     public function getHttpClient(): HttpClient
     {
         if ($this->httpClient === null) {
-            $this->httpClient = new HttpClient($this->baseUrl, $this->defaultHeaders);
+            // Corrected: HttpClient constructor now accepts an optional logger
+            $this->httpClient = new HttpClient(logger: $this->logger);
         }
 
         return $this->httpClient;
@@ -173,91 +291,23 @@ class LMStudioFactory
     /**
      * Create the single tool config service instance.
      * Called only from the constructor.
+     *
+     * @param  array<string, array{callback: callable, parameters: array<string, mixed>, description: string|null}>  $toolConfigurations  The actual tool configurations to register.
      */
     protected function createToolConfigService(
         ToolRegistry $toolRegistry,
         ToolExecutor $toolExecutor,
-        EventHandler $eventHandler // Kept parameter for consistency
+        EventHandler $eventHandler, // Kept parameter for consistency
+        array $toolConfigurations // Add parameter for configurations
     ): ToolConfigService {
-        // Define standard tools here
-        $toolConfigurations = [
-            // Echo tool
-            'echo' => [
-                'callback' => function (array $args) {
-                    return $args['message'] ?? 'No message provided';
-                },
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'message' => [
-                            'type' => 'string',
-                            'description' => 'The message to echo back',
-                        ],
-                    ],
-                    'required' => ['message'],
-                ],
-                'description' => 'Echoes back the message provided',
-            ],
-            // Current time tool
-            'get_current_time' => [
-                'callback' => function () {
-                    return date('Y-m-d H:i:s');
-                },
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [],
-                    'required' => [],
-                ],
-                'description' => 'Get the current server time. Use this whenever asked about the current time.',
-            ],
-            // Calculator tool - SAFE IMPLEMENTATION
-            'calculate' => [
-                'callback' => function (array $args) {
-                    $expression = $args['expression'] ?? '';
-
-                    if (empty($expression)) {
-                        throw new \InvalidArgumentException('Mathematical expression cannot be empty.');
-                    }
-
-                    if ($this->expressionLanguage === null) {
-                        $this->expressionLanguage = new ExpressionLanguage(null, [
-                            // Providers can be added here if needed
-                        ]);
-                    }
-
-                    try {
-                        $result = $this->expressionLanguage->evaluate($expression);
-
-                        if (! is_scalar($result) && $result !== null) {
-                            throw new \RuntimeException('Calculation result is not a scalar value.');
-                        }
-
-                        return [
-                            'expression' => $expression,
-                            'result' => $result,
-                        ];
-                    } catch (\Symfony\Component\ExpressionLanguage\SyntaxError $e) {
-                        throw new \InvalidArgumentException('Syntax error in expression: '.$e->getMessage());
-                    } catch (\Exception $e) {
-                        throw new \InvalidArgumentException('Error evaluating expression: '.$e->getMessage());
-                    }
-                },
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'expression' => [
-                            'type' => 'string',
-                            'description' => 'The mathematical expression to evaluate (e.g., "2 + 2 * (3/4)"). Supports basic arithmetic operators +, -, *, / and parentheses.',
-                        ],
-                    ],
-                    'required' => ['expression'],
-                ],
-                'description' => 'Calculate the result of a mathematical expression.',
-            ],
-        ];
-
-        // Pass pre-created instances; EventHandler is passed but might not be used by ToolConfigService directly
-        return new ToolConfigService($toolRegistry, $toolExecutor, $toolConfigurations, $eventHandler);
+        // Now receives the configurations instead of defining them
+        // Correct argument order: Registry, Executor, Config Array, EventHandler (optional)
+        return new ToolConfigService(
+            toolRegistry: $this->toolRegistry,
+            toolExecutor: $this->toolExecutor,
+            toolConfigurations: $toolConfigurations,
+            eventHandler: $this->eventHandler
+        );
     }
 
     /**
@@ -267,7 +317,11 @@ class LMStudioFactory
      */
     protected function createApiClient(): ApiClient
     {
-        return new ApiClient($this->getHttpClient(), $this->baseUrl, $this->defaultHeaders);
+        return new ApiClient(
+            httpClient: $this->getHttpClient(),
+            baseUrl: $this->baseUrl,
+            defaultHeaders: $this->defaultHeaders
+        );
     }
 
     /**
@@ -277,7 +331,7 @@ class LMStudioFactory
      */
     protected function createModelService(): ModelService
     {
-        return new ModelService($this->getApiClient());
+        return new ModelService(apiClient: $this->getApiClient());
     }
 
     /**
@@ -287,7 +341,7 @@ class LMStudioFactory
      */
     protected function createChatService(): ChatService
     {
-        return new ChatService($this->getApiClient());
+        return new ChatService(apiClient: $this->getApiClient());
     }
 
     /**
@@ -297,7 +351,7 @@ class LMStudioFactory
      */
     protected function createCompletionService(): CompletionService
     {
-        return new CompletionService($this->getApiClient());
+        return new CompletionService(apiClient: $this->getApiClient());
     }
 
     /**
@@ -307,14 +361,14 @@ class LMStudioFactory
      */
     protected function createEmbeddingService(): EmbeddingService
     {
-        return new EmbeddingService($this->getApiClient());
+        return new EmbeddingService(apiClient: $this->getApiClient());
     }
 
     /**
      * Create a new conversation instance.
      *
      * @param  string  $model  The model ID to use for the conversation.
-     * @param  array  $options  Additional options for the conversation (e.g., temperature).
+     * @param  array<string, mixed>  $options  Additional options for the conversation (e.g., temperature).
      * @param  ToolRegistry|null  $toolRegistry  Optional specific ToolRegistry. Defaults to the factory's configured one.
      * @param  EventHandler|null  $eventHandler  Optional specific EventHandler. Defaults to the factory's one.
      * @param  bool  $streaming  Whether to enable streaming mode.
@@ -344,14 +398,14 @@ class LMStudioFactory
 
         // Pass the correct dependencies to the Conversation
         return new Conversation(
-            $this->getChatService(), // Pass the ChatService instance
-            $model,
-            $finalOptions, // Use the potentially modified options
-            $registry,
-            $handler,
-            $streaming, // Pass the boolean flag
-            $streamingHandler, // Pass the created handler or null
-            $executor
+            chatService: $this->getChatService(), // Pass the ChatService instance
+            model: $model,
+            options: $finalOptions, // Use the potentially modified options
+            toolRegistry: $registry,
+            eventHandler: $handler,
+            streaming: $streaming, // Pass the boolean flag
+            streamingHandler: $streamingHandler, // Pass the created handler or null
+            toolExecutor: $executor
         );
     }
 
@@ -363,7 +417,10 @@ class LMStudioFactory
      */
     public function createConversationBuilder(string $model): ConversationBuilder
     {
-        $builder = new ConversationBuilder($this->getChatService(), $model);
+        $builder = new ConversationBuilder(
+            chatService: $this->getChatService(),
+            model: $model
+        );
 
         // Inject components using public readonly properties
         $builder->withToolRegistry($this->toolRegistry)
@@ -383,29 +440,42 @@ class LMStudioFactory
      */
     public function createQueueableConversationBuilder(string $model, ?bool $queueToolsByDefault = null): ?object
     {
-        $builderClass = LARAVEL_QUEUEABLE_BUILDER_CLASS;
+        $builderClass = 'Shelfwood\\LMStudio\\Laravel\\Conversation\\QueueableConversationBuilder';
 
-        if ($builderClass === null) {
-            throw new \RuntimeException('QueueableConversationBuilder requires Laravel integration classes.');
-        }
-        $builder = new $builderClass($this->getChatService(), $model);
+        if (! class_exists($builderClass)) {
+            $this->logger->warning('Attempted to create QueueableConversationBuilder, but the class does not exist. Laravel integration might not be installed.');
 
-        // Assume builder has these methods, inject using public readonly properties
-        $builder->withToolRegistry($this->toolRegistry)
-            ->withToolExecutor($this->toolExecutor);
-
-        if (method_exists($builder, 'queueToolsByDefault') && $queueToolsByDefault !== null) {
-            $builder->queueToolsByDefault($queueToolsByDefault);
+            return null;
         }
 
-        return $builder;
+        // Re-add logic to get queue dispatcher
+        $queueDispatcher = null;
+
+        if (function_exists('app') && app()->bound('queue')) {
+            $queueDispatcher = app('queue');
+        } else {
+            $this->logger->error('Laravel queue dispatcher not found or app() helper unavailable. Cannot create functional QueueableConversationBuilder.');
+
+            // It's better to throw or return null if the dispatcher is essential
+            throw new \RuntimeException('Laravel queue dispatcher is required for QueueableConversationBuilder but was not found.');
+        }
+
+        // Now call the constructor with the defined $queueDispatcher
+        return new $builderClass(
+            chatService: $this->getChatService(),
+            model: $model,
+            toolRegistry: $this->toolRegistry,
+            eventHandler: $this->eventHandler,
+            queueDispatcher: $queueDispatcher,
+            queueToolsByDefault: $queueToolsByDefault
+        );
     }
 
     /**
      * Create a streaming conversation instance.
      *
      * @param  string  $model  The model to use for the conversation.
-     * @param  array  $options  Optional parameters for the conversation.
+     * @param  array<string, mixed>  $options  Optional parameters for the conversation.
      * @return Conversation The created streaming conversation instance.
      */
     public function createStreamingConversation(string $model, array $options = []): Conversation
@@ -422,7 +492,7 @@ class LMStudioFactory
     {
         $handlerToUse = $eventHandler ?? $this->eventHandler;
 
-        return new StreamingHandler($handlerToUse);
+        return new StreamingHandler;
     }
 
     /**
@@ -443,10 +513,12 @@ class LMStudioFactory
      */
     public function createLaravelStreamingHandler(): ?object
     {
-        $handlerClass = LARAVEL_STREAMING_HANDLER_CLASS;
+        // Check if Laravel context is needed and the class exists
+        // Use fully qualified class name directly
+        $handlerClass = 'Shelfwood\\LMStudio\\Laravel\\Core\\Streaming\\LaravelStreamingHandler';
 
-        if ($handlerClass === null) {
-            throw new \RuntimeException('LaravelStreamingHandler requires Laravel integration classes.');
+        if (! class_exists($handlerClass)) {
+            throw new \RuntimeException('LaravelStreamingHandler requires the Laravel integration package (shelfwood/lmstudio-php-laravel).');
         }
 
         return new $handlerClass($this->eventHandler);

@@ -14,10 +14,11 @@ class ResponseFormat
 {
     /**
      * @param  ResponseFormatType  $type  The type of the response format
-     * @param  array|null  $jsonSchema  The JSON schema definition (required when type is json_schema)
+     * @param  array<string, mixed>|null  $jsonSchema  The JSON schema definition (required when type is json_schema)
      */
     public function __construct(
-        public readonly ResponseFormatType $type,
+        public readonly ResponseFormatType $type = ResponseFormatType::TEXT,
+        /** @var array<string, mixed>|null */
         public readonly ?array $jsonSchema = null
     ) {
         $this->validate();

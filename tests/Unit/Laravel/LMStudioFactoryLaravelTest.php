@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Queue\Queue;
+use Mockery as m;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Shelfwood\LMStudio\Laravel\Conversation\QueueableConversationBuilder;
 use Shelfwood\LMStudio\Laravel\Streaming\LaravelStreamingHandler;
@@ -14,6 +16,12 @@ describe('LMStudioFactoryLaravel', function (): void {
             [],
             'test-api-key'
         );
+
+        $this->app->instance('queue', m::mock(Queue::class));
+    });
+
+    afterEach(function (): void {
+        m::close();
     });
 
     test('create streaming handler', function (): void {
@@ -34,11 +42,6 @@ describe('LMStudioFactoryLaravel', function (): void {
     });
 
     test('create queueable conversation builder', function (): void {
-        // Skip this test if the QueueableConversationBuilder class doesn't exist
-        if (! class_exists(QueueableConversationBuilder::class)) {
-            $this->markTestSkipped('QueueableConversationBuilder class does not exist');
-        }
-
         $builder = $this->factory->createQueueableConversationBuilder('test-model');
         expect($builder)->toBeInstanceOf(QueueableConversationBuilder::class);
     });

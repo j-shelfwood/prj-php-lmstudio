@@ -53,11 +53,14 @@ abstract class BaseCommand extends Command
         return $this->io->ask($question);
     }
 
-    protected function option(string $name)
+    protected function option(string $name): string
     {
         return $this->input->getOption($name);
     }
 
+    /**
+     * @param  callable(): (string|null)  $callback  Callback should return a string result or null
+     */
     protected function runStep(int $number, string $description, callable $callback): void
     {
         $this->newLine();

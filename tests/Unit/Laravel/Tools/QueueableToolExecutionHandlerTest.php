@@ -2,21 +2,37 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Queue\Queue as QueueDispatcherContract;
+use Mockery as m;
+use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\Laravel\Tools\QueueableToolExecutionHandler;
 
 describe('QueueableToolExecutionHandler', function (): void {
     beforeEach(function (): void {
-        $this->handler = new QueueableToolExecutionHandler(false);
+        $this->toolRegistryMock = m::mock(ToolRegistry::class);
+        $this->eventHandlerMock = m::mock(EventHandler::class);
+        $this->queueDispatcherMock = m::mock(QueueDispatcherContract::class);
+
+        // Inject mocks into the handler
+        $this->handler = new QueueableToolExecutionHandler(
+            $this->toolRegistryMock,
+            $this->eventHandlerMock,
+            $this->queueDispatcherMock,
+            false // queueByDefault
+        );
+    });
+
+    afterEach(function (): void {
+        m::close();
     });
 
     test('set tool queueable sets the flag correctly', function (): void {
         $this->handler->setToolQueueable('test-tool', true);
 
-        // Use reflection to access protected property
         $reflection = new \ReflectionClass($this->handler);
         $property = $reflection->getProperty('queueableTools');
         $property->setAccessible(true);
-
         $queueableTools = $property->getValue($this->handler);
         expect($queueableTools)->toHaveKey('test-tool');
         expect($queueableTools['test-tool'])->toBeTrue();
@@ -28,37 +44,37 @@ describe('QueueableToolExecutionHandler', function (): void {
 
         expect($this->handler->shouldQueueTool('test-tool'))->toBeTrue();
         expect($this->handler->shouldQueueTool('another-tool'))->toBeFalse();
-        expect($this->handler->shouldQueueTool('non-existent-tool'))->toBeFalse(); // Default is false
+        expect($this->handler->shouldQueueTool('non-existent-tool'))->toBeFalse(); // Default is false (set in beforeEach)
     });
 
     test('should queue tool returns default value for unknown tools', function (): void {
         // Create handler with default queueing enabled
-        $handler = new QueueableToolExecutionHandler(true);
-
-        expect($handler->shouldQueueTool('unknown-tool'))->toBeTrue();
+        $handlerWithDefault = new QueueableToolExecutionHandler(
+            $this->toolRegistryMock, $this->eventHandlerMock, $this->queueDispatcherMock, true
+        );
+        expect($handlerWithDefault->shouldQueueTool('unknown-tool'))->toBeTrue();
     });
 
     test('on queued registers callback correctly', function (): void {
         $callback = function (): void {};
+
+        // Expect the event handler mock's `on` method to be called
+        $this->eventHandlerMock->shouldReceive('on')
+            ->once()
+            ->with('lmstudio.tool.queued', $callback);
+
         $this->handler->onQueued($callback);
-
-        // Use reflection to access protected property
-        $reflection = new \ReflectionClass($this->handler);
-        $property = $reflection->getProperty('eventHandler');
-        $property->setAccessible(true);
-
-        $eventHandler = $property->getValue($this->handler);
-        expect($eventHandler->hasCallbacks('lmstudio.tool.queued'))->toBeTrue();
+        // No need for reflection - we check the mock was called correctly
     });
 
     test('set queue connection sets the connection correctly', function (): void {
         $this->handler->setQueueConnection('test-connection');
 
-        // Use reflection to access protected property
         $reflection = new \ReflectionClass($this->handler);
         $property = $reflection->getProperty('queueConnection');
         $property->setAccessible(true);
-
         expect($property->getValue($this->handler))->toBe('test-connection');
     });
+
+    // Add tests for the execute method if needed (checking dispatch etc.)
 });

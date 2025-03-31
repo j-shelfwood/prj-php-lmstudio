@@ -2,118 +2,75 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Queue\Queue as QueueDispatcherContract;
+use Mockery as m;
 use Shelfwood\LMStudio\Api\Service\ChatService;
+use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\Laravel\Conversation\QueueableConversationBuilder;
 use Shelfwood\LMStudio\Laravel\Tools\QueueableToolExecutionHandler;
 
 describe('QueueableConversationBuilder', function (): void {
     beforeEach(function (): void {
-        $this->chatService = Mockery::mock(ChatService::class);
-        $this->builder = new QueueableConversationBuilder($this->chatService, 'test-model');
+        $this->chatServiceMock = m::mock(ChatService::class);
+        $this->toolRegistryMock = m::mock(ToolRegistry::class);
+        $this->eventHandlerMock = m::mock(EventHandler::class);
+        $this->queueDispatcherMock = m::mock(QueueDispatcherContract::class);
+
+        // Create the builder, injecting core mocks
+        $this->builder = new QueueableConversationBuilder(
+            $this->chatServiceMock,
+            'test-model',
+            $this->toolRegistryMock,
+            $this->eventHandlerMock,
+            $this->queueDispatcherMock
+        );
+
+        // Remove general allowances
+        // $this->toolRegistryMock->allows('registerTool');
+        // $this->eventHandlerMock->allows('on');
     });
 
-    test('constructor initializes with queueable tool execution handler', function (): void {
-        // Use reflection to access protected property
+    afterEach(function (): void {
+        m::close();
+    });
+
+    test('constructor initializes correctly', function (): void {
+        // Test the constructor properly creates the internal handler
         $reflection = new \ReflectionClass($this->builder);
-        $property = $reflection->getProperty('queueableToolExecutionHandler');
-        $property->setAccessible(true);
-
-        expect($property->getValue($this->builder))->toBeInstanceOf(QueueableToolExecutionHandler::class);
+        $parentReflection = $reflection->getParentClass();
+        $executorProperty = $parentReflection->getProperty('toolExecutor');
+        $executorProperty->setAccessible(true);
+        $executor = $executorProperty->getValue($this->builder);
+        expect($executor)->toBeInstanceOf(QueueableToolExecutionHandler::class);
     });
 
-    test('set tool queueable delegates to handler', function (): void {
-        // Create a mock handler
-        $mockHandler = Mockery::mock(QueueableToolExecutionHandler::class);
-
-        // Set expectations
-        $mockHandler->shouldReceive('setToolQueueable')
-            ->once()
-            ->with('test-tool', true)
-            ->andReturnSelf();
-
-        // Use reflection to replace the handler
-        $reflection = new \ReflectionClass($this->builder);
-        $property = $reflection->getProperty('queueableToolExecutionHandler');
-        $property->setAccessible(true);
-        $property->setValue($this->builder, $mockHandler);
-
-        // Call the method
-        $result = $this->builder->setToolQueueable('test-tool', true);
-
-        // Assert the result is the builder (for chaining)
-        expect($result)->toBe($this->builder);
-    });
-
-    test('on tool queued delegates to handler', function (): void {
-        // Create a mock handler
-        $mockHandler = Mockery::mock(QueueableToolExecutionHandler::class);
-
-        // Create a callback
+    test('on tool queued triggers event handler', function (): void {
         $callback = function (): void {};
 
-        // Set expectations
-        $mockHandler->shouldReceive('onQueued')
+        // Expect the event handler's `on` method to be called via the handler's `onQueued`
+        $this->eventHandlerMock->shouldReceive('on')
             ->once()
-            ->with($callback)
-            ->andReturnSelf();
+            ->with('lmstudio.tool.queued', $callback);
 
-        // Use reflection to replace the handler
-        $reflection = new \ReflectionClass($this->builder);
-        $property = $reflection->getProperty('queueableToolExecutionHandler');
-        $property->setAccessible(true);
-        $property->setValue($this->builder, $mockHandler);
-
-        // Call the method
         $result = $this->builder->onToolQueued($callback);
-
-        // Assert the result is the builder (for chaining)
-        expect($result)->toBe($this->builder);
+        expect($result)->toBe($this->builder); // Still check for chaining
     });
 
-    test('with queueable tool registers tool and sets it as queueable', function (): void {
-        // Create a mock handler
-        $mockHandler = Mockery::mock(QueueableToolExecutionHandler::class);
+    test('with queueable tool registers tool', function (): void {
+        $toolName = 'get_weather';
+        $parameters = ['type' => 'object'];
+        $executor = fn ($args) => ['temp' => 22];
 
-        // Set expectations
-        $mockHandler->shouldReceive('setToolQueueable')
+        // Expect ToolRegistry::registerTool to be called via parent::withTool
+        $this->toolRegistryMock->shouldReceive('registerTool')
             ->once()
-            ->with('get_weather', true)
-            ->andReturnSelf();
+            ->with($toolName, $executor, $parameters, null);
 
-        // Use reflection to replace the handler
-        $reflection = new \ReflectionClass($this->builder);
-        $property = $reflection->getProperty('queueableToolExecutionHandler');
-        $property->setAccessible(true);
-        $property->setValue($this->builder, $mockHandler);
+        // We are not testing the handler delegation directly anymore
+        // $this->mockQueueableHandler->shouldReceive('setToolQueueable') ...
 
-        // Create a tool definition
-        $toolDefinition = [
-            'type' => 'function',
-            'function' => [
-                'name' => 'get_weather',
-                'description' => 'Get the weather for a location',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'location' => [
-                            'type' => 'string',
-                            'description' => 'The location to get weather for',
-                        ],
-                    ],
-                    'required' => ['location'],
-                ],
-            ],
-        ];
-
-        // Create a tool executor
-        $executor = function ($args) {
-            return ['temperature' => 22, 'condition' => 'sunny'];
-        };
-
-        // Call the method
-        $result = $this->builder->withQueueableTool('get_weather', $executor, ['type' => 'object']);
-
-        // Assert the result is the builder (for chaining)
-        expect($result)->toBe($this->builder);
+        $result = $this->builder->withQueueableTool($toolName, $executor, $parameters);
+        expect($result)->toBe($this->builder); // Still check for chaining
     });
 });

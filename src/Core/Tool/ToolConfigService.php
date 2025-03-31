@@ -15,6 +15,7 @@ class ToolConfigService
 
     public readonly ToolExecutor $toolExecutor;
 
+    /** @var array<string, array{callback: callable, parameters: array<string, mixed>, description: string|null}> */
     private array $toolConfigurations = [];
 
     /**
@@ -22,7 +23,7 @@ class ToolConfigService
      *
      * @param  ToolRegistry  $toolRegistry  The pre-configured tool registry.
      * @param  ToolExecutor  $toolExecutor  The pre-configured tool executor.
-     * @param  array  $toolConfigurations  Initial array of tool configurations.
+     * @param  array<string, array{callback: callable, parameters: array<string, mixed>, description: string|null}>  $toolConfigurations  Initial array of tool configurations.
      * @param  EventHandler|null  $eventHandler  Optional EventHandler, currently unused here but kept for future consistency.
      */
     public function __construct(
@@ -71,6 +72,10 @@ class ToolConfigService
 
     /**
      * Add a tool configuration.
+     *
+     * @param  callable(array<string, mixed>): mixed  $callback
+     * @param  array<string, mixed>  $parameters
+     * @return $this
      */
     public function addToolConfiguration(
         string $name,
@@ -104,6 +109,8 @@ class ToolConfigService
 
     /**
      * Get all tool configurations.
+     *
+     * @return array<string, array{callback: callable, parameters: array<string, mixed>, description: string|null}>
      */
     public function getToolConfigurations(): array
     {

@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Laravel\Conversation;
 
+use Illuminate\Contracts\Queue\Queue as QueueDispatcherContract;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Builder\ConversationBuilder;
+use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\Laravel\Tools\QueueableToolExecutionHandler;
 
+/**
+ * Extends ConversationBuilder to provide queueable tool execution capabilities.
+ */
 class QueueableConversationBuilder extends ConversationBuilder
 {
     /**
@@ -20,16 +26,31 @@ class QueueableConversationBuilder extends ConversationBuilder
      *
      * @param  ChatService  $chatService  The chat service
      * @param  string  $model  The model to use
+     * @param  ToolRegistry  $toolRegistry  The tool registry
+     * @param  EventHandler  $eventHandler  The event handler
+     * @param  QueueDispatcherContract  $queueDispatcher  The queue dispatcher
      * @param  bool|null  $queueToolsByDefault  Whether to queue tool executions by default
      */
     public function __construct(
         ChatService $chatService,
         string $model,
-        ?bool $queueToolsByDefault = null
+        ToolRegistry $toolRegistry,
+        EventHandler $eventHandler,
+        QueueDispatcherContract $queueDispatcher,
+        ?bool $queueToolsByDefault = false
     ) {
-        parent::__construct($chatService, $model);
+        // Pass core dependencies to the parent constructor
+        parent::__construct($chatService, $model, $toolRegistry, $eventHandler);
 
-        $this->queueableToolExecutionHandler = new QueueableToolExecutionHandler($queueToolsByDefault);
+        // Create the queueable handler with all its dependencies
+        $this->queueableToolExecutionHandler = new QueueableToolExecutionHandler(
+            $toolRegistry,
+            $eventHandler,
+            $queueDispatcher,
+            $queueToolsByDefault
+        );
+
+        // Set the queueable handler as the executor for this builder
         $this->withToolExecutor($this->queueableToolExecutionHandler);
     }
 

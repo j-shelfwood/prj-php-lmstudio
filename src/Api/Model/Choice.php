@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Shelfwood\LMStudio\Api\Model;
 
 use Shelfwood\LMStudio\Api\Enum\FinishReason;
-use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 
 /**
@@ -15,17 +14,17 @@ class Choice
 {
     /**
      * @param  int  $index  The index of the choice
-     * @param  array|null  $logprobs  The log probabilities
+     * @param  array<mixed>|null  $logprobs  The log probabilities
      * @param  FinishReason  $finishReason  The reason for finishing
      * @param  Message  $message  The message object
      */
     public function __construct(
         public readonly int $index,
+        /** @var array<mixed>|null */
         public readonly ?array $logprobs,
         public readonly FinishReason $finishReason,
         public readonly Message $message
-    ) {
-    }
+    ) {}
 
     /**
      * Create a Choice object from an array.
@@ -74,7 +73,7 @@ class Choice
      */
     public function hasToolCalls(): bool
     {
-        return !empty($this->message->toolCalls);
+        return ! empty($this->message->toolCalls);
     }
 
     /**

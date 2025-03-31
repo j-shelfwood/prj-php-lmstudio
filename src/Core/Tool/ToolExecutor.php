@@ -13,8 +13,8 @@ use Shelfwood\LMStudio\Core\Event\EventHandler;
 class ToolExecutor
 {
     public function __construct(
-        private readonly ToolRegistry $registry,
-        private readonly EventHandler $eventHandler
+        protected readonly ToolRegistry $registry,
+        protected readonly EventHandler $eventHandler
     ) {}
 
     /**

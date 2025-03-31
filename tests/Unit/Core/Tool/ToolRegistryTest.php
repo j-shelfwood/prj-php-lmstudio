@@ -86,7 +86,14 @@ test('executeTool calls callback and returns result', function () use (&$registr
     $callback = function (array $args) {
         return 'Executed with '.$args['message'];
     };
-    $registry->registerTool('executor_test', $callback, ['properties' => ['message' => ['type' => 'string']]]);
+    $parameters = [
+        'type' => 'object',
+        'properties' => [
+            'message' => ['type' => 'string', 'description' => 'The message'],
+        ],
+        'required' => ['message'],
+    ];
+    $registry->registerTool('executor_test', $callback, $parameters);
 
     $result = $registry->executeTool('executor_test', ['message' => 'success']);
     expect($result)->toBe('Executed with success');

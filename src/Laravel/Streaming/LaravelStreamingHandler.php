@@ -6,8 +6,10 @@ namespace Shelfwood\LMStudio\Laravel\Streaming;
 
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Event;
+use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class LaravelStreamingHandler extends StreamingHandler
 {
@@ -21,9 +23,7 @@ class LaravelStreamingHandler extends StreamingHandler
      */
     protected string $eventName = 'message';
 
-    /**
-     * @var array Additional data to include in server-sent events
-     */
+    /** @var array<string, mixed> */
     protected array $additionalEventData = [];
 
     /**
@@ -53,7 +53,7 @@ class LaravelStreamingHandler extends StreamingHandler
     /**
      * Set additional data to include in server-sent events.
      *
-     * @param  array  $data  The additional data
+     * @param  array<string, mixed>  $data  The additional data
      */
     public function setAdditionalEventData(array $data): self
     {
@@ -63,15 +63,14 @@ class LaravelStreamingHandler extends StreamingHandler
     }
 
     /**
-     * Create a streamed response from the streaming handler.
+     * Create a streamed response for use in a Laravel controller.
      *
-     * @param  callable|null  $callback  Additional callback to execute for each chunk
-     * @return StreamedResponse The streamed response
+     * @param  callable|null  $responseCallback  Optional callback to process data before sending. Receives event name and data array.
      */
-    public function toStreamedResponse(?callable $callback = null): StreamedResponse
+    public function toStreamedResponse(?callable $responseCallback = null): StreamedResponse
     {
-        return new StreamedResponse(function () use ($callback): void {
-            // Set headers for SSE if enabled
+        return new StreamedResponse(function () use ($responseCallback): void {
+            // Setup SSE headers if configured
             if ($this->emitServerSentEvents) {
                 header('Content-Type: text/event-stream');
                 header('Cache-Control: no-cache');
@@ -79,149 +78,103 @@ class LaravelStreamingHandler extends StreamingHandler
                 header('X-Accel-Buffering: no'); // Disable buffering for Nginx
             }
 
-            // Store original callbacks
-            $originalOnStart = $this->onStart;
-            $originalOnContent = $this->onContent;
-            $originalOnToolCall = $this->onToolCall;
-            $originalOnEnd = $this->onEnd;
-            $originalOnError = $this->onError;
+            // Define event handlers that format and echo/send data
+            $this->on('stream_start', function ($chunk) use ($responseCallback): void {
+                $data = ['type' => 'start'];
 
-            // Set up SSE callbacks
-            $this->onStart(function () use ($originalOnStart, $callback): void {
-                if ($this->emitServerSentEvents) {
-                    $this->sendEvent(['type' => 'start']);
+                if ($responseCallback) {
+                    $responseCallback('start', $data);
                 }
-
-                if ($originalOnStart) {
-                    call_user_func($originalOnStart);
-                }
-
-                if ($callback) {
-                    call_user_func($callback, ['type' => 'start']);
-                }
-
-                flush();
+                $this->sendResponseData($data);
             });
 
-            $this->onContent(function ($content, $buffer, $isComplete) use ($originalOnContent, $callback): void {
-                if ($this->emitServerSentEvents) {
-                    $this->sendEvent([
-                        'type' => 'content',
-                        'content' => $content,
-                        'buffer' => $buffer,
-                        'isComplete' => $isComplete,
-                    ]);
-                } else {
-                    echo $content;
-                }
+            $this->on('stream_content', function (string $content, $chunk) use ($responseCallback): void {
+                $data = ['type' => 'content', 'content' => $content];
 
-                if ($originalOnContent) {
-                    call_user_func($originalOnContent, $content, $buffer, $isComplete);
+                if ($responseCallback) {
+                    $responseCallback('content', $data);
                 }
-
-                if ($callback) {
-                    call_user_func($callback, [
-                        'type' => 'content',
-                        'content' => $content,
-                        'buffer' => $buffer,
-                        'isComplete' => $isComplete,
-                    ]);
-                }
-
-                flush();
+                $this->sendResponseData($data);
             });
 
-            $this->onToolCall(function ($toolCall, $index, $isComplete) use ($originalOnToolCall, $callback): void {
-                if ($this->emitServerSentEvents) {
-                    $this->sendEvent([
-                        'type' => 'tool_call',
-                        'toolCall' => $toolCall,
-                        'index' => $index,
-                        'isComplete' => $isComplete,
-                    ]);
-                }
+            // Assuming base handler emits 'stream_tool_call_start', 'stream_tool_call_delta', 'stream_tool_call_end'
+            $this->on('stream_tool_call_start', function (int $index, ?string $id, ?string $type, $chunk) use ($responseCallback): void {
+                $data = ['type' => 'tool_start', 'index' => $index, 'id' => $id, 'tool_type' => $type];
 
-                if ($originalOnToolCall) {
-                    call_user_func($originalOnToolCall, $toolCall, $index, $isComplete);
+                if ($responseCallback) {
+                    $responseCallback('tool_start', $data);
                 }
-
-                if ($callback) {
-                    call_user_func($callback, [
-                        'type' => 'tool_call',
-                        'toolCall' => $toolCall,
-                        'index' => $index,
-                        'isComplete' => $isComplete,
-                    ]);
-                }
-
-                flush();
+                $this->sendResponseData($data);
             });
 
-            $this->onEnd(function ($buffer, $toolCalls) use ($originalOnEnd, $callback): void {
-                if ($this->emitServerSentEvents) {
-                    $this->sendEvent([
-                        'type' => 'end',
-                        'buffer' => $buffer,
-                        'toolCalls' => $toolCalls,
-                    ]);
-                }
+            $this->on('stream_tool_call_delta', function (int $index, $delta, $chunk) use ($responseCallback): void {
+                $data = ['type' => 'tool_delta', 'index' => $index, 'delta' => $delta->toArray()]; // Convert delta to array
 
-                if ($originalOnEnd) {
-                    call_user_func($originalOnEnd, $buffer, $toolCalls);
+                if ($responseCallback) {
+                    $responseCallback('tool_delta', $data);
                 }
-
-                if ($callback) {
-                    call_user_func($callback, [
-                        'type' => 'end',
-                        'buffer' => $buffer,
-                        'toolCalls' => $toolCalls,
-                    ]);
-                }
-
-                flush();
+                $this->sendResponseData($data);
             });
 
-            $this->onError(function ($error, $buffer, $toolCalls) use ($originalOnError, $callback): void {
-                if ($this->emitServerSentEvents) {
-                    $this->sendEvent([
-                        'type' => 'error',
-                        'error' => $error->getMessage(),
-                        'buffer' => $buffer,
-                        'toolCalls' => $toolCalls,
-                    ]);
-                }
+            $this->on('stream_tool_call_end', function (int $index, ToolCall $toolCall) use ($responseCallback): void {
+                $data = ['type' => 'tool_end', 'index' => $index, 'tool_call' => $toolCall->toArray()];
 
-                if ($originalOnError) {
-                    call_user_func($originalOnError, $error, $buffer, $toolCalls);
+                if ($responseCallback) {
+                    $responseCallback('tool_end', $data);
                 }
-
-                if ($callback) {
-                    call_user_func($callback, [
-                        'type' => 'error',
-                        'error' => $error->getMessage(),
-                        'buffer' => $buffer,
-                        'toolCalls' => $toolCalls,
-                    ]);
-                }
-
-                flush();
+                $this->sendResponseData($data);
             });
 
-            // Keep the connection alive until the client disconnects
-            while (true) {
-                if (connection_aborted()) {
-                    break;
-                }
+            $this->on('stream_end', function (?array $finalToolCalls, $chunk) use ($responseCallback): void {
+                $data = ['type' => 'end', 'tool_calls' => $finalToolCalls ? array_map(fn (ToolCall $tc) => $tc->toArray(), $finalToolCalls) : null];
 
-                // Sleep to prevent CPU usage
-                usleep(100000); // 100ms
-            }
+                if ($responseCallback) {
+                    $responseCallback('end', $data);
+                }
+                $this->sendResponseData($data);
+            });
+
+            $this->on('stream_error', function (Throwable $error, $chunk) use ($responseCallback): void {
+                $data = ['type' => 'error', 'error' => $error->getMessage()];
+
+                if ($responseCallback) {
+                    $responseCallback('error', $data);
+                }
+                $this->sendResponseData($data);
+            });
+
+            // Keep connection alive (optional, consider removing if not needed)
+            // while (connection_aborted() === 0) {
+            //     usleep(100000); // Sleep 100ms
+            // }
+
         }, 200, [
             'Content-Type' => $this->emitServerSentEvents ? 'text/event-stream' : 'text/plain',
             'Cache-Control' => 'no-cache',
             'Connection' => 'keep-alive',
-            'X-Accel-Buffering' => 'no', // Disable buffering for Nginx
+            'X-Accel-Buffering' => 'no',
         ]);
+    }
+
+    /**
+     * Helper to send data either as plain text or SSE.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function sendResponseData(array $data): void
+    {
+        if ($this->emitServerSentEvents) {
+            $this->sendEvent($data);
+        } elseif (isset($data['content']) && is_string($data['content'])) {
+            // For plain text, only echo content chunks
+            echo $data['content'];
+        }
+
+        // Flush the output buffer
+        if (ob_get_level() > 0) {
+            ob_flush();
+        }
+        flush();
     }
 
     /**
@@ -236,99 +189,5 @@ class LaravelStreamingHandler extends StreamingHandler
 
         echo "event: {$this->eventName}\n";
         echo "data: {$json}\n\n";
-    }
-
-    /**
-     * Create a response that broadcasts events using Laravel's event system.
-     *
-     * @param  string  $channel  The channel to broadcast on
-     * @param  string  $eventName  The event name
-     * @return Response The response
-     */
-    public function toBroadcastResponse(string $channel, string $eventName): Response
-    {
-        // Store original callbacks
-        $originalOnStart = $this->onStart;
-        $originalOnContent = $this->onContent;
-        $originalOnToolCall = $this->onToolCall;
-        $originalOnEnd = $this->onEnd;
-        $originalOnError = $this->onError;
-
-        // Set up broadcasting callbacks
-        $this->onStart(function () use ($originalOnStart, $channel, $eventName): void {
-            Event::dispatch($channel, [
-                'event' => $eventName,
-                'data' => ['type' => 'start'],
-            ]);
-
-            if ($originalOnStart) {
-                call_user_func($originalOnStart);
-            }
-        });
-
-        $this->onContent(function ($content, $buffer, $isComplete) use ($originalOnContent, $channel, $eventName): void {
-            Event::dispatch($channel, [
-                'event' => $eventName,
-                'data' => [
-                    'type' => 'content',
-                    'content' => $content,
-                    'buffer' => $buffer,
-                    'isComplete' => $isComplete,
-                ],
-            ]);
-
-            if ($originalOnContent) {
-                call_user_func($originalOnContent, $content, $buffer, $isComplete);
-            }
-        });
-
-        $this->onToolCall(function ($toolCall, $index, $isComplete) use ($originalOnToolCall, $channel, $eventName): void {
-            Event::dispatch($channel, [
-                'event' => $eventName,
-                'data' => [
-                    'type' => 'tool_call',
-                    'toolCall' => $toolCall,
-                    'index' => $index,
-                    'isComplete' => $isComplete,
-                ],
-            ]);
-
-            if ($originalOnToolCall) {
-                call_user_func($originalOnToolCall, $toolCall, $index, $isComplete);
-            }
-        });
-
-        $this->onEnd(function ($buffer, $toolCalls) use ($originalOnEnd, $channel, $eventName): void {
-            Event::dispatch($channel, [
-                'event' => $eventName,
-                'data' => [
-                    'type' => 'end',
-                    'buffer' => $buffer,
-                    'toolCalls' => $toolCalls,
-                ],
-            ]);
-
-            if ($originalOnEnd) {
-                call_user_func($originalOnEnd, $buffer, $toolCalls);
-            }
-        });
-
-        $this->onError(function ($error, $buffer, $toolCalls) use ($originalOnError, $channel, $eventName): void {
-            Event::dispatch($channel, [
-                'event' => $eventName,
-                'data' => [
-                    'type' => 'error',
-                    'error' => $error->getMessage(),
-                    'buffer' => $buffer,
-                    'toolCalls' => $toolCalls,
-                ],
-            ]);
-
-            if ($originalOnError) {
-                call_user_func($originalOnError, $error, $buffer, $toolCalls);
-            }
-        });
-
-        return new Response('Broadcasting started', 200);
     }
 }

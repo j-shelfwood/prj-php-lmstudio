@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Api\Response;
 
+use Shelfwood\LMStudio\Responses\V1\Embedding;
+
 /**
  * Represents an embedding response.
  */
@@ -17,8 +19,10 @@ class EmbeddingResponse
      */
     public function __construct(
         public readonly string $object,
+        /** @var list<Embedding> */
         public readonly array $data,
         public readonly string $model,
+        /** @var array<string, int> */
         public readonly array $usage,
     ) {}
 
@@ -32,7 +36,7 @@ class EmbeddingResponse
     {
         return new self(
             object: $data['object'] ?? 'list',
-            data: $data['data'] ?? [],
+            data: array_map(fn ($e) => Embedding::fromArray($e), $data['data'] ?? []),
             model: $data['model'] ?? '',
             usage: $data['usage'] ?? [],
         );

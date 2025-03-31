@@ -12,10 +12,10 @@ use Shelfwood\LMStudio\Api\Enum\FinishReason;
 class ChoiceStreaming
 {
     /**
-     * @param int $index The index of the choice
-     * @param ChoiceDelta $delta The delta content for this choice in the chunk
-     * @param FinishReason|null $finishReason The reason the stream finished (null if not finished)
-     * @param mixed $logprobs Log probabilities (structure may vary, keeping as mixed)
+     * @param  int  $index  The index of the choice
+     * @param  ChoiceDelta  $delta  The delta content for this choice in the chunk
+     * @param  FinishReason|null  $finishReason  The reason the stream finished (null if not finished)
+     * @param  mixed  $logprobs  Log probabilities (structure may vary, keeping as mixed)
      */
     public function __construct(
         public readonly int $index,
@@ -27,14 +27,15 @@ class ChoiceStreaming
     /**
      * Creates a ChoiceStreaming object from raw choice data in a chunk.
      *
-     * @param array $data The choice data (e.g., $chunk['choices'][0])
+     * @param  array  $data  The choice data (e.g., $chunk['choices'][0])
      */
     public static function fromArray(array $data): self
     {
-        if (!isset($data['index'])) {
+        if (! isset($data['index'])) {
             throw new \InvalidArgumentException('Streaming choice must include an index.');
         }
-        if (!isset($data['delta'])) {
+
+        if (! isset($data['delta'])) {
             throw new \InvalidArgumentException('Streaming choice must include a delta.');
         }
 

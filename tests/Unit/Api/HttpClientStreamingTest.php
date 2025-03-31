@@ -2,69 +2,70 @@
 
 declare(strict_types=1);
 
+use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
+use Mockery as m;
+use Psr\Log\NullLogger;
+
+// Use Mockery for mocking
 use Shelfwood\LMStudio\Api\Client\HttpClient;
 use Shelfwood\LMStudio\Api\Exception\ApiException;
 
 describe('HttpClientStreaming', function (): void {
+    // Use MockeryPHPUnitIntegration trait if using PHPUnit
+    // Otherwise, ensure Mockery::close() is called in tearDown
+
     beforeEach(function (): void {
-        $this->httpClient = Mockery::mock(HttpClient::class)
-            ->shouldAllowMockingProtectedMethods()
-            ->makePartial();
+        // Create a partial mock, specifically mocking the _curl* methods
+        // AND passing arguments to the original constructor
+        $this->httpClient = m::mock(
+            HttpClient::class.'[_curlInit, _curlSetoptArray, _curlExec, _curlError, _curlErrno, _curlGetInfo, _curlClose]',
+            [new NullLogger] // Arguments for the original __construct
+        );
+        $this->httpClient->shouldAllowMockingProtectedMethods(); // Allow mocking protected methods
+    });
+
+    afterEach(function (): void {
+        m::close(); // Close Mockery after each test
     });
 
     test('requestStream handles streaming data correctly', function (): void {
-        // Mock the curl_exec function to simulate successful execution
-        $this->httpClient->shouldReceive('curlExec')
-            ->once()
-            ->andReturn(true);
+        // Mock the specific protected methods for this scenario
+        $this->httpClient->shouldReceive('_curlInit')->once()->andReturn(curl_init()); // Return a real (but unused) handle
+        $this->httpClient->shouldReceive('_curlSetoptArray')->once()->with(m::type(CurlHandle::class), m::type('array'))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlExec')->once()->with(m::type(CurlHandle::class))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlError')->once()->with(m::type(CurlHandle::class))->andReturn('');
+        $this->httpClient->shouldReceive('_curlErrno')->once()->with(m::type(CurlHandle::class))->andReturn(0);
+        $this->httpClient->shouldReceive('_curlGetInfo')->once()->with(m::type(CurlHandle::class), CURLINFO_HTTP_CODE)->andReturn(200);
+        $this->httpClient->shouldReceive('_curlClose')->once()->with(m::type(CurlHandle::class));
 
-        // Mock the curl_error function to return an empty string (no error)
-        $this->httpClient->shouldReceive('curlError')
-            ->once()
-            ->andReturn('');
+        // Create a dummy callback
+        $callback = function ($chunk): void {};
 
-        // Mock the curl_getinfo function to return a 200 status code
-        $this->httpClient->shouldReceive('curlGetInfo')
-            ->once()
-            ->andReturn(200);
-
-        // Create a callback to collect chunks
-        $receivedChunks = [];
-        $callback = function ($chunk) use (&$receivedChunks): void {
-            $receivedChunks[] = $chunk;
-        };
-
-        // Call the requestStream method
+        // Call the actual requestStream method on the partial mock
         $this->httpClient->requestStream(
             'POST',
             'http://example.com/api',
             ['model' => 'test-model', 'messages' => []],
-            $callback,
-            ['Content-Type' => 'application/json']
+            $callback
         );
 
-        // We can't directly test the CURLOPT_WRITEFUNCTION callback,
-        // but we can verify that the method completed without errors
+        // No exception expected, assertion passes if mocks are met
         expect(true)->toBeTrue();
     });
 
     test('requestStream throws exception on curl error', function (): void {
-        // Mock the curl_exec function to simulate execution
-        $this->httpClient->shouldReceive('curlExec')
-            ->once()
-            ->andReturn(false);
+        // Mock the specific protected methods for this scenario
+        $this->httpClient->shouldReceive('_curlInit')->once()->andReturn(curl_init());
+        $this->httpClient->shouldReceive('_curlSetoptArray')->once()->with(m::type(CurlHandle::class), m::type('array'))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlExec')->once()->with(m::type(CurlHandle::class))->andReturn(false); // Simulate exec failure
+        $this->httpClient->shouldReceive('_curlError')->once()->with(m::type(CurlHandle::class))->andReturn('Connection refused');
+        $this->httpClient->shouldReceive('_curlErrno')->once()->with(m::type(CurlHandle::class))->andReturn(CURLE_COULDNT_CONNECT);
+        $this->httpClient->shouldReceive('_curlGetInfo')->once()->with(m::type(CurlHandle::class), CURLINFO_HTTP_CODE)->andReturn(0);
+        $this->httpClient->shouldReceive('_curlClose')->once()->with(m::type(CurlHandle::class));
 
-        // Mock the curl_error function to return an error message
-        $this->httpClient->shouldReceive('curlError')
-            ->once()
-            ->andReturn('Connection refused');
+        $callback = fn ($chunk) => null;
 
-        // Create a callback
-        $callback = function ($chunk): void {
-            // This should not be called
-        };
-
-        // Expect an ApiException to be thrown
+        // Expect the correct exception
         expect(fn () => $this->httpClient->requestStream(
             'POST',
             'http://example.com/api',
@@ -74,27 +75,18 @@ describe('HttpClientStreaming', function (): void {
     });
 
     test('requestStream throws exception on api error', function (): void {
-        // Mock the curl_exec function to simulate execution
-        $this->httpClient->shouldReceive('curlExec')
-            ->once()
-            ->andReturn(true);
+        // Mock the specific protected methods for this scenario
+        $this->httpClient->shouldReceive('_curlInit')->once()->andReturn(curl_init());
+        $this->httpClient->shouldReceive('_curlSetoptArray')->once()->with(m::type(CurlHandle::class), m::type('array'))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlExec')->once()->with(m::type(CurlHandle::class))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlError')->once()->with(m::type(CurlHandle::class))->andReturn('');
+        $this->httpClient->shouldReceive('_curlErrno')->once()->with(m::type(CurlHandle::class))->andReturn(0);
+        $this->httpClient->shouldReceive('_curlGetInfo')->once()->with(m::type(CurlHandle::class), CURLINFO_HTTP_CODE)->andReturn(401); // Simulate API error
+        $this->httpClient->shouldReceive('_curlClose')->once()->with(m::type(CurlHandle::class));
 
-        // Mock the curl_error function to return an empty string (no error)
-        $this->httpClient->shouldReceive('curlError')
-            ->once()
-            ->andReturn('');
+        $callback = fn ($chunk) => null;
 
-        // Mock the curl_getinfo function to return a 401 status code
-        $this->httpClient->shouldReceive('curlGetInfo')
-            ->once()
-            ->andReturn(401);
-
-        // Create a callback
-        $callback = function ($chunk): void {
-            // This should not be called
-        };
-
-        // Expect an ApiException to be thrown
+        // Expect the correct exception
         expect(fn () => $this->httpClient->requestStream(
             'POST',
             'http://example.com/api',

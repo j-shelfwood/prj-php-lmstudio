@@ -2,28 +2,35 @@
 
 declare(strict_types=1);
 
+use Mockery as m;
+use Psr\Log\NullLogger;
 use Shelfwood\LMStudio\Api\Client\HttpClient;
 use Shelfwood\LMStudio\Api\Exception\ApiException;
 
 describe('HttpClient', function (): void {
     beforeEach(function (): void {
-        $this->httpClient = Mockery::mock(HttpClient::class)
+        // Create a partial mock, allowing protected methods to be mocked
+        $this->httpClient = m::mock(HttpClient::class.'[_curlInit,_curlSetoptArray,_curlExec,_curlGetInfo,_curlError,_curlErrno,_curlClose]', [new NullLogger])
             ->shouldAllowMockingProtectedMethods()
             ->makePartial();
     });
 
+    afterEach(function (): void {
+        m::close();
+    });
+
     test('request sends correct data', function (): void {
-        // Mock the curl_exec function to return a successful response
-        $this->httpClient->shouldReceive('curlExec')->andReturn(json_encode([
+        // Mock protected curl methods
+        $this->httpClient->shouldReceive('_curlInit')->once()->andReturn(curl_init());
+        $this->httpClient->shouldReceive('_curlSetoptArray')->once()->with(m::type(CurlHandle::class), m::type('array'))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlExec')->once()->with(m::type(CurlHandle::class))->andReturn(json_encode([
             'success' => true,
             'data' => ['message' => 'Hello, world!'],
         ]));
-
-        // Mock the curl_getinfo function to return a 200 status code
-        $this->httpClient->shouldReceive('curlGetInfo')->andReturn(200);
-
-        // Mock the curl_error function to return an empty string (no error)
-        $this->httpClient->shouldReceive('curlError')->andReturn('');
+        $this->httpClient->shouldReceive('_curlGetInfo')->once()->with(m::type(CurlHandle::class), CURLINFO_HTTP_CODE)->andReturn(200);
+        $this->httpClient->shouldReceive('_curlError')->once()->with(m::type(CurlHandle::class))->andReturn('');
+        $this->httpClient->shouldReceive('_curlErrno')->never();
+        $this->httpClient->shouldReceive('_curlClose')->once()->with(m::type(CurlHandle::class));
 
         // Call the request method
         $response = $this->httpClient->request('GET', 'http://example.com/api', ['foo' => 'bar'], ['Content-Type' => 'application/json']);
@@ -36,11 +43,14 @@ describe('HttpClient', function (): void {
     });
 
     test('request throws exception on curl error', function (): void {
-        // Mock the curl_exec function to return false (error)
-        $this->httpClient->shouldReceive('curlExec')->andReturn(false);
-
-        // Mock the curl_error function to return an error message
-        $this->httpClient->shouldReceive('curlError')->andReturn('Connection refused');
+        // Mock protected curl methods
+        $this->httpClient->shouldReceive('_curlInit')->once()->andReturn(curl_init());
+        $this->httpClient->shouldReceive('_curlSetoptArray')->once()->with(m::type(CurlHandle::class), m::type('array'))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlExec')->once()->with(m::type(CurlHandle::class))->andReturn(false); // Simulate exec failure
+        $this->httpClient->shouldReceive('_curlGetInfo')->once()->with(m::type(CurlHandle::class), CURLINFO_HTTP_CODE)->andReturn(0); // Status code is usually 0 on connection errors
+        $this->httpClient->shouldReceive('_curlError')->once()->with(m::type(CurlHandle::class))->andReturn('Connection refused');
+        $this->httpClient->shouldReceive('_curlErrno')->never(); // Not called because _curlError is checked first
+        $this->httpClient->shouldReceive('_curlClose')->once()->with(m::type(CurlHandle::class));
 
         // Expect an ApiException to be thrown
         expect(fn () => $this->httpClient->request('GET', 'http://example.com/api'))
@@ -48,36 +58,36 @@ describe('HttpClient', function (): void {
     });
 
     test('request throws exception on api error', function (): void {
-        // Mock the curl_exec function to return an error response
-        $this->httpClient->shouldReceive('curlExec')->andReturn(json_encode([
+        // Mock protected curl methods
+        $this->httpClient->shouldReceive('_curlInit')->once()->andReturn(curl_init());
+        $this->httpClient->shouldReceive('_curlSetoptArray')->once()->with(m::type(CurlHandle::class), m::type('array'))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlExec')->once()->with(m::type(CurlHandle::class))->andReturn(json_encode([
             'error' => [
                 'message' => 'Invalid API key',
             ],
         ]));
-
-        // Mock the curl_getinfo function to return a 401 status code
-        $this->httpClient->shouldReceive('curlGetInfo')->andReturn(401);
-
-        // Mock the curl_error function to return an empty string (no error)
-        $this->httpClient->shouldReceive('curlError')->andReturn('');
+        $this->httpClient->shouldReceive('_curlGetInfo')->once()->with(m::type(CurlHandle::class), CURLINFO_HTTP_CODE)->andReturn(401); // Simulate API error status
+        $this->httpClient->shouldReceive('_curlError')->once()->with(m::type(CurlHandle::class))->andReturn('');
+        $this->httpClient->shouldReceive('_curlErrno')->never();
+        $this->httpClient->shouldReceive('_curlClose')->once()->with(m::type(CurlHandle::class));
 
         // Expect an ApiException to be thrown
         expect(fn () => $this->httpClient->request('GET', 'http://example.com/api'))
-            ->toThrow(ApiException::class, 'API Error: Invalid API key');
+            ->toThrow(ApiException::class, 'API Error: Invalid API key'); // Check the error message extraction logic if needed
     });
 
     test('request throws exception on invalid json', function (): void {
-        // Mock the curl_exec function to return invalid JSON
-        $this->httpClient->shouldReceive('curlExec')->andReturn('{"invalid": json}');
+        // Mock protected curl methods
+        $this->httpClient->shouldReceive('_curlInit')->once()->andReturn(curl_init());
+        $this->httpClient->shouldReceive('_curlSetoptArray')->once()->with(m::type(CurlHandle::class), m::type('array'))->andReturn(true);
+        $this->httpClient->shouldReceive('_curlExec')->once()->with(m::type(CurlHandle::class))->andReturn('{"invalid": json}'); // Invalid JSON
+        $this->httpClient->shouldReceive('_curlGetInfo')->once()->with(m::type(CurlHandle::class), CURLINFO_HTTP_CODE)->andReturn(200);
+        $this->httpClient->shouldReceive('_curlError')->once()->with(m::type(CurlHandle::class))->andReturn('');
+        $this->httpClient->shouldReceive('_curlErrno')->never();
+        $this->httpClient->shouldReceive('_curlClose')->once()->with(m::type(CurlHandle::class));
 
-        // Mock the curl_getinfo function to return a 200 status code
-        $this->httpClient->shouldReceive('curlGetInfo')->andReturn(200);
-
-        // Mock the curl_error function to return an empty string (no error)
-        $this->httpClient->shouldReceive('curlError')->andReturn('');
-
-        // Expect an ApiException to be thrown
+        // Expect an ApiException to be thrown for invalid JSON
         expect(fn () => $this->httpClient->request('GET', 'http://example.com/api'))
-            ->toThrow(ApiException::class, 'Invalid JSON response:');
+            ->toThrow(ApiException::class, 'Invalid JSON response: Syntax error'); // More specific JSON error
     });
 });
