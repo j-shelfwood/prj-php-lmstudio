@@ -3,16 +3,15 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Queue\Queue as QueueDispatcherContract;
-use Mockery as m;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\Laravel\Tools\QueueableToolExecutionHandler;
 
 describe('QueueableToolExecutionHandler', function (): void {
     beforeEach(function (): void {
-        $this->toolRegistryMock = m::mock(ToolRegistry::class);
-        $this->eventHandlerMock = m::mock(EventHandler::class);
-        $this->queueDispatcherMock = m::mock(QueueDispatcherContract::class);
+        $this->toolRegistryMock = Mockery::mock(ToolRegistry::class);
+        $this->eventHandlerMock = Mockery::mock(EventHandler::class);
+        $this->queueDispatcherMock = Mockery::mock(QueueDispatcherContract::class);
 
         // Inject mocks into the handler
         $this->handler = new QueueableToolExecutionHandler(
@@ -21,10 +20,6 @@ describe('QueueableToolExecutionHandler', function (): void {
             $this->queueDispatcherMock,
             false // queueByDefault
         );
-    });
-
-    afterEach(function (): void {
-        m::close();
     });
 
     test('set tool queueable sets the flag correctly', function (): void {

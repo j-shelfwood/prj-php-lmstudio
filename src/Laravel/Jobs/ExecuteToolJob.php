@@ -9,9 +9,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Event;
 use RuntimeException;
-use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
+use Shelfwood\LMStudio\LMStudioFactory;
+use Throwable;
 
 class ExecuteToolJob implements ShouldQueue
 {
@@ -51,21 +51,29 @@ class ExecuteToolJob implements ShouldQueue
         $this->toolCallId = $toolCallId;
     }
 
-    public function handle(ToolRegistry $toolRegistry): void
+    /**
+     * Execute the job.
+     *
+     * @param  LMStudioFactory  $factory  Resolved from container.
+     *
+     * @throws Throwable If tool execution fails.
+     * @throws RuntimeException If tool is not found.
+     */
+    public function handle(LMStudioFactory $factory): void
     {
+        $toolRegistry = $factory->getToolRegistry();
+        $eventHandler = $factory->getEventHandler();
+
         if (! $toolRegistry->hasTool($this->toolName)) {
             $error = new RuntimeException("Tool '{$this->toolName}' not found in registry");
-            Event::dispatch('lmstudio.tool.error', [$error, $this->toolCallId]);
+            $eventHandler->trigger('tool.error', $this->toolName, $this->parameters, $this->toolCallId, $error);
 
             throw $error;
         }
 
         try {
-            $result = $toolRegistry->executeTool($this->toolName, $this->parameters);
-            Event::dispatch('lmstudio.tool.success', [$result, $this->toolCallId]);
-        } catch (\Throwable $e) {
-            Event::dispatch('lmstudio.tool.error', [$e, $this->toolCallId]);
-
+            $result = $toolRegistry->executeTool($this->toolName, $this->parameters, $this->toolCallId);
+        } catch (Throwable $e) {
             throw $e;
         }
     }

@@ -146,6 +146,9 @@ class HttpClient implements HttpClientInterface
             CURLOPT_ENCODING => '',
             CURLOPT_MAXREDIRS => 10,
             CURLOPT_TIMEOUT => 0,
+            CURLOPT_CONNECTTIMEOUT => 60,
+            CURLOPT_LOW_SPEED_LIMIT => 1,
+            CURLOPT_LOW_SPEED_TIME => 60,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_WRITEFUNCTION => function ($curlHandle, $streamData) use ($callback): int {

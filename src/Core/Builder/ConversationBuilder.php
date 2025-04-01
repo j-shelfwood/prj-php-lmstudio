@@ -4,34 +4,31 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Core\Builder;
 
-use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
-use Shelfwood\LMStudio\Api\Model\ResponseFormat;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolCallDelta;
-use Shelfwood\LMStudio\Api\Response\ChatCompletionResponse;
-use Shelfwood\LMStudio\Api\Service\ChatService;
-use Shelfwood\LMStudio\Core\Conversation\Conversation;
+use Shelfwood\LMStudio\Core\Conversation\ConversationState;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Manager\ConversationManager;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
-use Throwable;
+use Shelfwood\LMStudio\Core\Turn\NonStreamingTurnHandler;
+use Shelfwood\LMStudio\Core\Turn\StreamingTurnHandler;
+use Shelfwood\LMStudio\LMStudioFactory;
 
 /**
- * Builder for creating and configuring Conversation instances.
+ * Builder for creating and configuring ConversationManager instances.
  */
 class ConversationBuilder
 {
-    private readonly ChatService $chatService;
+    protected readonly LMStudioFactory $factory;
 
     private string $model;
 
     /** @var array<string, mixed> */
     private array $options = [];
 
-    private ToolRegistry $toolRegistry;
+    private ?ToolRegistry $toolRegistry = null;
 
-    private EventHandler $eventHandler;
+    private ?EventHandler $eventHandler = null;
 
     private bool $streaming = false;
 
@@ -39,34 +36,25 @@ class ConversationBuilder
 
     private ?ToolExecutor $toolExecutor = null;
 
+    private EventHandler $internalEventHandler;
+
+    private ?StreamingHandler $internalStreamingHandler = null;
+
     /**
      * Create a new ConversationBuilder.
      *
-     * @param  ChatService  $chatService  The chat service
-     * @param  string  $model  The model to use
-     * @param  ToolRegistry|null  $toolRegistry  Optional ToolRegistry instance
-     * @param  EventHandler|null  $eventHandler  Optional EventHandler instance
+     * @param  LMStudioFactory  $factory  The factory to resolve dependencies.
+     * @param  string  $model  The initial model ID.
      */
     public function __construct(
-        ChatService $chatService,
-        string $model,
-        ?ToolRegistry $toolRegistry = null,
-        ?EventHandler $eventHandler = null
+        LMStudioFactory $factory,
+        string $model
     ) {
-        $this->chatService = $chatService;
+        $this->factory = $factory;
         $this->model = $model;
-        // Use provided instances or create new ones
-        $this->toolRegistry = $toolRegistry ?? new ToolRegistry;
-        $this->eventHandler = $eventHandler ?? new EventHandler;
-        // Ensure ToolExecutor uses the correct registry and handler
-        $this->toolExecutor = new ToolExecutor($this->toolRegistry, $this->eventHandler);
+        $this->internalEventHandler = new EventHandler;
     }
 
-    /**
-     * Set the model to use.
-     *
-     * @param  string  $model  The model to use
-     */
     public function withModel(string $model): self
     {
         $this->model = $model;
@@ -74,63 +62,58 @@ class ConversationBuilder
         return $this;
     }
 
-    /**
-     * Set additional options.
-     *
-     * @param  array<string, mixed>  $options  Additional options
-     */
     public function withOptions(array $options): self
     {
-        $this->options = array_merge($this->options, $options);
+        $this->options = array_merge($options, $this->options);
 
         return $this;
     }
 
-    /**
-     * Register a tool function.
-     *
-     * @param  string  $name  The name of the function
-     * @param  callable(array<string, mixed>): mixed  $callback  The function to call
-     * @param  array<string, mixed>  $parameters  The function parameters schema
-     * @param  string|null  $description  The function description
-     */
     public function withTool(string $name, callable $callback, array $parameters, ?string $description = null): self
     {
+        if ($this->toolRegistry === null) {
+            $this->toolRegistry = $this->factory->getToolRegistry();
+        }
         $this->toolRegistry->registerTool($name, $callback, $parameters, $description);
 
         return $this;
     }
 
-    /**
-     * Enable streaming for the conversation.
-     *
-     * @param  bool  $streaming  Whether to enable streaming
-     */
     public function withStreaming(bool $streaming = true): self
     {
         $this->streaming = $streaming;
-        $this->options['stream'] = $streaming;
+
+        if ($streaming && $this->internalStreamingHandler === null && $this->streamingHandler === null) {
+            $this->internalStreamingHandler = $this->factory->createStreamingHandler();
+        }
+
+        if (! $streaming) {
+            $this->streamingHandler = null;
+            $this->internalStreamingHandler = null;
+        }
+        unset($this->options['stream']);
 
         return $this;
     }
 
     /**
-     * Set a streaming handler for the conversation.
-     *
-     * @param  StreamingHandler  $handler  The streaming handler
+     * Provide an external StreamingHandler instance.
+     * Enabling streaming is implied.
      */
     public function withStreamingHandler(StreamingHandler $handler): self
     {
         $this->streamingHandler = $handler;
-        $this->withStreaming(true);
+        $this->internalStreamingHandler = null;
+        $this->streaming = true;
+        unset($this->options['stream']);
 
         return $this;
     }
 
     /**
-     * Set a tool registry for the conversation.
-     *
-     * @param  ToolRegistry  $registry  The tool registry
+     * Provide an external ToolRegistry instance.
+     * Note: Tools added via withTool() might target the factory's default registry
+     * before this method is called. Call this early if providing your own.
      */
     public function withToolRegistry(ToolRegistry $registry): self
     {
@@ -139,11 +122,7 @@ class ConversationBuilder
         return $this;
     }
 
-    /**
-     * Set a tool executor for the conversation.
-     *
-     * @param  ToolExecutor  $executor  The tool executor
-     */
+    /** Provide an external ToolExecutor instance. */
     public function withToolExecutor(ToolExecutor $executor): self
     {
         $this->toolExecutor = $executor;
@@ -151,236 +130,169 @@ class ConversationBuilder
         return $this;
     }
 
-    /**
-     * Register a callback for when a tool is called.
-     *
-     * @param  callable(string, array<string, mixed>, string): void  $callback  (string $toolName, array $arguments, string $toolCallId)
-     */
-    public function onToolCall(callable $callback): self
+    /** Provide an external EventHandler instance for general events. */
+    public function withEventHandler(EventHandler $handler): self
     {
-        $this->eventHandler->on('tool.executing', $callback);
+        $this->eventHandler = $handler;
 
         return $this;
     }
 
-    /**
-     * Register a callback for when a tool is executed.
-     *
-     * @param  callable(string, array<string, mixed>, string, mixed): void  $callback  (string $toolName, array $arguments, string $toolCallId, mixed $result)
-     */
-    public function onToolExecuted(callable $callback): self
-    {
-        $this->eventHandler->on('tool.executed', $callback);
-
-        return $this;
-    }
-
-    /**
-     * Register a callback for when a response is received (non-streaming).
-     *
-     * @param  callable(ChatCompletionResponse): void  $callback
-     */
     public function onResponse(callable $callback): self
     {
-        $this->eventHandler->on('response', $callback);
+        $this->internalEventHandler->on('response', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when an error occurs.
-     *
-     * @param  callable(Throwable): void  $callback
-     */
     public function onError(callable $callback): self
     {
-        $this->eventHandler->on('error', $callback);
+        $this->internalEventHandler->on('error', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when a chunk is received during streaming.
-     *
-     * @param  callable(ChatCompletionChunk): void  $callback
-     */
-    public function onChunk(callable $callback): self
+    public function onToolExecuting(callable $callback): self
     {
-        $this->eventHandler->on('chunk', $callback);
+        $this->internalEventHandler->on('tool.executing', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when streaming starts.
-     *
-     * @param  callable(ChatCompletionChunk): void  $callback
-     */
+    public function onToolExecuted(callable $callback): self
+    {
+        $this->internalEventHandler->on('tool.executed', $callback);
+
+        return $this;
+    }
+
+    public function onToolError(callable $callback): self
+    {
+        $this->internalEventHandler->on('tool.error', $callback);
+
+        return $this;
+    }
+
+    private function ensureInternalStreamingHandler(): StreamingHandler
+    {
+        if ($this->streamingHandler) {
+            throw new \LogicException('Cannot configure stream events when an external StreamingHandler is provided via withStreamingHandler(). Attach listeners directly to your handler instance.');
+        }
+
+        if ($this->internalStreamingHandler === null) {
+            $this->withStreaming(true);
+        }
+
+        return $this->internalStreamingHandler;
+    }
+
     public function onStreamStart(callable $callback): self
     {
-        if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler;
-            $this->withStreaming(true);
-        }
-
-        $this->streamingHandler->on('stream_start', $callback);
+        $this->ensureInternalStreamingHandler()->on('stream_start', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when content is received during streaming.
-     *
-     * @param  callable(string, ChatCompletionChunk): void  $callback  (string $content, ChatCompletionChunk $chunk)
-     */
     public function onStreamContent(callable $callback): self
     {
-        if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler;
-            $this->withStreaming(true);
-        }
-
-        $this->streamingHandler->on('stream_content', $callback);
+        $this->ensureInternalStreamingHandler()->on('stream_content', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when a tool call START is received during streaming.
-     *
-     * @param  callable(int, ?string, ?string, ChatCompletionChunk): void  $callback  (int $index, ?string $id, ?string $type, ChatCompletionChunk $chunk)
-     */
     public function onStreamToolCallStart(callable $callback): self
     {
-        if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler($this->eventHandler);
-            $this->withStreaming(true);
-        }
-        $this->streamingHandler->on('stream_tool_call_start', $callback);
+        $this->ensureInternalStreamingHandler()->on('stream_tool_call_start', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when a tool call DELTA is received during streaming.
-     *
-     * @param  callable(int, ToolCallDelta, ChatCompletionChunk): void  $callback  (int $index, ToolCallDelta $delta, ChatCompletionChunk $chunk)
-     */
     public function onStreamToolCallDelta(callable $callback): self
     {
-        if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler($this->eventHandler);
-            $this->withStreaming(true);
-        }
-        $this->streamingHandler->on('stream_tool_call_delta', $callback);
+        $this->ensureInternalStreamingHandler()->on('stream_tool_call_delta', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when a tool call END (assembly complete/failed) is received during streaming.
-     *
-     * @param  callable(int, ToolCall): void  $callback  (int $index, ToolCall $assembledToolCall)
-     */
     public function onStreamToolCallEnd(callable $callback): self
     {
-        if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler($this->eventHandler);
-            $this->withStreaming(true);
-        }
-        $this->streamingHandler->on('stream_tool_call_end', $callback);
+        $this->ensureInternalStreamingHandler()->on('stream_tool_call_end', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when streaming ends.
-     *
-     * @param  callable(?array<ToolCall>, ChatCompletionChunk): void  $callback  (?array $finalToolCalls, ChatCompletionChunk $chunk)
-     */
     public function onStreamEnd(callable $callback): self
     {
-        if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler;
-            $this->withStreaming(true);
-        }
-
-        $this->streamingHandler->on('stream_end', $callback);
+        $this->ensureInternalStreamingHandler()->on('stream_end', $callback);
 
         return $this;
     }
 
-    /**
-     * Register a callback for when a streaming error occurs.
-     *
-     * @param  callable(Throwable, ?ChatCompletionChunk): void  $callback  (Throwable $error, ?ChatCompletionChunk $chunk)
-     */
     public function onStreamError(callable $callback): self
     {
-        if ($this->streamingHandler === null) {
-            $this->streamingHandler = new StreamingHandler;
-            $this->withStreaming(true);
+        $this->ensureInternalStreamingHandler()->on('stream_error', $callback);
+
+        return $this;
+    }
+
+    /**
+     * Build the ConversationManager instance.
+     */
+    public function build(): ConversationManager
+    {
+        $finalToolRegistry = $this->toolRegistry ?? $this->factory->getToolRegistry();
+        $finalEventHandler = $this->eventHandler ?? $this->internalEventHandler;
+        $finalStreamProcessor = $this->streamingHandler ?? $this->internalStreamingHandler;
+        $finalToolExecutor = $this->toolExecutor ?? $this->factory->createToolExecutor($finalToolRegistry, $finalEventHandler);
+
+        $apiOptions = $this->options;
+        unset($apiOptions['stream_timeout']);
+        $conversationState = new ConversationState($this->model, $apiOptions);
+
+        // Instantiate handlers directly using dependencies from the factory
+        $nonStreamingHandler = new NonStreamingTurnHandler(
+            $this->factory->getChatService(),
+            $finalToolRegistry,
+            $finalToolExecutor,
+            $finalEventHandler,
+            $this->factory->getLogger() // Assuming a getLogger() method exists on the factory
+        );
+
+        $streamingTurnHandler = null;
+
+        if ($this->streaming) {
+            if ($finalStreamProcessor === null) {
+                throw new \LogicException('Streaming is enabled but no StreamingHandler (stream processor) is available.');
+            }
+            // Instantiate handlers directly
+            $streamingTurnHandler = new StreamingTurnHandler(
+                $this->factory->getChatService(),
+                $finalToolRegistry,
+                $finalToolExecutor,
+                $finalEventHandler,
+                $finalStreamProcessor,
+                $this->factory->getLogger() // Assuming a getLogger() method exists on the factory
+            );
         }
 
-        $this->streamingHandler->on('stream_error', $callback);
+        // Merge listeners from internal handler to the final handler if necessary
+        if ($this->eventHandler === null && $this->internalEventHandler->hasAnyCallbacks()) {
+            // If user didn't provide an external handler, but configured the internal one,
+            // $finalEventHandler is $this->internalEventHandler, so listeners are already there.
+            // No action needed here.
+        }
+        // Similar logic for stream listeners: they are configured on the instance ($finalStreamProcessor) directly.
 
-        return $this;
-    }
-
-    /**
-     * Set the response format.
-     *
-     * @param  ResponseFormat  $responseFormat  The response format
-     */
-    public function withResponseFormat(ResponseFormat $responseFormat): self
-    {
-        $this->options['response_format'] = $responseFormat;
-
-        return $this;
-    }
-
-    /**
-     * Get the tool registry.
-     *
-     * @return ToolRegistry The tool registry
-     */
-    public function getToolRegistry(): ToolRegistry
-    {
-        return $this->toolRegistry;
-    }
-
-    /**
-     * Add a system message to the conversation.
-     *
-     * @param  string  $content  The system message content
-     */
-    public function withSystemMessage(string $content): self
-    {
-        $this->eventHandler->on('conversation_build', function (Conversation $conversation) use ($content): void {
-            $conversation->addSystemMessage($content);
-        });
-
-        return $this;
-    }
-
-    /**
-     * Build the conversation.
-     */
-    public function build(): Conversation
-    {
-        // We no longer add tools to options here
-        // Tools will be handled directly by the Conversation class
-        // This avoids duplication issues with the tools array
-
-        return new Conversation(
-            $this->chatService,
-            $this->model,
-            $this->options,
-            $this->toolRegistry,
-            $this->eventHandler,
-            $this->streaming,
-            $this->streamingHandler,
-            $this->toolExecutor
+        // Create the manager
+        $manager = new ConversationManager(
+            state: $conversationState,
+            nonStreamingHandler: $nonStreamingHandler,
+            streamingTurnHandler: $streamingTurnHandler,
+            eventHandler: $finalEventHandler,
+            streamProcessor: $finalStreamProcessor,
+            isStreaming: $this->streaming
         );
+
+        return $manager;
     }
 }

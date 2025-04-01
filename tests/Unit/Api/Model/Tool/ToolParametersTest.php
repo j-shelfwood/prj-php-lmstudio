@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Api\Model\Tool;
-
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameter;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 

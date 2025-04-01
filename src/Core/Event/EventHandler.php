@@ -67,6 +67,16 @@ class EventHandler
     }
 
     /**
+     * Check if any callbacks are registered for any event.
+     *
+     * @return bool True if at least one callback is registered, false otherwise.
+     */
+    public function hasAnyCallbacks(): bool
+    {
+        return ! empty($this->handlers);
+    }
+
+    /**
      * Get all callbacks for an event.
      *
      * @param  string  $event  The event name

@@ -7,13 +7,9 @@ namespace Shelfwood\LMStudio\Laravel\Commands;
 use Illuminate\Console\Command;
 use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
 use Shelfwood\LMStudio\Api\Enum\Role;
-use Shelfwood\LMStudio\Api\Enum\ToolType;
 use Shelfwood\LMStudio\Api\Exception\ApiException;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\ResponseFormat;
-use Shelfwood\LMStudio\Api\Model\Tool;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 use Shelfwood\LMStudio\LMStudioFactory;
 
 class SequenceCommand extends Command
@@ -48,11 +44,11 @@ class SequenceCommand extends Command
         $this->info("Using embedding model: $embeddingModel");
         $this->newLine();
 
-        // Create services
-        $modelService = $factory->createModelService();
-        $chatService = $factory->createChatService();
-        $completionService = $factory->createCompletionService();
-        $embeddingService = $factory->createEmbeddingService();
+        // Create services (using the injected factory)
+        $modelService = $factory->getModelService();
+        $chatService = $factory->getChatService();
+        $completionService = $factory->getCompletionService();
+        $embeddingService = $factory->getEmbeddingService();
 
         // Step 1: List models
         $this->runStep(1, 'Listing available models', function () use ($modelService) {
@@ -60,8 +56,8 @@ class SequenceCommand extends Command
             $models = $modelResponse->getModels();
             $this->info('Available models:');
 
-            foreach ($models as $model) {
-                $this->line(" - {$model->id} ({$model->state->value})");
+            foreach ($models as $modelInfo) {
+                $this->line(" - {$modelInfo->id} ({$modelInfo->state->value})");
             }
 
             return count($models).' models found';
@@ -93,49 +89,27 @@ class SequenceCommand extends Command
         });
 
         // Step 4: Chat completion with tools
-        $this->runStep(4, 'Chat completion with tools', function () use ($chatService, $model) {
-            $messages = [
-                new Message(Role::USER, 'What time is it?'),
-            ];
-
-            $weatherTool = new Tool(
-                ToolType::FUNCTION,
-                new ToolDefinition(
+        $this->runStep(4, 'Chat completion with tools', function () use ($factory, $model) {
+            $conversation = $factory->createConversationBuilder($model)
+                ->withTool(
                     'get_current_time',
-                    'Get the current server time',
-                    new ToolParameters([], [])
+                    fn () => ['time' => date('Y-m-d H:i:s')],
+                    [
+                        'type' => 'object',
+                        'properties' => [],
+                    ],
+                    'Gets the current server date and time.'
                 )
-            );
+                ->build();
 
-            $response = $chatService->createCompletion($model, $messages, [
-                'tools' => [$weatherTool],
-            ]);
+            $conversation->addMessage(new Message(Role::SYSTEM, 'You have access to tools.'));
+            $conversation->addMessage(new Message(Role::USER, 'What time is it please?'));
 
-            if ($response->hasToolCalls()) {
-                $toolCalls = $response->getToolCalls();
-                $this->info('Tool calls requested:');
+            $finalResponse = $conversation->getResponse();
 
-                foreach ($toolCalls as $toolCall) {
-                    $this->line(" - {$toolCall['function']['name']}");
+            $this->info('Final response: '.$finalResponse);
 
-                    // Simulate tool execution
-                    $result = date('Y-m-d H:i:s');
-
-                    // Add tool result to conversation
-                    $messages[] = new Message(Role::ASSISTANT, null, $toolCall['id']);
-                    $messages[] = new Message(Role::TOOL, $result, $toolCall['id']);
-
-                    // Get final response
-                    $finalResponse = $chatService->createCompletion($model, $messages);
-                    $this->info('Final response: '.$finalResponse->getContent());
-                }
-
-                return 'Tool-based chat completion successful';
-            } else {
-                $this->info('Response: '.$response->getContent());
-
-                return 'Chat completion successful (no tools used)';
-            }
+            return 'Tool-based chat completion successful (using ConversationManager)';
         });
 
         // Step 5: Chat completion with structured output
@@ -182,7 +156,6 @@ class SequenceCommand extends Command
             $this->info('Structured response:');
             $this->line($response->getContent());
 
-            // Pretty print the JSON
             $jsonData = json_decode($response->getContent(), true);
 
             if (json_last_error() === JSON_ERROR_NONE) {
@@ -194,6 +167,8 @@ class SequenceCommand extends Command
                     $this->line(" - Population: {$jsonData['population']}");
                 }
                 $this->line(' - Landmarks: '.implode(', ', $jsonData['landmarks']));
+            } else {
+                $this->warn(' - Failed to parse JSON response.');
             }
 
             return 'Structured output chat completion successful';
@@ -219,7 +194,6 @@ class SequenceCommand extends Command
 
             $response = $embeddingService->createEmbedding($embeddingModel, $text);
 
-            // Get the first embedding from the data array
             $embedding = $response->data[0]['embedding'] ?? [];
             $dimensions = count($embedding);
 
@@ -232,7 +206,7 @@ class SequenceCommand extends Command
 
         // Step 8: Conversation
         $this->runStep(8, 'Conversation', function () use ($factory, $model) {
-            $conversation = $factory->createConversation($model);
+            $conversation = $factory->createConversationBuilder($model)->build();
 
             $conversation->addSystemMessage('You are a helpful assistant that responds in a concise manner.');
             $conversation->addUserMessage('What is machine learning?');
@@ -245,7 +219,7 @@ class SequenceCommand extends Command
             $response2 = $conversation->getResponse();
             $this->info('Response 2: '.$response2);
 
-            return 'Conversation successful';
+            return 'Conversation successful (using ConversationManager)';
         });
 
         $this->newLine();
@@ -254,13 +228,6 @@ class SequenceCommand extends Command
         return Command::SUCCESS;
     }
 
-    /**
-     * Run a step in the sequence.
-     *
-     * @param  int  $number  The step number
-     * @param  string  $description  The step description
-     * @param  callable  $callback  The step callback
-     */
     protected function runStep(int $number, string $description, callable $callback): void
     {
         $this->newLine();
@@ -272,31 +239,39 @@ class SequenceCommand extends Command
             $this->newLine();
             $this->components->task($description, true);
 
-            if ($result) {
+            if (is_string($result) && $result) {
                 $this->line("  ↪ $result");
             }
         } catch (\Exception $e) {
             $this->newLine();
             $this->components->task($description, false);
 
-            // Extract useful information from the error
             $message = $e->getMessage();
 
             if ($e instanceof ApiException && $e->getResponse()) {
-                $response = $e->getResponse();
+                $apiResponse = $e->getResponse();
 
-                if (isset($response['error'])) {
-                    $message = is_string($response['error']) ? $response['error'] : json_encode($response['error']);
+                if (isset($apiResponse['error'])) {
+                    $errorData = $apiResponse['error'];
+
+                    if (is_string($errorData)) {
+                        $message = $errorData;
+                    } elseif (is_array($errorData) && isset($errorData['message'])) {
+                        $message = $errorData['message'];
+                    } else {
+                        $message = json_encode($errorData);
+                    }
                 }
             }
 
             $this->error("  ↪ Error: {$message}");
 
-            // Add helpful context for specific errors
-            if (str_contains($message, 'not found')) {
-                $this->warn("  ↪ Hint: The model ID might have changed. Check available models with 'lmstudio:models'");
-            } elseif (str_contains($message, 'function')) {
-                $this->warn('  ↪ Hint: This model might not support function calling. Try a different model or disable tools.');
+            if (str_contains($message, 'not found') || str_contains($message, 'does not exist')) {
+                $this->warn("  ↪ Hint: The model ID might be incorrect or the model isn't loaded. Check available models.");
+            } elseif (str_contains($message, 'function') || str_contains($message, 'tool')) {
+                $this->warn('  ↪ Hint: This model might not support function/tool calling, or the tool definition is incorrect.');
+            } elseif ($e instanceof \GuzzleHttp\Exception\ConnectException || str_contains($message, 'Connection refused')) {
+                $this->warn('  ↪ Hint: Could not connect to LM Studio. Is the server running at the configured base URL?');
             }
         }
     }

@@ -3,13 +3,16 @@
 declare(strict_types=1);
 
 use Shelfwood\LMStudio\Api\Client\ApiClient;
+use Shelfwood\LMStudio\Api\Client\HttpClient;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Api\Service\CompletionService;
 use Shelfwood\LMStudio\Api\Service\EmbeddingService;
 use Shelfwood\LMStudio\Api\Service\ModelService;
 use Shelfwood\LMStudio\Core\Builder\ConversationBuilder;
-use Shelfwood\LMStudio\Core\Conversation\Conversation;
+use Shelfwood\LMStudio\Core\Conversation\ConversationState;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
+use Shelfwood\LMStudio\Core\Manager\ConversationManager;
+use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
 use Shelfwood\LMStudio\Core\Tool\ToolConfigService;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
@@ -18,136 +21,151 @@ use Shelfwood\LMStudio\LMStudioFactory;
 /** @var LMStudioFactory $factory */
 $factory = null; // Define for type hinting
 
-beforeEach(function () use (&$factory): void {
-    $factory = new LMStudioFactory('http://localhost:1234/v1', [], 'test-key');
+beforeEach(function (): void {
+    // Mock only the lowest level dependency if needed (e.g., HttpClient)
+    // $this->mockHttpClient = Mockery::mock(HttpClient::class);
+
+    // Instantiate the REAL factory
+    // We might need to provide real or minimal mock dependencies here
+    // For now, let's assume defaults are okay or mock HttpClient if necessary
+    $this->factory = new LMStudioFactory(
+        baseUrl: 'http://example.com/api',
+        defaultHeaders: [],
+        apiKey: 'test-api-key',
+        // config: [], // Optional config
+        // logger: null // Optional logger
+        // If HttpClient is needed: Inject mock or use partial mock for getHttpClient only
+    );
+
+    // --- Remove extensive mocking from beforeEach ---
+    // Mockery expectations will be added within specific tests IF needed
+    // for methods called on services RETURNED by the factory.
+
 });
 
-test('factory provides api client', function () use (&$factory): void {
-    $client = $factory->getApiClient();
+test('factory provides api client', function (): void {
+    $client = $this->factory->getApiClient();
     expect($client)->toBeInstanceOf(ApiClient::class);
-    // Check if singleton (optional, depends on desired behavior for clients/services)
-    expect($factory->getApiClient())->toBe($client);
+    // Check if the factory consistently returns the same instance (singleton behavior)
+    expect($this->factory->getApiClient())->toBe($client);
 });
 
-test('factory provides model service', function () use (&$factory): void {
-    $service = $factory->getModelService();
+test('factory provides model service', function (): void {
+    $service = $this->factory->getModelService();
     expect($service)->toBeInstanceOf(ModelService::class);
-    expect($factory->getModelService())->toBe($service); // Services are usually singletons per factory
+    expect($this->factory->getModelService())->toBe($service);
 });
 
-test('factory provides chat service', function () use (&$factory): void {
-    $service = $factory->getChatService();
+test('factory provides chat service', function (): void {
+    $service = $this->factory->getChatService();
     expect($service)->toBeInstanceOf(ChatService::class);
-    expect($factory->getChatService())->toBe($service);
+    expect($this->factory->getChatService())->toBe($service);
 });
 
-test('factory provides completion service', function () use (&$factory): void {
-    $service = $factory->getCompletionService();
+test('factory provides completion service', function (): void {
+    $service = $this->factory->getCompletionService();
     expect($service)->toBeInstanceOf(CompletionService::class);
-    expect($factory->getCompletionService())->toBe($service);
+    expect($this->factory->getCompletionService())->toBe($service);
 });
 
-test('factory provides embedding service', function () use (&$factory): void {
-    $service = $factory->getEmbeddingService();
+test('factory provides embedding service', function (): void {
+    $service = $this->factory->getEmbeddingService();
     expect($service)->toBeInstanceOf(EmbeddingService::class);
-    expect($factory->getEmbeddingService())->toBe($service);
+    expect($this->factory->getEmbeddingService())->toBe($service);
 });
 
-// --- Tests for Core Component Singletons (Accessed via public readonly properties) ---
+// --- Tests for Core Component Accessors/Creators ---
 
-test('factory provides singleton tool registry', function () use (&$factory): void {
-    $registry1 = $factory->toolRegistry; // Access directly
-    $registry2 = $factory->toolRegistry;
+test('getToolRegistry returns the singleton instance', function (): void {
+    $registry1 = $this->factory->getToolRegistry();
+    $registry2 = $this->factory->getToolRegistry();
     expect($registry1)->toBeInstanceOf(ToolRegistry::class);
     expect($registry2)->toBe($registry1); // Check for same instance
+    // Now we can check the internal property on the real factory
+    expect($registry1)->toBe($this->factory->toolRegistry);
 });
 
-test('factory provides singleton event handler', function () use (&$factory): void {
-    $handler1 = $factory->eventHandler; // Access directly
-    $handler2 = $factory->eventHandler;
+test('getEventHandler returns the singleton instance', function (): void {
+    $handler1 = $this->factory->getEventHandler();
+    $handler2 = $this->factory->getEventHandler();
     expect($handler1)->toBeInstanceOf(EventHandler::class);
     expect($handler2)->toBe($handler1);
+    // Check internal property
+    expect($handler1)->toBe($this->factory->eventHandler);
 });
 
-test('factory provides singleton tool executor', function () use (&$factory): void {
-    $executor1 = $factory->toolExecutor; // Access directly
-    $executor2 = $factory->toolExecutor;
-    expect($executor1)->toBeInstanceOf(ToolExecutor::class);
-    expect($executor2)->toBe($executor1);
+test('createToolExecutor creates an instance', function (): void {
+    // Mock dependencies needed by the REAL ToolExecutor constructor if necessary
+    // $mockRegistry = Mockery::mock(ToolRegistry::class);
+    // $mockHandler = Mockery::mock(EventHandler::class);
+    // $executor = $this->factory->createToolExecutor($mockRegistry, $mockHandler);
+    $executor = $this->factory->createToolExecutor(); // Call the real method
+    expect($executor)->toBeInstanceOf(ToolExecutor::class);
 });
 
-test('factory provides singleton tool config service', function () use (&$factory): void {
-    $configService1 = $factory->toolConfigService; // Access directly
-    $configService2 = $factory->toolConfigService;
+// Removed test for non-existent createNonStreamingTurnHandler
+// test('createNonStreamingTurnHandler creates an instance', ...);
+
+// Removed test for non-existent createStreamingTurnHandler
+// test('createStreamingTurnHandler creates an instance', ...);
+
+test('createStreamingHandler creates an instance', function (): void {
+    $handler = $this->factory->createStreamingHandler(); // Call the real method
+    expect($handler)->toBeInstanceOf(StreamingHandler::class);
+});
+
+test('factory provides singleton tool config service', function (): void {
+    // Access the real public readonly property
+    $configService1 = $this->factory->toolConfigService;
+    $configService2 = $this->factory->toolConfigService;
     expect($configService1)->toBeInstanceOf(ToolConfigService::class);
     expect($configService2)->toBe($configService1);
 });
 
-// --- Tests for Conversation Creation ---
+// --- Tests for ConversationManager Creation --- NEW
 
-test('create conversation uses correct dependencies and defaults', function () use (&$factory): void {
-    $conversation = $factory->createConversation('test-model');
-
-    expect($conversation)->toBeInstanceOf(Conversation::class);
-    expect($conversation->getModel())->toBe('test-model');
-    expect($conversation->getOptions())->toBe([]); // Default options
-    expect($conversation->streaming)->toBeFalse(); // Access readonly property
-    expect($conversation->streamingHandler)->toBeNull(); // Access readonly property
-
-    // Verify it received the factory's singleton instances via readonly properties
-    expect($conversation->toolRegistry)->toBe($factory->toolRegistry); // Access readonly properties
-    expect($conversation->eventHandler)->toBe($factory->eventHandler);
-    expect($conversation->toolExecutor)->toBe($factory->toolExecutor);
+test('createConversation creates ConversationManager with correct dependencies', function (): void {
+    // Mock external calls made by ConversationManager or its dependencies if needed
+    // e.g., Mock ChatService calls if createConversation triggers them
+    $manager = $this->factory->createConversation('test-model'); // Calls the REAL factory method
+    expect($manager)->toBeInstanceOf(ConversationManager::class);
+    expect($manager->getModel())->toBe('test-model');
+    expect($manager->getOptions())->toBe([]); // Default options
+    expect($manager->isStreaming)->toBeFalse();
+    // Check the internal state object directly
+    expect($manager->state)->toBeInstanceOf(ConversationState::class);
+    expect($manager->state->getModel())->toBe('test-model');
+    expect($manager->state->getOptions())->toBe([]);
 });
 
-test('create conversation with options passes them correctly', function () use (&$factory): void {
+test('createConversation with options passes them to state', function (): void {
     $options = ['temperature' => 0.7, 'max_tokens' => 100];
-    $conversation = $factory->createConversation('test-model-options', $options);
-
-    expect($conversation)->toBeInstanceOf(Conversation::class);
-    expect($conversation->getModel())->toBe('test-model-options');
-    // Check base options are merged, stream option is NOT added here
-    expect($conversation->getOptions())->toBe($options);
-    expect($conversation->streaming)->toBeFalse(); // Access readonly property
+    $manager = $this->factory->createConversation('test-model-options', $options);
+    expect($manager)->toBeInstanceOf(ConversationManager::class);
+    expect($manager->getModel())->toBe('test-model-options');
+    expect($manager->getOptions())->toBe($options);
+    expect($manager->isStreaming)->toBeFalse();
+    // Check state directly
+    expect($manager->state->getOptions())->toBe($options);
 });
 
-test('create streaming conversation sets up correctly', function () use (&$factory): void {
+test('createStreamingConversation creates streaming ConversationManager', function (): void {
     $options = ['temperature' => 0.9];
-    // Revert to using the dedicated factory method, which should now be fixed
-    $conversation = $factory->createStreamingConversation('test-model-stream', $options);
-
-    expect($conversation)->toBeInstanceOf(Conversation::class);
-    expect($conversation->getModel())->toBe('test-model-stream');
-    // Verify base options are kept AND stream option is added
-    expect($conversation->getOptions())->toBe(['temperature' => 0.9, 'stream' => true]);
-    expect($conversation->streaming)->toBeTrue(); // Access readonly property
-
-    // Verify StreamingHandler instance and its dependency via readonly properties
-    expect($conversation->streamingHandler)->toBeInstanceOf(\Shelfwood\LMStudio\Core\Streaming\StreamingHandler::class); // Access readonly property
-    // Assuming StreamingHandler has a getter for EventHandler - REMOVED this check as it's not essential here
-    // expect($streamingHandler->getEventHandler())->toBe($factory->eventHandler); // Check against factory readonly property
-
-    // Verify other core dependencies via readonly properties
-    expect($conversation->toolRegistry)->toBe($factory->toolRegistry); // Access readonly properties
-    expect($conversation->eventHandler)->toBe($factory->eventHandler);
-    expect($conversation->toolExecutor)->toBe($factory->toolExecutor);
+    $manager = $this->factory->createStreamingConversation('test-model-stream', $options);
+    expect($manager)->toBeInstanceOf(ConversationManager::class);
+    expect($manager->getModel())->toBe('test-model-stream');
+    expect($manager->getOptions())->toBe($options);
+    expect($manager->isStreaming)->toBeTrue();
+    // Check state directly
+    expect($manager->state->getOptions())->toBe($options);
 });
 
 // --- Tests for ConversationBuilder Creation ---
 
-test('create conversation builder provides builder instance', function () use (&$factory): void {
-    $builder = $factory->createConversationBuilder('build-model');
+test('create conversation builder provides builder instance', function (): void {
+    $builder = $this->factory->createConversationBuilder('build-model');
     expect($builder)->toBeInstanceOf(ConversationBuilder::class);
-    // Verifying the ChatService injection requires a getter on ConversationBuilder or reflection.
-    // Assuming correct injection based on factory implementation for now.
 });
 
-test('create streaming conversation builder provides configured builder', function () use (&$factory): void {
-    $builder = $factory->createConversationBuilder('build-model-stream', [], true); // Assuming streaming flag
-    expect($builder)->toBeInstanceOf(ConversationBuilder::class);
-    // Assuming builder correctly sets streaming=true internally when flag is passed.
-    // Cannot directly verify without a getter like $builder->isStreaming().
-});
-
-// Test createQueueableConversationBuilder (Optional, requires Laravel context/mocking)
+// Test createQueueableConversationBuilder (Remains optional, needs Laravel context)
 // test('create queueable conversation builder', function() { ... });

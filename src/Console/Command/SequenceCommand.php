@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Console\Command;
 
-use Shelfwood\LMStudio\Api\Model\Tool;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
-use Shelfwood\LMStudio\Core\Conversation\Conversation;
+use Shelfwood\LMStudio\Api\Enum\Role;
+use Shelfwood\LMStudio\Core\Manager\ConversationManager;
 use Shelfwood\LMStudio\LMStudioFactory;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputOption;
@@ -30,7 +29,7 @@ class SequenceCommand extends BaseCommand
 
     private string $embeddingModel;
 
-    private ?Conversation $conversation = null;
+    private ?ConversationManager $conversation = null;
 
     private ?string $currentStepTitle = null;
 
@@ -159,7 +158,10 @@ class SequenceCommand extends BaseCommand
         } catch (Throwable $e) { // Catch Throwable for broader coverage
             $this->error("\n🚨 Sequence failed during step: ".($this->currentStepTitle ?? 'Setup'));
             $this->error('   Error: '.$e->getMessage());
-            $this->line("\n".$e->getTraceAsString()); // Print trace for debugging
+
+            if ($this->output->isVerbose()) {
+                $this->line("\n".$e->getTraceAsString()); // Print trace for debugging
+            }
 
             return Command::FAILURE;
         }
@@ -239,190 +241,204 @@ class SequenceCommand extends BaseCommand
 
     private function runBasicChat(): array
     {
-        $this->conversation = $this->factory->createConversation($this->modelId);
+        $this->conversation = $this->factory->createConversationBuilder($this->modelId)->build();
+
         $this->conversation->addSystemMessage('You are a helpful assistant.');
         $this->conversation->addUserMessage('What is the capital of France?');
         $responseContent = $this->conversation->getResponse();
         $this->info("Response: {$responseContent}");
 
-        // Assuming usage is attached to the conversation or response somehow if needed
         return ['details' => 'Chat completion successful'];
     }
 
-    /**
-     * REFACTORED: Run basic chat completion using streaming.
-     */
     private function runBasicChatStreaming(): array
     {
-        $this->conversation = $this->factory->createStreamingConversation($this->modelId);
-        $this->conversation->addSystemMessage('You are a helpful assistant.');
-        $this->conversation->addUserMessage('Describe quantum physics in simple terms.');
+        $this->conversation = $this->factory->createConversationBuilder($this->modelId)->withStreaming(true)->build();
 
-        // Access public readonly property for attaching user-defined listeners *before* handling the turn
-        $handler = $this->conversation->streamingHandler;
-
-        if ($handler === null) {
-            throw new \RuntimeException('Streaming handler not available for streaming conversation.');
-        }
+        $this->conversation->addSystemMessage('You are a helpful streaming assistant.');
+        $this->conversation->addUserMessage('Tell me a short story about a robot who learns to paint.');
 
         $fullResponse = '';
+        $this->info('Streaming response:');
+        $this->output->write('  ↪ '); // Start output line
 
-        // Example: User can still listen for content updates for UI etc.
-        $handler->on('stream_content', function (string $content) use (&$fullResponse): void {
+        // Register listener for content chunks
+        $this->conversation->onStreamContent(function (string $content) use (&$fullResponse): void {
             $this->output->write($content);
             $fullResponse .= $content;
         });
 
-        // Add a newline listener for cleaner output in the CLI
-        $handler->on('stream_end', fn () => $this->newLine());
-
-        // Handle stream errors if they occur (handleStreamingTurn will also throw)
-        $handler->on('stream_error', function (Throwable $e): void {
-            $this->error("\nStream error reported: {$e->getMessage()}");
+        // Listener for end to add a newline
+        $this->conversation->onStreamEnd(function (): void {
+            // Don't add newline here, do it after checking final content
         });
 
-        // --- Use the new simplified method ---
-        try {
-            // handleStreamingTurn blocks until the turn is complete (including potential tool calls/second response)
-            // The user-defined stream_content listener above will still execute during this.
-            $finalContent = $this->conversation->handleStreamingTurn();
-            // $finalContent contains the *final* textual response after any tool processing.
-            // The stream_content listener handled the real-time output already.
+        // Listener for stream errors
+        $this->conversation->onStreamError(function (Throwable $e): void {
+            $this->error("\n   [STREAM ERROR]: ".$e->getMessage());
+        });
 
-            // Note: $fullResponse accumulated by the listener might differ slightly if tools were involved,
-            // as it only captured the *initial* stream. $finalContent is the definitive result.
-            return ['details' => 'Streaming chat completed.'];
-        } catch (Throwable $e) {
-            $this->error("\nError during handleStreamingTurn: {$e->getMessage()}");
+        // Execute the streaming turn (listeners will fire during this)
+        $finalContent = $this->conversation->handleStreamingTurn();
 
-            // Re-throw or handle as appropriate for the command's workflow
-            throw $e;
+        // Check if final content differs significantly from streamed content or if stream was empty
+        if (trim($fullResponse) === '' || trim($finalContent) !== trim($fullResponse)) {
+            // If stream was empty or final content is different, print final content clearly
+            if (trim($fullResponse) === '') {
+                $this->output->writeln('');
+            } // Ensure newline if stream was empty
+            $this->info("\n   [Final Assembled Content]: ".trim($finalContent));
+        } else {
+            // Otherwise, just ensure the line is ended if content was streamed
+            $this->output->writeln('');
         }
+
+        return ['details' => 'Streaming chat successful'];
     }
 
     private function runChatWithTools(): array
     {
-        $this->conversation = $this->factory->createConversation($this->modelId);
+        $this->conversation = $this->factory->createConversationBuilder($this->modelId)
+            ->withTool(
+                'get_current_time',
+                fn () => ['time' => date('Y-m-d H:i:s')],
+                [
+                    'type' => 'object',
+                    'properties' => [],
+                ],
+                'Gets the current server date and time.'
+            )
+            ->build();
 
-        // Access public readonly property
-        $toolRegistry = $this->conversation->toolRegistry;
+        $this->conversation->addSystemMessage('You are an assistant that can use tools.');
+        $this->conversation->addUserMessage('What time is it right now?');
 
-        // Get tools from the factory's pre-configured ToolConfigService
-        $configuredTools = $this->factory->toolConfigService->getToolConfigurations();
+        $responseContent = $this->conversation->getResponse();
 
-        foreach ($configuredTools as $name => $config) {
-            $toolRegistry->registerTool(
-                $name,
-                $config['callback'],
-                $config['parameters'] ?? [],
-                $config['description'] ?? null
-            );
+        $this->info("Final Response: {$responseContent}");
+
+        $toolUsed = false;
+
+        foreach ($this->conversation->getMessages() as $message) {
+            if ($message->role === Role::TOOL && $message->toolCallId) {
+                $toolUsed = true;
+
+                break;
+            }
         }
 
-        $this->conversation->addSystemMessage('You are a calculator assistant.');
-        $this->conversation->addUserMessage('What is 2 + 2?');
-        $responseContent = $this->conversation->getResponse(); // This handles the tool call internally
-        $this->info("Response: {$responseContent}");
-
-        return ['details' => 'Tool call handled successfully.'];
+        return ['details' => 'Tool chat successful'.($toolUsed ? ' (tool was called)' : ' (tool not called)')];
     }
 
-    /**
-     * Run chat completion with tools using streaming.
-     */
     private function runChatWithToolsStreaming(): array
     {
-        $this->conversation = $this->factory->createStreamingConversation($this->modelId);
+        $this->conversation = $this->factory->createConversationBuilder($this->modelId)
+            ->withTool(
+                'get_weather',
+                function (array $args): array {
+                    $location = $args['location'] ?? 'unknown';
+                    $this->info("\n   [Tool Executing: get_weather for '{$location}']");
+                    $weather = 'sunny';
 
-        // Access public readonly properties
-        $toolRegistry = $this->conversation->toolRegistry;
-        $handler = $this->conversation->streamingHandler;
+                    if (stripos($location, 'london') !== false) {
+                        $weather = 'rainy';
+                    }
 
-        if ($handler === null) {
-            throw new \RuntimeException('Streaming handler not available for streaming conversation.');
-        }
+                    if (stripos($location, 'paris') !== false) {
+                        $weather = 'cloudy';
+                    }
+                    sleep(1); // Simulate network delay
 
-        if ($this->conversation->toolExecutor === null) { // Check if tool executor exists
-            throw new \RuntimeException('ToolExecutor not available in conversation.');
-        }
+                    return ['temperature' => rand(10, 25), 'conditions' => $weather];
+                },
+                [
+                    'type' => 'object',
+                    'properties' => [
+                        'location' => ['type' => 'string', 'description' => 'The city name'],
+                    ],
+                    'required' => ['location'],
+                ],
+                'Gets the current weather for a location.'
+            )
+            ->withStreaming(true)
+            ->build();
 
-        // Register tools (same as before)
-        $configuredTools = $this->factory->toolConfigService->getToolConfigurations();
+        $this->conversation->addSystemMessage('You are a helpful weather assistant with tools.');
+        $this->conversation->addUserMessage('What is the weather like in London?');
 
-        foreach ($configuredTools as $name => $config) {
-            $toolRegistry->registerTool(
-                $name,
-                $config['callback'],
-                $config['parameters'] ?? [],
-                $config['description'] ?? null
-            );
-        }
+        $fullResponse = '';
+        $toolCalledDuringStream = false; // Renamed for clarity
+        $toolExecutionResult = null; // Variable to store result/error
 
-        // Add initial messages
-        $this->conversation->addSystemMessage('You are a helpful assistant that can use tools like calculating or getting the time.');
-        $this->conversation->addUserMessage('What is the time? And then, calculate 100 / (5 + 5).');
+        $this->info('Streaming response:');
+        $this->output->write('  ↪ '); // Start output line
 
-        $this->info('Initial prompt sent. Waiting for streaming response and potential tool calls...');
-
-        // --- User-defined listeners (Optional: For observing the process) ---
-        $handler->on('stream_content', function (string $content): void {
-            // Show initial streamed content before any tool calls
+        // Register listener for content chunks
+        $this->conversation->onStreamContent(function (string $content) use (&$fullResponse): void {
             $this->output->write($content);
+            $fullResponse .= $content;
         });
 
-        $handler->on('stream_tool_call', function (ToolCall $toolCall, int $index): void {
-            $this->newLine(); // Ensure tool call info starts on a new line
-            $this->info("  [Stream attempting tool call #{$index}: {$toolCall->name}]");
+        // Listener for tool call start
+        $this->conversation->onStreamToolCallStart(function (string $toolCallId, string $toolName) use (&$toolCalledDuringStream): void {
+            $this->output->writeln("\n   [Tool Call Detected: ".($toolName ?: '<EMPTY_NAME>').'] [...processing...]'); // Show if name was empty
+            $toolCalledDuringStream = true;
         });
 
-        $handler->on('stream_end', function ($finalToolCalls): void {
-            if (! empty($finalToolCalls)) {
-                $this->info('  [Stream ended with final tool calls ready for execution]');
-            } else {
-                $this->info('  [Stream ended without tool calls]');
-            }
-            $this->newLine(); // New line after stream finishes
+        // Add listener for successful tool execution
+        $this->conversation->onToolExecuted(function (string $toolCallId, string $toolName, $result) use (&$toolExecutionResult): void {
+            $resultString = is_string($result) ? $result : json_encode($result);
+            $this->info('   [Tool Executed: '.($toolName ?: '<EMPTY_NAME>')." -> Result: {$resultString}]");
+            $toolExecutionResult = $result;
         });
 
-        $this->conversation->eventHandler->on('tool_executed', function (string $toolCallId, string $toolName, $result): void {
-            $this->info("  [Executed Tool: {$toolName} (ID: {$toolCallId}) -> Result: ".(is_string($result) ? $result : json_encode($result)).']');
+        // Add listener for tool execution error
+        $this->conversation->onToolError(function (string $toolCallId, string $toolName, Throwable $error) use (&$toolExecutionResult): void {
+            $this->error('   [Tool Error: '.($toolName ?: '<EMPTY_NAME>')." -> Error: {$error->getMessage()}]");
+            $toolExecutionResult = ['error' => $error->getMessage()]; // Store error info
         });
 
-        $handler->on('stream_error', function (Throwable $e): void {
-            $this->error("\nStream error reported: {$e->getMessage()}");
+        // Listener for end to add a newline
+        $this->conversation->onStreamEnd(function (): void {
+            // Don't add newline here
         });
 
-        // --- Use the new simplified method ---
-        try {
-            // handleStreamingTurn orchestrates the stream, tool execution, and final response
-            $finalResponseContent = $this->conversation->handleStreamingTurn();
+        // Listener for stream errors
+        $this->conversation->onStreamError(function (Throwable $e): void {
+            $this->error("\n   [STREAM ERROR]: ".$e->getMessage());
+        });
 
-            // Output the final response received *after* any tool execution
-            $this->info("\nFinal Assistant Response:");
-            $this->line($finalResponseContent);
+        // Execute the streaming turn (listeners will fire during this)
+        $finalContent = $this->conversation->handleStreamingTurn();
 
-            return ['details' => 'Streaming with tool calls completed successfully.'];
-        } catch (Throwable $e) {
-            $this->error("\nError during handleStreamingTurn with tools: {$e->getMessage()}");
-
-            // Re-throw or handle as appropriate for the command's workflow
-            throw $e;
+        // Check if final content differs significantly or if stream was empty
+        if (trim($fullResponse) === '' || trim($finalContent) !== trim($fullResponse)) {
+            if (trim($fullResponse) === '') {
+                $this->output->writeln('');
+            } // Ensure newline
+            $this->info("\n   [Final Assembled Content]: ".trim($finalContent));
+        } else {
+            $this->output->writeln(''); // Ensure newline
         }
+
+        // Refine details based on actual execution outcome
+        $details = 'Streaming tool chat successful';
+
+        if ($toolExecutionResult !== null) {
+            if (isset($toolExecutionResult['error'])) {
+                $details .= ' (tool execution FAILED)';
+            } else {
+                $details .= ' (tool executed successfully)';
+            }
+        } elseif ($toolCalledDuringStream) {
+            // Tool call detected in stream but no execution event fired (shouldn't normally happen)
+            $details .= ' (tool call detected but no execution result)';
+        } else {
+            $details .= ' (tool not called by model)';
+        }
+
+        return ['details' => $details];
     }
 
     // @TODO: Add more steps for other endpoints (Embeddings, Completions, Structured Output)
-
-    /**
-     * Execute a tool by name.
-     *
-     * @param  string  $name  The name of the tool
-     * @param  array<string, mixed>  $arguments  The arguments to pass to the tool
-     * @return mixed The result of the tool execution
-     *
-     * @throws \RuntimeException If the tool is not found
-     */
-    private function executeTool(string $name, array $arguments)
-    {
-        // Implementation of executeTool method
-    }
 }

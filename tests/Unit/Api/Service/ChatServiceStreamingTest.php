@@ -2,9 +2,6 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Api\Service;
-
-use Mockery;
 use Shelfwood\LMStudio\Api\Contract\ApiClientInterface;
 use Shelfwood\LMStudio\Api\Enum\ResponseFormatType;
 use Shelfwood\LMStudio\Api\Enum\Role;
@@ -20,7 +17,7 @@ use Shelfwood\LMStudio\Api\Service\ChatService;
 
 describe('ToolExecutionHandler', function (): void {
     beforeEach(function (): void {
-        $this->apiClient = Mockery::mock(ApiClientInterface::class);
+        $this->apiClient = \Mockery::mock(ApiClientInterface::class);
         $this->chatService = new ChatService($this->apiClient);
     });
 
@@ -110,7 +107,7 @@ describe('ToolExecutionHandler', function (): void {
         // Set up the mock to expect a POST request with the correct data
         $this->apiClient->shouldReceive('postStream')
             ->once()
-            ->with('/api/v0/chat/completions', Mockery::on(function ($data) use ($expectedMessagesArray, $expectedToolsArray) {
+            ->with('/api/v0/chat/completions', \Mockery::on(function ($data) use ($expectedMessagesArray, $expectedToolsArray) {
                 // Basic checks
                 if ($data['model'] !== 'test-model') {
                     return false;
@@ -141,7 +138,7 @@ describe('ToolExecutionHandler', function (): void {
                 }
 
                 return $actualToolsJson === $expectedToolsJson;
-            }), Mockery::type('callable'))
+            }), \Mockery::type('callable'))
             ->andReturnUsing(function ($endpoint, $data, $callback) use ($chunks): void {
                 foreach ($chunks as $chunk) {
                     $callback($chunk);
@@ -231,11 +228,11 @@ describe('ToolExecutionHandler', function (): void {
         // Set up the mock to expect a POST request with stream=true
         $this->apiClient->shouldReceive('postStream')
             ->once()
-            ->with('/api/v0/chat/completions', Mockery::on(function ($data) {
+            ->with('/api/v0/chat/completions', \Mockery::on(function ($data) {
                 return isset($data['stream']) && $data['stream'] === true
                     && $data['model'] === 'test-model'
                     && is_array($data['messages']);
-            }), Mockery::type('callable'))
+            }), \Mockery::type('callable'))
             ->andReturnUsing(function ($endpoint, $data, $callback) use ($chunks): void {
                 foreach ($chunks as $chunk) {
                     $callback($chunk);

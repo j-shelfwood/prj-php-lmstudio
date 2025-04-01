@@ -13,11 +13,17 @@ declare(strict_types=1);
 |
 */
 
-// Use the base TestCase for Unit tests
-uses(Tests\TestCase::class)->in('Unit/Api', 'Unit/Core', 'Unit/LMStudioFactoryStreamingTest.php', 'Unit/LMStudioFactoryTest.php', 'Unit/LMStudioFactoryIntegrationTest.php');
-
-// Use Orchestra TestCase for Laravel-specific tests
+// Use Orchestra TestCase ONLY for the Laravel subdirectory
 uses(\Orchestra\Testbench\TestCase::class)->in('Unit/Laravel');
+
+// Use the base TestCase for specific Unit subdirectories and files
+uses(Tests\TestCase::class)->in(
+    'Unit/Api',
+    'Unit/Core',
+    'Unit/LMStudioFactoryStreamingTest.php',
+    'Unit/LMStudioFactoryTest.php'
+    // Add other specific files or directories in Unit/ if needed
+);
 
 /*
 |--------------------------------------------------------------------------

@@ -9,6 +9,8 @@ use Shelfwood\LMStudio\Api\Model\Tool;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
 
+// Keep for potential use in parameter validation
+
 /**
  * Registry for managing tool registrations.
  */
@@ -31,6 +33,7 @@ class ToolRegistry
      * @param  callable(array<string, mixed>): mixed  $callback  The callback to execute when the tool is called
      * @param  array<string, mixed>  $parameters  The function parameters schema (array, not ToolParameters object directly)
      * @param  string|null  $description  The description of the tool
+     * @return $this
      */
     public function registerTool(string $name, callable $callback, array $parameters, ?string $description = null): self
     {
@@ -38,21 +41,23 @@ class ToolRegistry
 
         // Validate and create ToolParameters object from the input array
         try {
+            // Pass the original parameters array to fromArray
             $toolParameters = ToolParameters::fromArray($parameters);
         } catch (\InvalidArgumentException $e) {
             throw new \InvalidArgumentException("Invalid parameters definition for tool '{$name}': ".$e->getMessage(), 0, $e);
         }
 
-        // Use the validated ToolParameters object to create the definition
+        // Create the ToolDefinition
         $toolDefinition = new ToolDefinition(
             name: $name,
             description: $description ?? '',
             parameters: $toolParameters
         );
 
+        // Create and store the Tool object
         $this->tools[$name] = new Tool(
-            type: ToolType::FUNCTION,
-            definition: $toolDefinition
+            ToolType::FUNCTION,
+            $toolDefinition
         );
 
         return $this;
@@ -66,7 +71,7 @@ class ToolRegistry
      */
     public function hasTool(string $name): bool
     {
-        return isset($this->callbacks[$name]);
+        return isset($this->callbacks[$name]); // Check callback existence, implies tool existence
     }
 
     /**
@@ -109,21 +114,11 @@ class ToolRegistry
     }
 
     /**
-     * Get all registered tools as an array for API requests.
+     * Get all registered tools as a list of Tool objects.
      *
-     * @return array The tools array, suitable for JSON serialization.
+     * @return list<Tool> // <-- Correct return type hint
      */
-    public function getToolsAsArray(): array
-    {
-        return array_values(array_map(fn (Tool $tool) => $tool->toArray(), $this->tools));
-    }
-
-    /**
-     * Get all registered tools as Tool objects.
-     *
-     * @return Tool[] An array of Tool objects.
-     */
-    public function getTools(): array
+    public function getTools(): array // Renamed from getToolsAsArray, simplified implementation
     {
         return array_values($this->tools);
     }

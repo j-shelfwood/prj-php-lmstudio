@@ -27,6 +27,6 @@
         </report>
     </coverage>
     <php>
-        <env name="PCOV_ENABLED" value="1"/>
+        <!-- <env name="PCOV_ENABLED" value="1"/> -->
     </php>
 </phpunit>
