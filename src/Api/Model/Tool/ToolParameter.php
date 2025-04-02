@@ -2,13 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Shelfwood\LMStudio\Api\Model\Tool;
+namespace Shelfwood\Lmstudio\Api\Model\Tool;
+
+use InvalidArgumentException;
 
 class ToolParameter
 {
     public function __construct(
         public readonly string $type,
-        public readonly string $description
+        public readonly ?string $description = null
     ) {}
 
     /**
@@ -20,22 +22,25 @@ class ToolParameter
      */
     public static function fromArray(array $data): self
     {
-        if (! isset($data['type']) || ! is_string($data['type'])) {
-            throw new \InvalidArgumentException('Tool parameter must have a valid "type" string.');
+        if (! isset($data['type']) || ! is_string($data['type']) || empty($data['type'])) {
+            throw new InvalidArgumentException('Tool parameter must have a valid non-empty "type" string.');
         }
 
-        if (! isset($data['description']) || ! is_string($data['description'])) {
-            throw new \InvalidArgumentException('Tool parameter must have a valid "description" string.');
-        }
+        $description = (isset($data['description']) && is_string($data['description'])) ? $data['description'] : null;
 
-        return new self(type: $data['type'], description: $data['description']);
+        return new self(type: $data['type'], description: $description);
     }
 
     public function toArray(): array
     {
-        return [
+        $result = [
             'type' => $this->type,
-            'description' => $this->description,
         ];
+
+        if ($this->description !== null) {
+            $result['description'] = $this->description;
+        }
+
+        return $result;
     }
 }

@@ -249,49 +249,38 @@ class ConversationBuilder
         unset($apiOptions['stream_timeout']);
         $conversationState = new ConversationState($this->model, $apiOptions);
 
-        // Instantiate handlers directly using dependencies from the factory
-        $nonStreamingHandler = new NonStreamingTurnHandler(
-            $this->factory->getChatService(),
-            $finalToolRegistry,
-            $finalToolExecutor,
-            $finalEventHandler,
-            $this->factory->getLogger() // Assuming a getLogger() method exists on the factory
+        // Create the manager using the 4-arg constructor
+        $manager = new ConversationManager(
+            $conversationState, // state
+            $finalEventHandler, // eventHandler
+            $finalStreamProcessor, // streamProcessor (null if not streaming)
+            $this->streaming // isStreaming
         );
 
-        $streamingTurnHandler = null;
-
+        // Instantiate ONLY the required handler and set it on the manager
         if ($this->streaming) {
-            if ($finalStreamProcessor === null) {
-                throw new \LogicException('Streaming is enabled but no StreamingHandler (stream processor) is available.');
+            if ($finalStreamProcessor === null) { // Sanity check
+                throw new \LogicException('Streaming is enabled but no StreamingHandler is available.');
             }
-            // Instantiate handlers directly
             $streamingTurnHandler = new StreamingTurnHandler(
                 $this->factory->getChatService(),
                 $finalToolRegistry,
                 $finalToolExecutor,
                 $finalEventHandler,
                 $finalStreamProcessor,
-                $this->factory->getLogger() // Assuming a getLogger() method exists on the factory
+                $this->factory->getLogger()
             );
+            $manager->setStreamingTurnHandler($streamingTurnHandler);
+        } else {
+            $nonStreamingHandler = new NonStreamingTurnHandler(
+                $this->factory->getChatService(),
+                $finalToolRegistry,
+                $finalToolExecutor,
+                $finalEventHandler,
+                $this->factory->getLogger()
+            );
+            $manager->setNonStreamingTurnHandler($nonStreamingHandler);
         }
-
-        // Merge listeners from internal handler to the final handler if necessary
-        if ($this->eventHandler === null && $this->internalEventHandler->hasAnyCallbacks()) {
-            // If user didn't provide an external handler, but configured the internal one,
-            // $finalEventHandler is $this->internalEventHandler, so listeners are already there.
-            // No action needed here.
-        }
-        // Similar logic for stream listeners: they are configured on the instance ($finalStreamProcessor) directly.
-
-        // Create the manager
-        $manager = new ConversationManager(
-            state: $conversationState,
-            nonStreamingHandler: $nonStreamingHandler,
-            streamingTurnHandler: $streamingTurnHandler,
-            eventHandler: $finalEventHandler,
-            streamProcessor: $finalStreamProcessor,
-            isStreaming: $this->streaming
-        );
 
         return $manager;
     }

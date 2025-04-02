@@ -19,22 +19,35 @@ use Throwable;
  */
 class ConversationManager
 {
+    private ?NonStreamingTurnHandler $nonStreamingHandler;
+
+    private ?StreamingTurnHandler $streamingTurnHandler;
+
     /**
      * @param  ConversationState  $state  The state object holding messages, model, and options.
-     * @param  NonStreamingTurnHandler  $nonStreamingHandler  Handler for simple request/response turns.
-     * @param  StreamingTurnHandler|null  $streamingTurnHandler  Handler for streaming turns (null if streaming not enabled).
      * @param  EventHandler  $eventHandler  Handler for general events (tool execution, errors, responses).
-     * @param  StreamingHandler|null  $streamProcessor  Handler for processing stream chunks and emitting stream-specific events (null if streaming not enabled).
+     * @param  ?StreamingHandler  $streamProcessor  Handler for processing stream chunks (null if streaming not enabled).
      * @param  bool  $isStreaming  Flag indicating if this conversation is configured for streaming.
      */
     public function __construct(
         public readonly ConversationState $state,
-        private readonly NonStreamingTurnHandler $nonStreamingHandler,
-        private readonly ?StreamingTurnHandler $streamingTurnHandler,
         private readonly EventHandler $eventHandler,
         private readonly ?StreamingHandler $streamProcessor,
         public readonly bool $isStreaming
-    ) {}
+    ) {
+        $this->nonStreamingHandler = null;
+        $this->streamingTurnHandler = null;
+    }
+
+    public function setNonStreamingTurnHandler(NonStreamingTurnHandler $handler): void
+    {
+        $this->nonStreamingHandler = $handler;
+    }
+
+    public function setStreamingTurnHandler(?StreamingTurnHandler $handler): void
+    {
+        $this->streamingTurnHandler = $handler;
+    }
 
     /**
      * Executes a non-streaming turn, sending the current messages and handling potential tool calls.
@@ -49,6 +62,10 @@ class ConversationManager
     {
         if ($this->isStreaming) {
             throw new \RuntimeException('Cannot call getResponse() on a streaming conversation. Use handleStreamingTurn() instead.');
+        }
+
+        if ($this->nonStreamingHandler === null) {
+            throw new \LogicException('NonStreamingTurnHandler not set for non-streaming conversation.');
         }
 
         // NonStreamingTurnHandler::handle already triggers error events
@@ -73,8 +90,7 @@ class ConversationManager
         }
 
         if ($this->streamingTurnHandler === null) {
-            // This should ideally not happen if the builder logic is correct
-            throw new \RuntimeException('StreamingTurnHandler is missing for a streaming conversation.');
+            throw new \LogicException('StreamingTurnHandler not set for streaming conversation.');
         }
 
         // StreamingTurnHandler::handle already triggers error events

@@ -2,28 +2,23 @@
 
 declare(strict_types=1);
 
+// Explicitly include the Composer autoloader
+require_once __DIR__.'/../vendor/autoload.php';
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
 |--------------------------------------------------------------------------
 |
-| The closure you provide to your test functions is always bound to a specific PHPUnit test
-| case class. By default, that class is "PHPUnit\Framework\TestCase". Of course, you may
-| need to change it using the "uses()" function to bind a different classes or traits.
+| The closure you provide here will be used as the base test case for
+| all your application tests. This will be used most of the time unless
+| you decide to specify another base test case class manually.
 |
 */
 
-// Use Orchestra TestCase ONLY for the Laravel subdirectory
-uses(\Orchestra\Testbench\TestCase::class)->in('Unit/Laravel');
-
-// Use the base TestCase for specific Unit subdirectories and files
-uses(Tests\TestCase::class)->in(
-    'Unit/Api',
-    'Unit/Core',
-    'Unit/LMStudioFactoryStreamingTest.php',
-    'Unit/LMStudioFactoryTest.php'
-    // Add other specific files or directories in Unit/ if needed
-);
+uses(Tests\TestCase::class)
+    // REMOVE Laravel directory constraint
+    ->in('Unit'); // Scan only the 'Unit' directory (excluding the removed Laravel subdir)
 
 /*
 |--------------------------------------------------------------------------

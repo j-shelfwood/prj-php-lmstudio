@@ -13,12 +13,17 @@ use Shelfwood\LMStudio\Api\Service\CompletionService;
 use Shelfwood\LMStudio\Api\Service\EmbeddingService;
 use Shelfwood\LMStudio\Api\Service\ModelService;
 use Shelfwood\LMStudio\Core\Builder\ConversationBuilder;
+use Shelfwood\LMStudio\Core\Conversation\ConversationState;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Manager\ConversationManager;
 use Shelfwood\LMStudio\Core\Streaming\StreamingHandler;
+use Shelfwood\LMStudio\Core\Tool\Exception\ToolExecutionException;
+use Shelfwood\LMStudio\Core\Tool\Exception\ToolInvalidInputException;
 use Shelfwood\LMStudio\Core\Tool\ToolConfigService;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
+use Shelfwood\LMStudio\Core\Turn\NonStreamingTurnHandler;
+use Shelfwood\LMStudio\Core\Turn\StreamingTurnHandler;
 use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 
 // Define constants for Laravel classes if they exist, otherwise null
@@ -122,32 +127,29 @@ class LMStudioFactory
     ];
 
     /**
-     * @param  string  $baseUrl  The base URL of the API
-     * @param  array<string, string>  $defaultHeaders  Default headers to include in all requests
-     * @param  string  $apiKey  The API key for LMStudio
-     * @param  array<string, mixed>  $config  Optional configuration array (e.g., ['default_tools' => [...]])
-     * @param  LoggerInterface|null  $logger  Optional PSR-3 Logger
+     * @param  array<string, mixed>|null  $customToolConfigurations
      */
     public function __construct(
         string $baseUrl,
         array $defaultHeaders,
         string $apiKey,
-        array $config = [],
-        ?LoggerInterface $logger = null
+        ?LoggerInterface $logger = null,
+        ?array $customToolConfigurations = null
     ) {
         $this->baseUrl = $baseUrl;
         $this->defaultHeaders = $defaultHeaders;
         $this->apiKey = $apiKey;
-        $this->customToolConfigurations = $config['default_tools'] ?? null;
         $this->logger = $logger ?? new NullLogger;
 
+        $this->customToolConfigurations = $customToolConfigurations ?? self::$defaultToolConfigurations;
+
         // Initialize core components
-        $this->toolRegistry = new ToolRegistry;
         $this->eventHandler = $this->createEventHandler();
+        $this->toolRegistry = new ToolRegistry;
         $this->toolExecutor = $this->createToolExecutor();
 
         // Determine which tool configurations to use
-        $toolConfigsToUse = $this->customToolConfigurations ?? self::$defaultToolConfigurations;
+        $toolConfigsToUse = $this->customToolConfigurations;
 
         // Inject the actual callbacks
         $this->injectDefaultToolCallbacks($toolConfigsToUse);
@@ -157,26 +159,35 @@ class LMStudioFactory
             toolRegistry: $this->toolRegistry,
             toolExecutor: $this->toolExecutor,
             eventHandler: $this->eventHandler,
-            toolConfigurations: $toolConfigsToUse // Pass the original configurations
+            toolConfigurations: $toolConfigsToUse
         );
     }
 
     private function injectDefaultToolCallbacks(array &$toolConfigs): void
     {
         if (isset($toolConfigs['echo']) && $toolConfigs['echo']['callback'] === '__ECHO_CALLBACK__') {
-            $toolConfigs['echo']['callback'] = fn (array $args) => $args['message'] ?? 'No message';
+            $toolConfigs['echo']['callback'] = function (array $args) {
+                if (! isset($args['message']) || ! is_string($args['message'])) {
+                    // Use Shelfwood exception
+                    throw new ToolInvalidInputException('Missing or invalid "message" argument for echo tool.', ['arguments' => $args]);
+                }
+
+                return $args['message']; // Return directly, executor will handle encoding
+            };
         }
 
         if (isset($toolConfigs['get_current_time']) && $toolConfigs['get_current_time']['callback'] === '__TIME_CALLBACK__') {
-            $toolConfigs['get_current_time']['callback'] = fn () => date('Y-m-d H:i:s');
+            // Return directly, executor will handle encoding
+            $toolConfigs['get_current_time']['callback'] = fn () => ['time' => date('Y-m-d H:i:s')];
         }
 
         if (isset($toolConfigs['calculate']) && $toolConfigs['calculate']['callback'] === '__CALCULATE_CALLBACK__') {
             $toolConfigs['calculate']['callback'] = function (array $args) {
-                $expression = $args['expression'] ?? '';
+                $expression = $args['expression'] ?? null;
 
-                if (empty($expression)) {
-                    throw new \InvalidArgumentException('Expression missing.');
+                if (empty($expression) || ! is_string($expression)) {
+                    // Use Shelfwood exception
+                    throw new ToolInvalidInputException('Missing or invalid "expression" argument for calculate tool.', ['arguments' => $args]);
                 }
 
                 if ($this->expressionLanguage === null) {
@@ -186,9 +197,16 @@ class LMStudioFactory
                 try {
                     $result = $this->expressionLanguage->evaluate($expression);
 
-                    return is_scalar($result) ? ['result' => $result] : ['error' => 'Invalid result'];
+                    if (! is_scalar($result)) {
+                        // Use Shelfwood exception
+                        throw new ToolExecutionException('Calculation resulted in a non-scalar value.', ['expression' => $expression, 'result_type' => gettype($result)]);
+                    }
+
+                    // Return structured result, executor will encode
+                    return ['result' => $result];
                 } catch (\Exception $e) {
-                    throw new \InvalidArgumentException('Eval error: '.$e->getMessage());
+                    // Wrap calculation errors in Shelfwood exception
+                    throw new ToolExecutionException('Error evaluating expression: '.$e->getMessage(), ['expression' => $expression], 0, $e);
                 }
             };
         }
@@ -285,19 +303,18 @@ class LMStudioFactory
      *
      * @param  array<string, array{callback: callable, parameters: array<string, mixed>, description: string|null}>  $toolConfigurations  The actual tool configurations to register.
      */
-    protected function createToolConfigService(
+    private function createToolConfigService(
         ToolRegistry $toolRegistry,
         ToolExecutor $toolExecutor,
-        EventHandler $eventHandler, // Kept parameter for consistency
-        array $toolConfigurations // Add parameter for configurations
+        EventHandler $eventHandler,
+        array $toolConfigurations
     ): ToolConfigService {
-        // Now receives the configurations instead of defining them
-        // Correct argument order: Registry, Executor, Config Array, EventHandler (optional)
+        // Correct 4 arguments, EventHandler is LAST and optional
         return new ToolConfigService(
-            toolRegistry: $this->toolRegistry,
-            toolExecutor: $this->toolExecutor,
-            toolConfigurations: $toolConfigurations,
-            eventHandler: $this->eventHandler
+            $toolRegistry,
+            $toolExecutor,
+            $toolConfigurations, // Config array is 3rd
+            $eventHandler // EventHandler is 4th
         );
     }
 
@@ -361,71 +378,25 @@ class LMStudioFactory
      * @param  string  $model  The model ID to use for the conversation.
      * @return ConversationBuilder The created conversation builder instance.
      */
-    public function createConversationBuilder(string $model): ConversationBuilder
+    public function createConversationBuilder(string $model, array $options = []): ConversationBuilder
     {
+        // Correct 2 arguments for constructor, add withOptions call
         $builder = new ConversationBuilder(
             factory: $this,
             model: $model
         );
-
-        // Inject components using public readonly properties
-        $builder->withToolRegistry($this->toolRegistry)
-            ->withToolExecutor($this->toolExecutor);
+        $builder->withOptions($options);
 
         return $builder;
-    }
-
-    /**
-     * Create a new queueable conversation builder instance (Requires Laravel context).
-     *
-     * @param  string  $model  The model ID to use.
-     * @param  bool|null  $queueToolsByDefault  Whether tools should be queued by default.
-     * @return object|null An instance of QueueableConversationBuilder or null if class doesn't exist.
-     *
-     * @throws \RuntimeException If the required Laravel class is not available.
-     */
-    public function createQueueableConversationBuilder(string $model, ?bool $queueToolsByDefault = null): ?object
-    {
-        $builderClass = 'Shelfwood\\LMStudio\\Laravel\\Conversation\\QueueableConversationBuilder';
-
-        if (! class_exists($builderClass)) {
-            $this->logger->warning('Attempted to create QueueableConversationBuilder, but the class does not exist. Laravel integration might not be installed.');
-
-            return null;
-        }
-
-        // Re-add logic to get queue dispatcher
-        $queueDispatcher = null;
-
-        if (function_exists('app') && app()->bound('queue')) {
-            $queueDispatcher = app('queue');
-        } else {
-            $this->logger->error('Laravel queue dispatcher not found or app() helper unavailable. Cannot create functional QueueableConversationBuilder.');
-
-            // It's better to throw or return null if the dispatcher is essential
-            throw new \RuntimeException('Laravel queue dispatcher is required for QueueableConversationBuilder but was not found.');
-        }
-
-        // Now call the constructor with the defined $queueDispatcher
-        return new $builderClass(
-            chatService: $this->getChatService(),
-            model: $model,
-            toolRegistry: $this->toolRegistry,
-            eventHandler: $this->eventHandler,
-            queueDispatcher: $queueDispatcher,
-            queueToolsByDefault: $queueToolsByDefault
-        );
     }
 
     /**
      * Create a new streaming handler instance.
      * Can be overridden if custom handler logic is needed.
      */
-    public function createStreamingHandler(?EventHandler $eventHandler = null): StreamingHandler
+    public function createStreamingHandler(): StreamingHandler
     {
-        $handlerToUse = $eventHandler ?? $this->eventHandler;
-
-        return new StreamingHandler;
+        return new StreamingHandler($this->getLogger());
     }
 
     /**
@@ -473,9 +444,13 @@ class LMStudioFactory
     }
 
     // Factory method for ToolExecutor (allows external registry/handler)
-    public function createToolExecutor(?ToolRegistry $registry = null, ?EventHandler $eventHandler = null): ToolExecutor
+    public function createToolExecutor(): ToolExecutor
     {
-        return new ToolExecutor($registry ?? $this->toolRegistry, $eventHandler ?? $this->eventHandler, $this->logger);
+        $eventHandler = $this->getEventHandler();
+        $registry = $this->getToolRegistry();
+        $logger = $this->getLogger();
+
+        return new ToolExecutor($registry, $eventHandler, $logger);
     }
 
     /**
@@ -483,24 +458,28 @@ class LMStudioFactory
      *
      * This is a convenience method using the ConversationBuilder.
      */
-    public function createConversation(
-        string $model,
-        array $options = [],
-        ?ToolRegistry $toolRegistry = null,
-        ?EventHandler $eventHandler = null,
-    ): ConversationManager {
-        $builder = $this->createConversationBuilder($model)
-            ->withOptions($options);
+    public function createConversation(string $model, array $options = []): ConversationManager
+    {
+        $state = new ConversationState($model, $options);
+        $eventHandler = $this->getEventHandler();
+        $streamProcessor = null; // No stream processor for non-streaming
+        $isStreaming = false;
 
-        if ($toolRegistry !== null) {
-            $builder->withToolRegistry($toolRegistry);
-        }
+        // Create Manager using new constructor (4 args: state, eventHandler, streamProcessor, isStreaming)
+        $manager = new ConversationManager(
+            $state,
+            $eventHandler,
+            $streamProcessor,
+            $isStreaming
+        );
 
-        if ($eventHandler !== null) {
-            $builder->withEventHandler($eventHandler);
-        }
+        // Create the handler, passing the manager
+        $turnHandler = $this->createNonStreamingTurnHandler($manager);
 
-        return $builder->build();
+        // Set the handler on the manager
+        $manager->setNonStreamingTurnHandler($turnHandler);
+
+        return $manager;
     }
 
     /**
@@ -510,12 +489,50 @@ class LMStudioFactory
      */
     public function createStreamingConversation(string $model, array $options = []): ConversationManager
     {
-        // This method should primarily just configure the builder for streaming.
-        // Options, toolRegistry, eventHandler should be set via the builder directly.
-        return $this->createConversationBuilder($model)
-            ->withOptions($options)
-            ->withStreaming(true)
-            // Removed direct setting of registry/handler here, should be done on builder instance if needed
-            ->build();
+        $state = new ConversationState($model, $options);
+        $eventHandler = $this->getEventHandler();
+        $streamProcessor = $this->createStreamingHandler(); // Create stream processor for streaming
+        $isStreaming = true;
+
+        // Create Manager using new constructor (4 args)
+        $manager = new ConversationManager(
+            $state,
+            $eventHandler,
+            $streamProcessor,
+            $isStreaming
+        );
+
+        // Create the handler, passing the manager
+        $turnHandler = $this->createStreamingTurnHandler($manager);
+
+        // Set the handler on the manager
+        $manager->setStreamingTurnHandler($turnHandler);
+
+        return $manager;
+    }
+
+    public function createNonStreamingTurnHandler(ConversationManager $manager): NonStreamingTurnHandler
+    {
+        // Correct 5 arguments: ChatService, ToolRegistry, ToolExecutor, EventHandler, Logger
+        return new NonStreamingTurnHandler(
+            $this->getChatService(),
+            $this->getToolRegistry(),
+            $this->createToolExecutor(), // Creates one with Registry, Handler, Logger
+            $this->getEventHandler(),
+            $this->getLogger()
+        );
+    }
+
+    public function createStreamingTurnHandler(ConversationManager $manager): StreamingTurnHandler
+    {
+        // Correct 6 arguments: ChatService, ToolRegistry, ToolExecutor, EventHandler, StreamingHandler, Logger
+        return new StreamingTurnHandler(
+            $this->getChatService(),
+            $this->getToolRegistry(),
+            $this->createToolExecutor(), // Creates one with Registry, Handler, Logger
+            $this->getEventHandler(),
+            $this->createStreamingHandler(), // Creates one with Logger
+            $this->getLogger()
+        );
     }
 }

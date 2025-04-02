@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Core\Turn;
 
+use JsonException;
+use Psr\Log\LoggerInterface;
 use Shelfwood\LMStudio\Api\Model\ChatCompletionChunk;
 use Shelfwood\LMStudio\Api\Model\Message;
 use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
@@ -26,7 +28,8 @@ class StreamingTurnHandler implements TurnHandlerInterface
         private readonly ToolRegistry $toolRegistry,
         private readonly ToolExecutor $toolExecutor,
         private readonly EventHandler $eventHandler,
-        private readonly StreamingHandler $streamingHandler // Inject the specific handler instance for this turn
+        private readonly StreamingHandler $streamingHandler,
+        private readonly LoggerInterface $logger
     ) {}
 
     /**
@@ -35,11 +38,11 @@ class StreamingTurnHandler implements TurnHandlerInterface
     public function handle(ConversationState $state, ?int $timeout = null): string
     {
         $effectiveTimeout = $timeout ?? ($state->getOptions()['stream_timeout'] ?? self::DEFAULT_STREAM_TIMEOUT);
-
-        $this->streamingHandler->reset(); // Reset before use
+        $this->streamingHandler->reset();
 
         $turnComplete = false;
         $turnError = null;
+        /** @var list<ToolCall>|null */
         $receivedToolCalls = null;
         $accumulatedContent = '';
         $finalContent = '';
@@ -108,46 +111,95 @@ class StreamingTurnHandler implements TurnHandlerInterface
                 throw $turnError;
             }
 
-            // --- Process Tools (if received) ---
+            // --- Validate & Execute Tools (if received) ---
             if (! empty($receivedToolCalls)) {
-                // Add initial assistant message (possibly empty content, with tool calls) to state
+                // Add initial assistant message (content accumulated + tool calls) to state
                 $state->addAssistantMessage($accumulatedContent, $receivedToolCalls);
 
-                $toolResults = $this->executeToolCalls($receivedToolCalls);
+                $toolResults = [];
+                $validToolCalls = [];
 
-                // Add tool result messages to state
-                foreach ($toolResults as $key => $result) {
-                    $toolCallId = (string) $key;
-                    $state->addToolMessage($toolCallId, is_string($result) ? $result : json_encode($result));
+                foreach ($receivedToolCalls as $toolCall) {
+                    $toolName = $toolCall->function->name ?? '';
+                    $arguments = $toolCall->function->arguments ?? '';
+                    $toolCallId = $toolCall->id;
+
+                    // 1. Validate Name
+                    if (empty($toolName)) {
+                        $errorMessage = 'Received tool call with empty name during stream.';
+                        $errorPayload = [
+                            'error' => 'MalformedToolCall',
+                            'message' => $errorMessage,
+                            'details' => 'Tool name was empty.',
+                            'received_arguments' => $arguments,
+                            'tool_call_id' => $toolCallId,
+                        ];
+                        $this->logger->warning($errorMessage, ['tool_call' => $toolCall->toArray()]);
+                        $toolResults[$toolCallId] = json_encode($errorPayload);
+
+                        continue;
+                    }
+
+                    // 2. Validate Arguments (must be valid JSON)
+                    try {
+                        json_decode($arguments, true, 512, JSON_THROW_ON_ERROR);
+                    } catch (JsonException $e) {
+                        $errorMessage = "Received tool call '{$toolName}' with invalid JSON arguments during stream.";
+                        $errorPayload = [
+                            'error' => 'MalformedToolCall',
+                            'tool_name' => $toolName,
+                            'message' => $errorMessage,
+                            'details' => 'Arguments could not be parsed as JSON: '.$e->getMessage(),
+                            'received_arguments' => $arguments,
+                            'tool_call_id' => $toolCallId,
+                        ];
+                        $this->logger->warning($errorMessage, ['tool_call' => $toolCall->toArray(), 'json_error' => $e->getMessage()]);
+                        $toolResults[$toolCallId] = json_encode($errorPayload);
+
+                        continue;
+                    }
+
+                    // If valid, add for execution
+                    $validToolCalls[] = $toolCall;
+                }
+
+                // Execute only valid tool calls
+                if (! empty($validToolCalls)) {
+                    $executionResults = $this->toolExecutor->executeMany($validToolCalls);
+                    $toolResults = array_merge($toolResults, $executionResults); // Merge results
+                }
+
+                // Add all tool result messages (validation errors + execution results)
+                foreach ($toolResults as $id => $result) {
+                    $state->addToolMessage((string) $id, $result); // Result is already string (JSON)
                 }
 
                 // --- Second Call (Non-Streaming) ---
                 $finalResponse = $this->chatService->createCompletion(
                     $state->getModel(),
                     $state->getMessages(), // History now includes tool results
-                    null, // No tools for second call
-                    $responseFormat, // Pass original response format if set
-                    $options // Pass original filtered options
+                    null, // No tools needed
+                    $responseFormat, // Use original format if set
+                    $options // Use original filtered options
                 );
+                $this->eventHandler->trigger('response', $finalResponse);
 
-                $this->eventHandler->trigger('response', $finalResponse); // Trigger standard response event
+                $finalAssistantMessage = $finalResponse->choices[0]->message ?? null;
 
-                if (empty($finalResponse->choices)) {
-                    $finalContent = $accumulatedContent; // Default to streamed content if second call is empty
+                if ($finalAssistantMessage === null) {
+                    $this->logger->warning('LM Studio API returned no message choice on second call after stream.');
+                    $finalContent = $accumulatedContent; // Fallback to accumulated content
                 } else {
-                    $finalChoice = $finalResponse->choices[0];
-                    $finalContent = $finalChoice->message->content ?? '';
-
-                    // Add final assistant response to state
-                    if (! empty($finalContent)) {
-                        $state->addAssistantMessage($finalContent);
-                    }
+                    $finalContent = $finalAssistantMessage->content ?? '';
+                    // Add final assistant message to state
+                    $state->addMessage($finalAssistantMessage);
                 }
+
             } else {
-                // No tools called, the accumulated content is the final response
+                // No tools called, accumulated content is final
                 $finalContent = $accumulatedContent;
 
-                // Add the complete assistant message to state
+                // Add the complete assistant message (only content) to state
                 if (! empty($finalContent)) {
                     $state->addAssistantMessage($finalContent);
                 }
@@ -165,18 +217,5 @@ class StreamingTurnHandler implements TurnHandlerInterface
 
             throw $e;
         }
-    }
-
-    /**
-     * Executes tool calls and returns an array of results keyed by tool call ID.
-     *
-     * @param  list<ToolCall>  $toolCalls
-     * @return array<string, mixed> Map of [tool_call_id => result]
-     *
-     * @throws Throwable If tool execution fails.
-     */
-    private function executeToolCalls(array $toolCalls): array
-    {
-        return $this->toolExecutor->executeMany($toolCalls);
     }
 }

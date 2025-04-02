@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Shelfwood\LMStudio\Core\Tool;
+namespace Shelfwood\Lmstudio\Core\Tool;
 
-use Shelfwood\LMStudio\Api\Enum\ToolType;
-use Shelfwood\LMStudio\Api\Model\Tool;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolParameters;
+use InvalidArgumentException;
+use Shelfwood\Lmstudio\Api\Enum\ToolType;
+use Shelfwood\Lmstudio\Api\Model\Tool;
+use Shelfwood\Lmstudio\Api\Model\Tool\ToolDefinition;
+use Shelfwood\Lmstudio\Api\Model\Tool\ToolParameters;
 
 // Keep for potential use in parameter validation
 
@@ -43,8 +44,8 @@ class ToolRegistry
         try {
             // Pass the original parameters array to fromArray
             $toolParameters = ToolParameters::fromArray($parameters);
-        } catch (\InvalidArgumentException $e) {
-            throw new \InvalidArgumentException("Invalid parameters definition for tool '{$name}': ".$e->getMessage(), 0, $e);
+        } catch (InvalidArgumentException $e) {
+            throw new InvalidArgumentException("Invalid parameters definition for tool '{$name}': ".$e->getMessage(), 0, $e);
         }
 
         // Create the ToolDefinition
@@ -100,7 +101,14 @@ class ToolRegistry
             throw new \RuntimeException("Tool '{$name}' not found");
         }
 
-        return ($this->callbacks[$name])($arguments);
+        // Ensure arguments is always an array, even if empty
+        $decodedArgs = is_string($arguments) ? json_decode($arguments, true) : $arguments;
+
+        if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decodedArgs)) {
+            throw new InvalidArgumentException("Tool '{$name}' received invalid JSON arguments: ".json_last_error_msg());
+        }
+
+        return ($this->callbacks[$name])($decodedArgs);
     }
 
     /**

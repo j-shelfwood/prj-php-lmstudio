@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Shelfwood\LMStudio\Api\Enum;
+namespace Shelfwood\Lmstudio\Api\Enum;
 
 /**
  * Represents the type of a tool.

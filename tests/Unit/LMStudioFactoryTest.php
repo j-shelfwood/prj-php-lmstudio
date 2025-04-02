@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
-use Shelfwood\LMStudio\Api\Client\ApiClient;
+// REMOVE Composer autoloader require
+// require_once __DIR__ . '/../../vendor/autoload.php';
+
+use Shelfwood\LMStudio\Api\Client\ApiClient; // Use the base TestCase
 use Shelfwood\LMStudio\Api\Client\HttpClient;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Api\Service\CompletionService;
@@ -17,6 +20,7 @@ use Shelfwood\LMStudio\Core\Tool\ToolConfigService;
 use Shelfwood\LMStudio\Core\Tool\ToolExecutor;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\LMStudioFactory;
+use Tests\TestCase;
 
 /** @var LMStudioFactory $factory */
 $factory = null; // Define for type hinting

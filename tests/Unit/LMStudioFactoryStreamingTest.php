@@ -2,12 +2,20 @@
 
 declare(strict_types=1);
 
+// REMOVE Composer autoloader require
+// require_once __DIR__ . '/../../vendor/autoload.php';
+
+use Mockery; // Use the base TestCase
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Conversation\ConversationState;
 use Shelfwood\LMStudio\Core\Event\EventHandler;
 use Shelfwood\LMStudio\Core\Manager\ConversationManager;
 use Shelfwood\LMStudio\Core\Tool\ToolRegistry;
 use Shelfwood\LMStudio\LMStudioFactory;
+use Tests\TestCase;
+
+/** @var LMStudioFactory $factory */
+$factory = null;
 
 beforeEach(function (): void {
     // Mock only the lowest level dependency if needed
@@ -25,7 +33,6 @@ beforeEach(function (): void {
     $this->mockChatService = Mockery::mock(ChatService::class);
     // Inject this mock if needed, perhaps using a partial mock just for getChatService?
     // Or, modify tests to not rely on actual ChatService execution.
-
 });
 
 test('create streaming conversation creates manager correctly', function (): void {

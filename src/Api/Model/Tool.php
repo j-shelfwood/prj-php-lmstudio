@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Shelfwood\LMStudio\Api\Model;
+namespace Shelfwood\Lmstudio\Api\Model;
 
-use Shelfwood\LMStudio\Api\Enum\ToolType;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolDefinition;
+use Shelfwood\Lmstudio\Api\Enum\ToolType;
+use Shelfwood\Lmstudio\Api\Model\Tool\ToolDefinition;
 
 class Tool
 {

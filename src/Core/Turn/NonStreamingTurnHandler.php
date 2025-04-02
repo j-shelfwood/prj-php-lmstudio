@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Shelfwood\LMStudio\Core\Turn;
 
+use JsonException;
+use Psr\Log\LoggerInterface;
 use Shelfwood\LMStudio\Api\Model\Message;
-use Shelfwood\LMStudio\Api\Model\Tool\ToolCall;
 use Shelfwood\LMStudio\Api\Service\ChatService;
 use Shelfwood\LMStudio\Core\Contract\TurnHandlerInterface;
 use Shelfwood\LMStudio\Core\Conversation\ConversationState;
@@ -20,7 +21,8 @@ class NonStreamingTurnHandler implements TurnHandlerInterface
         private readonly ChatService $chatService,
         private readonly ToolRegistry $toolRegistry,
         private readonly ToolExecutor $toolExecutor,
-        private readonly EventHandler $eventHandler
+        private readonly EventHandler $eventHandler,
+        private readonly LoggerInterface $logger
     ) {}
 
     /**
@@ -48,77 +50,111 @@ class NonStreamingTurnHandler implements TurnHandlerInterface
 
             $this->eventHandler->trigger('response', $response);
 
-            // Check for tool calls in the response
-            $toolCalls = $response->getToolCalls();
+            $assistantMessage = $response->choices[0]->message ?? null;
 
-            if (empty($response->choices)) {
+            if ($assistantMessage === null) {
+                $this->logger->warning('LM Studio API returned no message choice.');
+
                 return '';
             }
 
-            $choice = $response->choices[0];
-            $initialContent = $choice->message->content;
+            // Add initial assistant message (might have content and/or tool calls)
+            $state->addMessage($assistantMessage);
 
-            // Add the assistant's first message (content and/or tool calls) to state
-            if (! empty($initialContent)) {
-                $state->addAssistantMessage($initialContent);
-            }
+            // Get Tool Calls
+            $toolCalls = $assistantMessage->tool_calls ?? [];
 
-            // --- Handle Tools if Present ---
+            // --- Validate Tool Calls & Execute ---
+            $toolResults = [];
+            $validToolCalls = [];
+
             if (! empty($toolCalls)) {
-                $toolResults = $this->executeToolCalls($toolCalls);
+                foreach ($toolCalls as $toolCall) {
+                    $toolName = $toolCall->function->name ?? '';
+                    $arguments = $toolCall->function->arguments ?? '';
+                    $toolCallId = $toolCall->id;
 
-                // Add tool result messages to state
-                foreach ($toolResults as $key => $result) {
-                    $toolCallId = (string) $key;
-                    $state->addToolMessage($toolCallId, is_string($result) ? $result : json_encode($result));
+                    // 1. Validate Name
+                    if (empty($toolName)) {
+                        $errorMessage = 'Received tool call with empty name.';
+                        $errorPayload = [
+                            'error' => 'MalformedToolCall',
+                            'message' => $errorMessage,
+                            'details' => 'Tool name was empty.',
+                            'received_arguments' => $arguments,
+                            'tool_call_id' => $toolCallId,
+                        ];
+                        $this->logger->warning($errorMessage, ['tool_call' => $toolCall->toArray()]);
+                        $toolResults[$toolCallId] = json_encode($errorPayload);
+
+                        continue; // Skip to next tool call
+                    }
+
+                    // 2. Validate Arguments (must be valid JSON)
+                    try {
+                        json_decode($arguments, true, 512, JSON_THROW_ON_ERROR);
+                    } catch (JsonException $e) {
+                        $errorMessage = "Received tool call '{$toolName}' with invalid JSON arguments.";
+                        $errorPayload = [
+                            'error' => 'MalformedToolCall',
+                            'tool_name' => $toolName,
+                            'message' => $errorMessage,
+                            'details' => 'Arguments could not be parsed as JSON: '.$e->getMessage(),
+                            'received_arguments' => $arguments,
+                            'tool_call_id' => $toolCallId,
+                        ];
+                        $this->logger->warning($errorMessage, ['tool_call' => $toolCall->toArray(), 'json_error' => $e->getMessage()]);
+                        $toolResults[$toolCallId] = json_encode($errorPayload);
+
+                        continue; // Skip to next tool call
+                    }
+
+                    // If validation passed, add to list for execution
+                    $validToolCalls[] = $toolCall;
+                }
+
+                // Execute only the valid tool calls
+                if (! empty($validToolCalls)) {
+                    $executionResults = $this->toolExecutor->executeMany($validToolCalls);
+                    // Merge execution results with validation errors
+                    $toolResults = array_merge($toolResults, $executionResults);
+                }
+
+                // Add tool result messages (validation errors + execution results) to state
+                foreach ($toolResults as $id => $result) {
+                    $state->addToolMessage((string) $id, $result); // Result is already a string (JSON)
                 }
 
                 // --- Second Call (after adding tool results) ---
                 $finalResponse = $this->chatService->createCompletion(
                     $state->getModel(),
-                    $state->getMessages(), // History now includes tool results
-                    null, // Tools usually not needed for the second call
+                    $state->getMessages(),
+                    null, // No tools needed
                     null,
-                    $state->getOptions() // Pass initial options again
+                    $state->getOptions()
                 );
-
-                // Trigger response event for the second call
                 $this->eventHandler->trigger('response', $finalResponse);
 
-                if (empty($finalResponse->choices)) {
-                    return ''; // Or throw? Consider behavior if second call yields nothing.
-                }
+                $finalAssistantMessage = $finalResponse->choices[0]->message ?? null;
 
-                $finalChoice = $finalResponse->choices[0];
-                $finalContent = $finalChoice->message->content;
+                if ($finalAssistantMessage === null) {
+                    $this->logger->warning('LM Studio API returned no message choice on second call.');
+
+                    return ''; // Or maybe return initial content?
+                }
 
                 // Add final assistant response to state
-                if (! empty($finalContent)) {
-                    $state->addAssistantMessage($finalContent);
-                }
+                $state->addMessage($finalAssistantMessage);
 
-                return $finalContent ?? '';
+                return $finalAssistantMessage->content ?? '';
             } else {
                 // No tools called, return the initial content
-                return $initialContent ?? '';
+                return $assistantMessage->content ?? '';
             }
         } catch (Throwable $e) {
             $this->eventHandler->trigger('error', $e);
 
-            throw $e; // Re-throw the original exception
+            throw $e;
         }
-    }
-
-    /**
-     * Executes tool calls and returns an array of results keyed by tool call ID.
-     *
-     * @param  list<ToolCall>  $toolCalls
-     * @return array<string, mixed> Map of [tool_call_id => result]
-     *
-     * @throws Throwable If tool execution fails.
-     */
-    private function executeToolCalls(array $toolCalls): array
-    {
-        return $this->toolExecutor->executeMany($toolCalls);
     }
 }
